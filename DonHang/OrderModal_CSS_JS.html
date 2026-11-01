@@ -293,74 +293,81 @@ box.className = 'status-box status-' + type;
 box.textContent = msg;	
 }	
 	
-function handleSaveOrder() {  
+function handleSaveOrder() {
   console.log("⏱️ [CLIENT] BẮT ĐẦU BẤM NÚT LƯU ĐƠN...");
-  const poCustomerMap = {}; 
-  
+  const poCustomerMap = {};
+
   // 1. Kiểm tra tính hợp lệ của dữ liệu trước khi gửi đi
   if (!modalState || !modalState.poGroups || modalState.poGroups.length === 0) {
     showStatus('⚠️ Không có dữ liệu đơn hàng nào để lưu!', 'error');
     return;
   }
 
-  for (let g = 0; g < modalState.poGroups.length; g++) {  
-    const grp = modalState.poGroups[g]; 
-    const po = String(grp.soPO || '').trim(); 
-    const cust = String(grp.customerName || '').trim(); 
-    
-    if (!po) {  
-      showStatus(`⚠️ Đơn PO #${g + 1} (${cust}): Vui lòng nhập Số PO!`, 'error'); 
-      return; 
-    } 
-    if (!grp.salesPerson || !grp.salesPerson.trim()) {  
-      showStatus(`⚠️ Đơn PO #${g + 1} (${po}): Vui lòng chọn Nhân viên Kinh doanh phụ trách!`, 'error');  
-      return; 
-    } 
-    
-    // Kiểm tra không dùng chung 1 số PO cho 2 khách hàng khác nhau
-    const poUpper = po.toUpperCase(); 
-    if (poCustomerMap[poUpper] && poCustomerMap[poUpper] !== cust.toLowerCase()) {  
-      showStatus(`⚠️ Lỗi: Số PO "${po}" đang bị dùng chung cho 2 khách hàng khác nhau!`, 'error');  
-      return; 
-    } 
-    poCustomerMap[poUpper] = cust.toLowerCase();  
-    
-    for (let i = 0; i < grp.items.length; i++) {  
-      const it = grp.items[i];  
-      if (!it.prodName || !it.prodName.trim()) {  
-        showStatus(`⚠️ Đơn PO "${po}" - Dòng #${i + 1}: Tên sản phẩm không được để trống!`, 'error'); 
-        return; 
-      } 
-      if (Number(it.qty) <= 0) {  
-        showStatus(`⚠️ Đơn PO "${po}" - Dòng #${i + 1} (${it.prodName}): Số lượng đặt phải lớn hơn 0!`, 'error'); 
-        return; 
-      } 
-    }   
+  for (let g = 0; g < modalState.poGroups.length; g++) {
+    const grp = modalState.poGroups[g];
+    const po = String(grp.soPO || '').trim();
+    const cust = String(grp.customerName || '').trim();
+
+    if (!po) {
+      showStatus(`⚠️ Đơn PO #${g + 1} (${cust}): Vui lòng nhập Số PO!`, 'error');
+      return;
+    }
+    if (!grp.salesPerson || !grp.salesPerson.trim()) {
+      showStatus(`⚠️ Đơn PO #${g + 1} (${po}): Vui lòng chọn Nhân viên Kinh doanh phụ trách!`, 'error');
+      return;
+    }
+
+    const poUpper = po.toUpperCase();
+    if (poCustomerMap[poUpper] && poCustomerMap[poUpper] !== cust.toLowerCase()) {
+      showStatus(`⚠️ Lỗi: Số PO "${po}" đang bị dùng chung cho 2 khách hàng khác nhau!`, 'error');
+      return;
+    }
+    poCustomerMap[poUpper] = cust.toLowerCase();
+
+    for (let i = 0; i < grp.items.length; i++) {
+      const it = grp.items[i];
+      if (!it.prodName || !it.prodName.trim()) {
+        showStatus(`⚠️ Đơn PO "${po}" - Dòng #${i + 1}: Tên sản phẩm không được để trống!`, 'error');
+        return;
+      }
+      if (Number(it.qty) <= 0) {
+        showStatus(`⚠️ Đơn PO "${po}" - Dòng #${i + 1} (${it.prodName}): Số lượng đặt phải lớn hơn 0!`, 'error');
+        return;
+      }
+    }
   }
 
   // 2. Chuyển trạng thái giao diện sang xử lý
-  const btnSave = document.getElementById('btnSaveOrders') || document.querySelector('button[onclick="handleSaveOrder()"]');
+  const btnSave = document.getElementById('btnSaveOrder') || document.getElementById('btnSaveOrders') || document.querySelector('button[onclick="handleSaveOrder()"]');
   if (btnSave) {
     btnSave.disabled = true;
     btnSave.textContent = '⏳ Đang lưu vào hệ thống...';
   }
-  showStatus('⏳ Đang xử lý ghi dữ liệu và đồng bộ database...', 'info');
+  showStatus('⏳ Đang xử lý ghi dữ liệu và đồng bộ database...', 'loading');
 
-  // 3. Đóng gói payload chuẩn xác: Giữ đúng tên khóa ngayDat và ngayGiaoDK khớp với Server
+  // 3. Đóng gói payload đầy đủ thông tin sản phẩm
   const cleanPOGroups = modalState.poGroups.map(grp => ({
     soPO: String(grp.soPO || '').trim(),
     customerName: String(grp.customerName || '').trim(),
     salesPerson: String(grp.salesPerson || '').trim(),
     ngayDat: String(grp.ngayDat || grp.orderDate || '').trim(),
     ngayGiaoDK: String(grp.ngayGiaoDK || grp.deliveryDate || grp.ngayGiao || '').trim(),
-    note: grp.note || '',
+    orderNote: grp.orderNote || grp.note || '',
+    existingFileUrl: grp.existingFileUrl || '',
+    fileBase64: grp.fileAttachment ? grp.fileAttachment.base64 : '',
+    fileName: grp.fileAttachment ? grp.fileAttachment.name : '',
+    giakhuon: String(grp.giakhuon || '').trim(),
     items: (grp.items || []).map(it => ({
       prodName: String(it.prodName || '').trim(),
-      prodCode: String(it.prodCode || '').trim(),
+      codeSP: String(it.codeSP !== undefined ? it.codeSP : (it.prodCode || '')).trim(),
+      unit: String(it.unit || '').trim(),
       qty: Number(it.qty) || 0,
       price: Number(it.price) || 0,
-      vat: Number(it.vat) || 0,
-      note: it.note || ''
+      giaKhuon: Number(it.giaKhuon) || 0,
+      mang: String(it.mang || '').trim(),
+      note: String(it.note || '').trim(),
+      deliveryDate: String(it.deliveryDate || '').trim(),
+      isNewProduct: it.isNewProduct
     }))
   }));
 
@@ -373,12 +380,11 @@ function handleSaveOrder() {
       
       showStatus(`✅ Thành công! Đã lưu ${count} đơn PO${summary}. Đang đóng cửa sổ...`, 'success');
 
-      // Đóng modal an toàn sau 400ms để người dùng thấy thông báo xác nhận
       setTimeout(function() {
         if (google && google.script && google.script.host) {
           google.script.host.close();
         }
-      }, 400);
+      }, 500);
     })
     .withFailureHandler(function(err) {
       console.error("❌ [CLIENT] Backend báo lỗi:", err);

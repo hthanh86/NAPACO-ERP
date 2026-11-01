@@ -88,7 +88,8 @@ const TABLE_MAPPING_SCHEMA = {
       { key: 'cao', formHeaders: ['Chiều Cao'],  targetHeaders: ['cao'] },
       { key: 'imageUrl', formHeaders: ['Link File'], targetHeaders: ['imageURL'] },
       { key: 'donggoi', formHeaders: ['Đóng Gói'],  targetHeaders: ['donggoi'] },
-      { key: 'dongia', formHeaders: ['Đơn Giá'], targetHeaders: ['dongia'] }
+      { key: 'dongia', formHeaders: ['Đơn Giá'], targetHeaders: ['dongia'] },
+      { key: 'giakhuon', formHeaders: ['Giá Khuôn'], targetHeaders: ['Gia Khuon'] }
           ]
     },
 

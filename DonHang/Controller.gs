@@ -96,6 +96,7 @@ function getOrderFormDataForModal() {
     const c_ghichu   = resolveCol('CHI_TIET_DH', 'note', ['Ghi chú', 'Ghi Chú']);
     const c_link     = resolveCol('DON_HANG', 'fileUrl', ['Link PO', 'Link Bản vẽ/PO', 'Link']);
     const c_mang     = resolveCol('SAN_PHAM_MASTER', 'mang', ['Màng']);
+    const c_giakhuon = resolveCol('SAN_PHAM_MASTER', 'giakhuon', ['Giá Khuôn', 'Gia Khuon']);
 
     let poGroupsMap = {};
 
@@ -136,6 +137,7 @@ function getOrderFormDataForModal() {
       const noteVal = c_ghichu >= 0 ? String(row[c_ghichu] || '').trim() : '';
       const mangVal = c_mang >= 0 ? String(row[c_mang] || '').trim() : '';
       const isNewProduct = !existingProductSet.has(normalizeKey(sp));
+      const giaKhuonVal = c_giakhuon >= 0 ? (Number(row[c_giakhuon]) || 0) : 0;
 
       poGroupsMap[po].items.push({
         codeSP: codeVal,
@@ -143,6 +145,7 @@ function getOrderFormDataForModal() {
         unit: dvtVal,
         qty: slVal,
         price: giaVal,
+        giaKhuon: giaKhuonVal,
         note: noteVal,
         mang: mangVal,
         deliveryDate: ngayGiaoYMD,
@@ -162,6 +165,9 @@ function getOrderFormDataForModal() {
  * - Cơ chế Fallback đa tầng: Ưu tiên getFormHeaders từ Schema kết hợp từ khóa chuẩn thực tế
  * - Đọc trực tiếp ma trận Cache A2:E vào RAM (Batch Processing), không quét lệch tiêu đề
  * - Batch Write 1 lần duy nhất bằng setValues()
+ */
+/**
+ * SỰ KIỆN ONEDIT: TỰ ĐỘNG ĐIỀN THÔNG TIN KHI CHỌN SẢN PHẨM TRÊN SHEET TAO DON
  */
 function onEdit(e) {
   if (!e || !e.range) return;

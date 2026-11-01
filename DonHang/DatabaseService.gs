@@ -126,10 +126,13 @@ function syncFormDropdowns() {
  * - Dùng Link có sẵn nếu không upload file mới
  */
 /**
- * THAY THẾ: Lưu đơn hàng đồng bộ theo Schema 3NF
- * - Chi tiết đơn hàng lưu masp (Mã SPxxxx)
- * - Tự động điền sl_dachay: 0, sl_dagiao: 0, sl_conlai: qty
- * - Batch Write toàn bộ mảng dữ liệu xuống Sheet
+ * THỰC THI LƯU ĐƠN HÀNG DỰA TRÊN TABLE_MAPPING_SCHEMA
+ * - Rút tên cột động từ Config.gs qua getTargetHeaders()
+ * - Nhận diện sản phẩm cũ bằng khóa (name_napaco + customer_id)
+ * - Tự động cập nhật Code sản phẩm, Đơn vị, Đơn giá cho sản phẩm cũ (chỉ ghi đè khi khác rỗng và khác 0)
+ * - Tự động thêm sản phẩm mới nếu chưa có
+ * - Xóa sạch biểu mẫu nhập liệu trên sheet TAO DON sau khi lưu thành công
+ * - Batch Write toàn bộ mảng dữ liệu xuống Sheet (1 lần duy nhất mỗi bảng)
  */
 function executeSaveOrdersWithSchema(payload) {
   const tTotalStart = Date.now();
@@ -151,7 +154,7 @@ function executeSaveOrdersWithSchema(payload) {
 
     const now = new Date();
 
-    // MỐC 1: Mở 2 Spreadsheet qua ID
+    // MỐC 1: Mở các Spreadsheet qua ID cấu hình
     const t1 = Date.now();
     const targetOpId = CONFIG.ID_OPERATION;
     const targetMasterId = CONFIG.ID_MASTER;
@@ -161,7 +164,9 @@ function executeSaveOrdersWithSchema(payload) {
       ? activeSS
       : SpreadsheetApp.openById(targetOpId);
       
-    const ssMaster = SpreadsheetApp.openById(targetMasterId);
+    const ssMaster = (activeSS && activeSS.getId() === targetMasterId)
+      ? activeSS
+      : SpreadsheetApp.openById(targetMasterId);
 
     const shDH = ssOp.getSheetByName(CONFIG.SHEET_DON_HANG);
     const shCT = ssOp.getSheetByName(CONFIG.SHEET_CHI_TIET_DH);
@@ -169,210 +174,161 @@ function executeSaveOrdersWithSchema(payload) {
     const shKH = ssMaster.getSheetByName(CONFIG.SHEET_KHACH_HANG);
     if (!shDH || !shCT) throw new Error('Không tìm thấy bảng 01.DonHang hoặc 02.ChiTietDH!');
 
-    // MỐC 1: MỞ FILE DATABASE VỚI ĐỊNH DANH ID CHUẨN XÁC
-    
-    Logger.log(`⏱️ [SERVER] 1. Mở 2 Spreadsheet qua ID: ${Date.now() - t1} ms (ssOp: ${ssOp.getName()} - ${ssOp.getId()})`);
-  
-    
-
-    /* MỐC 1: TỐI ƯU CỰC HẠN - TÁI SỬ DỤNG PHIÊN ACTIVE, CHỈ MỞ MASTER QUA ID
-    const t1 = Date.now();
-    const activeSS = SpreadsheetApp.getActiveSpreadsheet();
-    const ssOp = (activeSS && activeSS.getId() === CONFIG.SHEET_DON_HANG)
-      ? activeSS
-      : SpreadsheetApp.openById(CONFIG.SHEET_DON_HANG);
-    const ssMaster = SpreadsheetApp.openById(CONFIG.ID_MASTER);
     Logger.log(`⏱️ [SERVER] 1. Mở Spreadsheet qua ID: ${Date.now() - t1} ms`);
-*/
 
-   // MỐC 2: TỐI ƯU ONE-PASS TOÀN DIỆN - ĐỌC RAM 4 LẦN DUY NHẤT, QUÉT ID TRONG BỘ NHỚ
+    // MỐC 2: TỐI ƯU ONE-PASS TOÀN DIỆN - ĐỌC RAM & LẬP BẢN ĐỒ VỊ TRÍ CỘT THEO SCHEMA
     const t2 = Date.now();
 
-    // Chuẩn bị chuỗi ngày để quét regex ID
     const yy = String(now.getFullYear()).slice(2);
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
     const dateStr = `${yy}${mm}${dd}`;
 
-    // Helper tạo cấu trúc sheetInfo chuẩn hóa 1-based colMap và tự động cắt biên lastCol thực tế trong RAM
-    const createSheetInfoFromHeaders = (rawHeaders, headerRow, lastRow) => {
-      const colMap = {};
-      let trueLastCol = 0;
-      if (Array.isArray(rawHeaders)) {
-        for (let c = 0; c < rawHeaders.length; c++) {
-          const val = rawHeaders[c];
-          if (val !== undefined && val !== null && String(val).trim() !== '') {
-            colMap[normalizeKey(String(val))] = c + 1; // 1-based index đồng bộ chuẩn getColIndex()
-            trueLastCol = c + 1;
-          }
-        }
+    const getTargetKeys = (tableName, key, fallbacks) => {
+      let headers = [];
+      if (typeof getTargetHeaders === 'function') {
+        headers = getTargetHeaders(tableName, key) || [];
       }
-      return {
-        headerRow: headerRow,
-        startDataRow: headerRow + 1,
-        lastRow: lastRow,
-        lastCol: trueLastCol,
-        headers: Array.isArray(rawHeaders) ? rawHeaders.slice(0, trueLastCol) : [],
-        colMap: colMap
-      };
+      return Array.from(new Set([...headers, ...fallbacks]));
     };
 
-    // 1. Bảng 01.DonHang: Đọc RAM 1 lần duy nhất (Lấy tiêu đề động & Quét ID trong RAM)
-    const dhRawData = shDH.getDataRange().getValues();
-    const dhHeaderIdx = TABLE_MAPPING_SCHEMA.DON_HANG.headerRow - 1;
-    const headersDH = dhRawData.length > dhHeaderIdx ? dhRawData[dhHeaderIdx] : [];
-    const infoDH = createSheetInfoFromHeaders(headersDH, TABLE_MAPPING_SCHEMA.DON_HANG.headerRow, dhRawData.length);
-    const cDH_MaDH = getColIndex(infoDH, getTargetHeaders('DON_HANG', 'maDH'));
+    const infoDH = getDynamicSheetInfo(shDH, 1, 'Ma_DH');
+    const infoCT = getDynamicSheetInfo(shCT, 1, 'Ma_CT');
+    const infoKH = shKH ? getDynamicSheetInfo(shKH, 1, 'Ma_KH') : null;
+    const infoSP = shSP ? getDynamicSheetInfo(shSP, 1, 'name_napaco') : null;
 
+    // 1. Quét sequence DH
     let curSeqDH = 0;
-    if (cDH_MaDH >= 0 && dhRawData.length >= infoDH.startDataRow) {
-      const startIdxDH = Math.max(infoDH.startDataRow - 1, dhRawData.length - 100);
-      const regexDH = new RegExp(`^DH_${dateStr}_(\\d+)$`);
-      for (let i = startIdxDH; i < dhRawData.length; i++) {
-        const m = String(dhRawData[i][cDH_MaDH] || '').trim().match(regexDH);
-        if (m) {
-          const s = parseInt(m[1], 10);
-          if (s > curSeqDH) curSeqDH = s;
-        }
-      }
-    }
-
-    // 2. Bảng 02.ChiTietDH: Đọc RAM 1 lần duy nhất (Lấy tiêu đề động & Quét ID trong RAM)
-    const ctRawData = shCT.getDataRange().getValues();
-    const ctHeaderIdx = TABLE_MAPPING_SCHEMA.CHI_TIET_DH.headerRow - 1;
-    const headersCT = ctRawData.length > ctHeaderIdx ? ctRawData[ctHeaderIdx] : [];
-    const infoCT = createSheetInfoFromHeaders(headersCT, TABLE_MAPPING_SCHEMA.CHI_TIET_DH.headerRow, ctRawData.length);
-    const cCT_MaCT = getColIndex(infoCT, getTargetHeaders('CHI_TIET_DH', 'maCT'));
-
-    let curSeqCT = 0;
-    if (cCT_MaCT >= 0 && ctRawData.length >= infoCT.startDataRow) {
-      const startIdxCT = Math.max(infoCT.startDataRow - 1, ctRawData.length - 100);
-      const regexCT = new RegExp(`^CT_${dateStr}_(\\d+)$`);
-      for (let i = startIdxCT; i < ctRawData.length; i++) {
-        const m = String(ctRawData[i][cCT_MaCT] || '').trim().match(regexCT);
-        if (m) {
-          const s = parseInt(m[1], 10);
-          if (s > curSeqCT) curSeqCT = s;
-        }
-      }
-    }
-
-    // 3. Bảng 02_SAN_PHAM: Đọc RAM 1 lần duy nhất (Nạp danh mục & Max SPxxxx)
-    const existingProducts = {};
-    const productMapByName = {};
-    let curSeqSP = 0;
-    let infoSP = null;
-
-    if (shSP) {
-      const spRawData = shSP.getDataRange().getValues();
-      const spHeaderIdx = TABLE_MAPPING_SCHEMA.SAN_PHAM_MASTER.headerRow - 1;
-      const headersSP = spRawData.length > spHeaderIdx ? spRawData[spHeaderIdx] : [];
-      infoSP = createSheetInfoFromHeaders(headersSP, TABLE_MAPPING_SCHEMA.SAN_PHAM_MASTER.headerRow, spRawData.length);
-
-      const cSP_MaSP = getColIndex(infoSP, getTargetHeaders('SAN_PHAM_MASTER', 'spId'));
-      const cSP_Name = getColIndex(infoSP, getTargetHeaders('SAN_PHAM_MASTER', 'nameNapaco'));
-
-      for (let i = infoSP.startDataRow - 1; i < spRawData.length; i++) {
-        const row = spRawData[i];
-        if (cSP_MaSP >= 0) {
-          const m = String(row[cSP_MaSP] || '').match(/^SP(\d+)$/);
+    if (infoDH.lastRow >= infoDH.startDataRow) {
+      const colMaDH = getColIndex(infoDH, getTargetKeys('DON_HANG', 'maDH', ['Mã Đơn Hàng', 'Ma_DH', 'Mã ĐH']));
+      if (colMaDH >= 0) {
+        const valsDH = shDH.getRange(infoDH.startDataRow, colMaDH + 1, infoDH.lastRow - infoDH.startDataRow + 1, 1).getValues();
+        const regDH = new RegExp(`^DH_${dateStr}_(\\d+)$`);
+        for (let r = 0; r < valsDH.length; r++) {
+          const m = String(valsDH[r][0]).match(regDH);
           if (m) {
             const num = parseInt(m[1], 10);
-            if (num > curSeqSP) curSeqSP = num;
-          }
-        }
-        if (cSP_Name >= 0) {
-          const pName = normalizeKey(row[cSP_Name]);
-          const spIdVal = cSP_MaSP >= 0 ? String(row[cSP_MaSP] || '').trim() : '';
-          if (pName) {
-            existingProducts[pName] = true;
-            if (spIdVal) productMapByName[pName] = spIdVal;
+            if (num > curSeqDH) curSeqDH = num;
           }
         }
       }
     }
 
-    // 4. Bảng 01_KHACH_HANG: Đọc RAM 1 lần duy nhất (Nạp danh mục & Max KHxxxx)
-    const existingCustomers = {};
-    const customerMapByName = {};
+    // 2. Quét sequence CT
+    let curSeqCT = 0;
+    if (infoCT.lastRow >= infoCT.startDataRow) {
+      const colMaCT = getColIndex(infoCT, getTargetKeys('CHI_TIET_DH', 'maCT', ['Mã Chi Tiết', 'ID_Chi_Tiet', 'Mã CT']));
+      if (colMaCT >= 0) {
+        const valsCT = shCT.getRange(infoCT.startDataRow, colMaCT + 1, infoCT.lastRow - infoCT.startDataRow + 1, 1).getValues();
+        const regCT = new RegExp(`^CT_${dateStr}_(\\d+)$`);
+        for (let r = 0; r < valsCT.length; r++) {
+          const m = String(valsCT[r][0]).match(regCT);
+          if (m) {
+            const num = parseInt(m[1], 10);
+            if (num > curSeqCT) curSeqCT = num;
+          }
+        }
+      }
+    }
+
+    // 3. Đọc & map Khách Hàng từ DB Master
     let curSeqKH = 0;
-    let infoKH = null;
-
-    if (shKH) {
-      const khRawData = shKH.getDataRange().getValues();
-      const khHeaderIdx = TABLE_MAPPING_SCHEMA.KHACH_HANG_MASTER.headerRow - 1;
-      const headersKH = khRawData.length > khHeaderIdx ? khRawData[khHeaderIdx] : [];
-      infoKH = createSheetInfoFromHeaders(headersKH, TABLE_MAPPING_SCHEMA.KHACH_HANG_MASTER.headerRow, khRawData.length);
-
-      const cKH_MaKH = getColIndex(infoKH, getTargetHeaders('KHACH_HANG_MASTER', 'Ma_KH'));
-      const cKH_Name = getColIndex(infoKH, getTargetHeaders('KHACH_HANG_MASTER', 'name'));
-
-      for (let k = infoKH.startDataRow - 1; k < khRawData.length; k++) {
-        const row = khRawData[k];
-        if (cKH_MaKH >= 0) {
-          const m = String(row[cKH_MaKH] || '').match(/^KH(\d+)$/);
+    const customerMapByName = {};
+    const existingCustomers = {};
+    if (shKH && infoKH && infoKH.lastRow >= infoKH.startDataRow) {
+      const colMaKH = getColIndex(infoKH, getTargetKeys('KHACH_HANG_MASTER', 'Ma_KH', ['Ma_KH', 'customer_id']));
+      const colTenKH = getColIndex(infoKH, getTargetKeys('KHACH_HANG_MASTER', 'name', ['name', 'Tên Khách Hàng', 'Khách Hàng']));
+      const khData = shKH.getRange(infoKH.startDataRow, 1, infoKH.lastRow - infoKH.startDataRow + 1, infoKH.lastCol).getValues();
+      for (let r = 0; r < khData.length; r++) {
+        const makh = colMaKH >= 0 ? String(khData[r][colMaKH]).trim() : '';
+        const tenkh = colTenKH >= 0 ? String(khData[r][colTenKH]).trim() : '';
+        if (makh) {
+          const m = makh.match(/^KH(\d+)$/i);
           if (m) {
             const num = parseInt(m[1], 10);
             if (num > curSeqKH) curSeqKH = num;
           }
         }
-        if (cKH_Name >= 0) {
-          const ten = normalizeKey(row[cKH_Name]);
-          const ma = cKH_MaKH >= 0 ? String(row[cKH_MaKH] || '').trim() : '';
-          if (ten) {
-            existingCustomers[ten] = true;
-            if (ma) customerMapByName[ten] = ma;
+        if (tenkh) {
+          const nKey = normalizeKey(tenkh);
+          customerMapByName[nKey] = makh;
+          existingCustomers[nKey] = true;
+        }
+      }
+    }
+
+    // 4. Đọc & map Sản Phẩm từ DB Master
+    let curSeqSP = 0;
+    let spExistingData = [];
+    const productMapByCompositeKey = {};
+    const productMapByNameOnly = {};
+
+    const colIdxSP_ID = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'spId', ['SP_ID', 'sp_id', 'Mã Sản Phẩm', 'Mã SP'])) : -1;
+    const colIdxSP_Cust = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'customerId', ['customer_id', 'Khách Hàng', 'Ma_KH'])) : -1;
+    const colIdxSP_Name = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'nameNapaco', ['name_napaco', 'Tên Sản Phẩm', 'Sản Phẩm'])) : -1;
+    const colIdxSP_Code = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'codeSanpham', ['Code_Sanpham', 'Code Sản Phẩm', 'code_sp'])) : -1;
+    const colIdxSP_DonVi = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'donvi', ['donvi', 'Đơn Vị', 'DVT'])) : -1;
+    const colIdxSP_DonGia = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'dongia', ['dongia', 'Đơn Giá', 'Gia_Ban'])) : -1;
+    const colIdxSP_GiaKhuon = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'giakhuon', ['Gia Khuon', 'Giá Khuôn', 'gia_khuon'])) : -1;
+
+    if (shSP && infoSP && infoSP.lastRow >= infoSP.startDataRow) {
+      spExistingData = shSP.getRange(infoSP.startDataRow, 1, infoSP.lastRow - infoSP.startDataRow + 1, infoSP.lastCol).getValues();
+      for (let r = 0; r < spExistingData.length; r++) {
+        const row = spExistingData[r];
+        const masp = colIdxSP_ID >= 0 ? String(row[colIdxSP_ID]).trim() : '';
+        const tensp = colIdxSP_Name >= 0 ? String(row[colIdxSP_Name]).trim() : '';
+        const custId = colIdxSP_Cust >= 0 ? String(row[colIdxSP_Cust]).trim() : '';
+
+        if (masp) {
+          const m = masp.match(/^SP(\d+)$/i);
+          if (m) {
+            const num = parseInt(m[1], 10);
+            if (num > curSeqSP) curSeqSP = num;
+          }
+        }
+
+        if (tensp) {
+          const pKey = normalizeKey(tensp);
+          const cKey = normalizeKey(custId);
+
+          if (cKey) {
+            productMapByCompositeKey[pKey + '___' + cKey] = { spId: masp, rIdx: r };
+          }
+          if (!productMapByNameOnly[pKey]) {
+            productMapByNameOnly[pKey] = { spId: masp, rIdx: r };
           }
         }
       }
     }
-    Logger.log(`⏱️ [SERVER] 2. Quét Header & nạp dữ liệu vào RAM (One-Pass 4 Bảng): ${Date.now() - t2} ms`);
 
-    // // code hiện tại: MỐC 3: Xử lý logic nghiệp vụ trong RAM (Giữ nguyên toàn bộ phía sau)
+    Logger.log(`⏱️ [SERVER] 2. Quét RAM & lập Index theo Schema: ${Date.now() - t2} ms`);
 
-    // MỐC 3: Xử lý logic nghiệp vụ trong RAM
+    // MỐC 3: TÍNH TOÁN RAM + XỬ LÝ UPSERT SẢN PHẨM & ĐƠN HÀNG
     const t3 = Date.now();
-    let storageFolder = null;
-    try {
-      storageFolder = DriveApp.getFolderById(CONFIG.ID_STORAGES);
-    } catch (e) {
-      Logger.log("Lỗi mở thư mục Storages: " + e.message);
-    }
+    let timeUploadDrive = 0;
 
+    const newCustomerRows = [];
+    const newProductRows = [];
+    const newCacheRows = [];
     const orderRows = [];
     const detailRows = [];
-    const newProductRows = [];
-    const newCustomerRows = [];
-    const newCacheRows = []; // Dữ liệu bổ sung trực tiếp vào Cache siêu tốc
-    const summaryPOList = [];
-    let totalItems = 0;
-    let timeUploadDrive = 0;
+    let hasUpdatedExistingProducts = false;
 
     for (let g = 0; g < poGroups.length; g++) {
       const grp = poGroups[g];
-      const soPO = String(grp.soPO || '').trim();
-      summaryPOList.push(soPO);
-
       curSeqDH++;
       const maDH = `DH_${dateStr}_${String(curSeqDH).padStart(2, '0')}`;
+      const soPO = grp.soPO || '';
 
-      // Upload file nếu có
+      // Upload file PO nếu có
       let fileUrl = grp.existingFileUrl || '';
-      if (grp.fileAttachment && grp.fileAttachment.base64 && storageFolder) {
+      if (grp.fileBase64 && grp.fileName) {
         const tUp = Date.now();
-        try {
-          const fileBytes = Utilities.base64Decode(grp.fileAttachment.base64);
-          const ext = grp.fileAttachment.extension || 'pdf';
-          const blob = Utilities.newBlob(fileBytes, grp.fileAttachment.mimeType || 'application/octet-stream', `${soPO}.${ext}`);
-          const savedFile = storageFolder.createFile(blob);
-          fileUrl = savedFile.getUrl();
-        } catch (errUpload) {
-          Logger.log(`Lỗi upload file: ${errUpload.message}`);
-        }
+        fileUrl = uploadPOFileToDrive(grp.fileBase64, grp.fileName, grp.customerName || 'KH', soPO, maDH);
         timeUploadDrive += (Date.now() - tUp);
       }
 
-      // Xử lý Khách Hàng mới
+      // Xử lý Khách Hàng
       const custNorm = normalizeKey(grp.customerName);
       let currentMaKH = customerMapByName[custNorm] || '';
       if (custNorm && !existingCustomers[custNorm] && shKH && infoKH) {
@@ -393,40 +349,105 @@ function executeSaveOrdersWithSchema(payload) {
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        totalItems++;
         curSeqCT++;
         const maCT = `CT_${dateStr}_${String(curSeqCT).padStart(2, '0')}`;
         const qty = Number(item.qty) || 0;
-        const price = Number(item.price) || 0;
+        const price = Number(item.price !== undefined ? item.price : item.dongia) || 0;
+        const giaKhuon = Number(item.giaKhuon !== undefined ? item.giaKhuon : item.giakhuon) || 0;
 
-        // Xử lý Sản Phẩm mới
         const pNorm = normalizeKey(item.prodName);
-        let currentMaSP = productMapByName[pNorm] || '';
-        if (pNorm && !existingProducts[pNorm] && shSP && infoSP) {
-          curSeqSP++;
-          currentMaSP = `SP${String(curSeqSP).padStart(4, '0')}`;
-          const spObj = {
-            spId: currentMaSP,
-            customerId: currentMaKH,
-            mang: item.mang || '',
-            codeSanpham: item.codeSP || '',
-            nameNapaco: item.prodName || '',
-            donvi: item.unit || '',
-            dongia: price
-          };
-          newProductRows.push(buildRowBySchema(TABLE_MAPPING_SCHEMA.SAN_PHAM_MASTER, infoSP, spObj));
-          
-          // Tạo bản ghi nạp nhanh vào Cache: [Tên SP, Khách Hàng, Code SP, Đơn Vị, Đơn Giá]
-          newCacheRows.push([
-            item.prodName || '',
-            grp.customerName || '',
-            item.codeSP || '',
-            item.unit || '',
-            price || ''
-          ]);
+        const keyWithMaKH = pNorm + '___' + normalizeKey(currentMaKH);
+        const keyWithCustName = pNorm + '___' + custNorm;
+        let currentMaSP = '';
 
-          existingProducts[pNorm] = true;
-          productMapByName[pNorm] = currentMaSP;
+        if (pNorm && shSP && infoSP) {
+          // Đối soát sản phẩm đa tầng
+          const matchEntry = productMapByCompositeKey[keyWithMaKH] || 
+                             productMapByCompositeKey[keyWithCustName] || 
+                             productMapByNameOnly[pNorm];
+
+          if (matchEntry) {
+            // --- SẢN PHẨM CŨ: CẬP NHẬT THÔNG TIN NẾU KHÁC RỖNG VÀ KHÁC 0 ---
+            currentMaSP = matchEntry.spId;
+            const targetRow = spExistingData[matchEntry.rIdx];
+
+            if (targetRow) {
+              let rowModified = false;
+
+              // 1. Code Sản Phẩm
+              const newCode = String(item.codeSP !== undefined ? item.codeSP : (item.codeSanpham !== undefined ? item.codeSanpham : '')).trim();
+              if (newCode !== '' && colIdxSP_Code >= 0) {
+                if (String(targetRow[colIdxSP_Code]).trim() !== newCode) {
+                  targetRow[colIdxSP_Code] = newCode;
+                  rowModified = true;
+                }
+              }
+
+              // 2. Đơn Vị Tính
+              const newUnit = String(item.unit !== undefined ? item.unit : (item.donvi !== undefined ? item.donvi : '')).trim();
+              if (newUnit !== '' && colIdxSP_DonVi >= 0) {
+                if (String(targetRow[colIdxSP_DonVi]).trim() !== newUnit) {
+                  targetRow[colIdxSP_DonVi] = newUnit;
+                  rowModified = true;
+                }
+              }
+
+              // 3. Đơn Giá (chỉ cập nhật khi khác rỗng và > 0)
+              const rawPrice = item.price !== undefined ? item.price : item.dongia;
+              const numPrice = Number(rawPrice);
+              if (rawPrice !== '' && rawPrice !== null && !isNaN(numPrice) && numPrice > 0 && colIdxSP_DonGia >= 0) {
+                if (Number(targetRow[colIdxSP_DonGia]) !== numPrice) {
+                  targetRow[colIdxSP_DonGia] = numPrice;
+                  rowModified = true;
+                }
+              }
+
+              // 4. Giá Khuôn (chỉ cập nhật khi khác rỗng và > 0)
+              if (giaKhuon > 0 && colIdxSP_GiaKhuon >= 0) {
+                if (Number(targetRow[colIdxSP_GiaKhuon]) !== giaKhuon) {
+                  targetRow[colIdxSP_GiaKhuon] = giaKhuon;
+                  rowModified = true;
+                }
+              }
+
+              // 5. Bổ sung customer_id vào sản phẩm nếu trước đó chưa gán
+              if (currentMaKH && colIdxSP_Cust >= 0 && !String(targetRow[colIdxSP_Cust]).trim()) {
+                targetRow[colIdxSP_Cust] = currentMaKH;
+                rowModified = true;
+              }
+
+              if (rowModified) {
+                hasUpdatedExistingProducts = true;
+              }
+            }
+          } else {
+            // --- SẢN PHẨM MỚI: TẠO MÃ SP VÀ THÊM VÀO MASTER ---
+            curSeqSP++;
+            currentMaSP = `SP${String(curSeqSP).padStart(4, '0')}`;
+            const spObj = {
+              spId: currentMaSP,
+              customerId: currentMaKH,
+              mang: item.mang || '',
+              codeSanpham: item.codeSP || item.codeSanpham || '',
+              nameNapaco: item.prodName || '',
+              donvi: item.unit || item.donvi || '',
+              dongia: price,
+              giakhuon: giaKhuon
+            };
+            newProductRows.push(buildRowBySchema(TABLE_MAPPING_SCHEMA.SAN_PHAM_MASTER, infoSP, spObj));
+
+            newCacheRows.push([
+              item.prodName || '',
+              grp.customerName || '',
+              item.codeSP || item.codeSanpham || '',
+              item.unit || item.donvi || '',
+              price || ''
+            ]);
+
+            const newIndex = spExistingData.length + newProductRows.length - 1;
+            productMapByCompositeKey[keyWithMaKH] = { spId: currentMaSP, rIdx: newIndex };
+            productMapByNameOnly[pNorm] = { spId: currentMaSP, rIdx: newIndex };
+          }
         }
 
         const detailObj = {
@@ -446,7 +467,7 @@ function executeSaveOrdersWithSchema(payload) {
         detailRows.push(buildRowBySchema(TABLE_MAPPING_SCHEMA.CHI_TIET_DH, infoCT, detailObj));
       }
 
-      // Chuẩn hóa ngày tháng: Khóa mốc 12:00:00 trưa triệt tiêu độ lệch múi giờ GMT+7
+      // Chuẩn hóa ngày tháng
       const parseDateSafe = (dVal) => {
         if (!dVal) return '';
         if (dVal instanceof Date && !isNaN(dVal.getTime())) {
@@ -454,19 +475,14 @@ function executeSaveOrdersWithSchema(payload) {
         }
         const s = String(dVal).trim();
         if (!s) return '';
-        
-        // Nhận dạng chuẩn ISO từ input type="date" (YYYY-MM-DD hoặc YYYY/MM/DD)
         const mISO = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
         if (mISO) {
           return new Date(parseInt(mISO[1], 10), parseInt(mISO[2], 10) - 1, parseInt(mISO[3], 10), 12, 0, 0);
         }
-        
-        // Nhận dạng chuẩn Việt Nam (DD/MM/YYYY hoặc DD-MM-YYYY)
         const mVN = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
         if (mVN) {
           return new Date(parseInt(mVN[3], 10), parseInt(mVN[2], 10) - 1, parseInt(mVN[1], 10), 12, 0, 0);
         }
-        
         const fallback = new Date(s);
         return isNaN(fallback.getTime()) ? '' : new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 12, 0, 0);
       };
@@ -484,147 +500,77 @@ function executeSaveOrdersWithSchema(payload) {
       };
       orderRows.push(buildRowBySchema(TABLE_MAPPING_SCHEMA.DON_HANG, infoDH, orderObj));
     }
-    Logger.log(`⏱️ [SERVER] 3. Tính toán RAM + Sinh ID: ${Date.now() - t3} ms (Upload Drive: ${timeUploadDrive} ms)`);
+    Logger.log(`⏱️ [SERVER] 3. Xử lý RAM & Upsert: ${Date.now() - t3} ms (Upload Drive: ${timeUploadDrive} ms)`);
 
-    // MỐC 4: Batch Writing 4 bảng xuống Sheet (setValues 1 lần duy nhất mỗi bảng)
+    // MỐC 4: BATCH WRITING TẤT CẢ CÁC BẢNG (setValues 1 LẦN DUY NHẤT MỖI BẢNG)
     const t4 = Date.now();
+    
+    // 1. Ghi đè lại bảng sản phẩm trong RAM xuống Sheet Master nếu có sản phẩm cũ được update
+    if (hasUpdatedExistingProducts && shSP && spExistingData.length > 0) {
+      shSP.getRange(infoSP.startDataRow, 1, spExistingData.length, infoSP.lastCol).setValues(spExistingData);
+      Logger.log("✅ [SERVER] Đã cập nhật lại thông tin các sản phẩm cũ trên DB Master.");
+    }
+    
+    // 2. Thêm khách hàng mới
     if (newCustomerRows.length > 0 && shKH) {
       shKH.getRange(shKH.getLastRow() + 1, 1, newCustomerRows.length, infoKH.lastCol).setValues(newCustomerRows);
     }
+    
+    // 3. Thêm sản phẩm mới
     if (newProductRows.length > 0 && shSP) {
       shSP.getRange(shSP.getLastRow() + 1, 1, newProductRows.length, infoSP.lastCol).setValues(newProductRows);
     }
+    
+    // 4. Thêm đơn hàng
     if (orderRows.length > 0) {
       shDH.getRange(shDH.getLastRow() + 1, 1, orderRows.length, infoDH.lastCol).setValues(orderRows);
     }
+    
+    // 5. Thêm chi tiết đơn hàng
     if (detailRows.length > 0) {
       shCT.getRange(shCT.getLastRow() + 1, 1, detailRows.length, infoCT.lastCol).setValues(detailRows);
     }
-    Logger.log(`⏱️ [SERVER] 4. Batch Write 4 bảng setValues(): ${Date.now() - t4} ms`);
+    Logger.log(`⏱️ [SERVER] 4. Batch Write: ${Date.now() - t4} ms`);
 
-    /* MỐC 5: XÓA TRẮNG DỮ LIỆU FORM NHẬP TRÊN GIAO DIỆN ĐANG MỞ (DIRECT FLUSH)
-    const t5 = Date.now();
-    try {
-      const sheetTaoDon = ssOp.getSheetByName(CONFIG.SHEET_TAO_DON);
-      if (sheetTaoDon) {
-        const startR = (CONFIG.HEADER_ROW_TAO_DON || 7) + 1; // Mặc định từ dòng 8
-        const curLastRow = sheetTaoDon.getLastRow();
-        if (curLastRow >= startR) {
-          const numRows = curLastRow - startR + 1;
-          const numCols = Math.max(sheetTaoDon.getLastColumn(), 26);
-          // Xóa trực tiếp nội dung dữ liệu, giữ nguyên định dạng viền, dropdown và tiêu đề
-          sheetTaoDon.getRange(startR, 1, numRows, numCols).clearContent();
-        }
-      }
-    } catch (errClear) {
-      Logger.log("⚠️ Cảnh báo dọn form TAO DON: " + errClear.message);
-    }
-    Logger.log(`⏱️ [SERVER] 5. Dọn sheet form TAO DON (Fast-Clear): ${Date.now() - t5} ms`);
-    */
-
-    // MỐC 5: XÓA TRẮNG FORM TAO DON (BUFFER CỐ ĐỊNH 50 DÒNG, TỐN ~1-2 MS)
+    // MỐC 5: XÓA TRẮNG FORM TAO DON TRÊN GIAO DIỆN HIỆN HÀNH
     const t5 = Date.now();
     try {
       const sheetTaoDonName = CONFIG.SHEET_TAO_DON || 'TAO DON';
-      const sheetTaoDon = ssOp.getSheetByName(sheetTaoDonName);
+      let sheetTaoDon = null;
+      if (activeSS) sheetTaoDon = activeSS.getSheetByName(sheetTaoDonName);
+      if (!sheetTaoDon) sheetTaoDon = ssOp.getSheetByName(sheetTaoDonName);
+
       if (sheetTaoDon) {
-        const startR = (CONFIG.HEADER_ROW_TAO_DON || 7) + 1; // Mặc định từ dòng 8
-        const maxBufferRows = 50; // Quét sạch tối đa 50 dòng theo quy chuẩn
+        const startR = (CONFIG.HEADER_ROW_TAO_DON || 7) + 1;
+        const curLastRow = sheetTaoDon.getLastRow();
+        const maxBufferRows = curLastRow >= startR ? (curLastRow - startR + 1) : (CONFIG.MAX_ROWS_TAO_DON || 50);
         const maxCols = Math.max(sheetTaoDon.getLastColumn(), 26);
         
-        // Xóa trực tiếp nội dung dữ liệu, giữ nguyên viền, dropdown và định dạng
         sheetTaoDon.getRange(startR, 1, maxBufferRows, maxCols).clearContent();
-        Logger.log(`🧹 [SERVER] Đã dọn sạch 50 dòng form trên sheet "${sheetTaoDonName}".`);
-      } else {
-        Logger.log(`⚠️ [SERVER] Không tìm thấy sheet có tên: "${sheetTaoDonName}" trong file Operation.`);
+        Logger.log(`🧹 [SERVER] Đã dọn sạch biểu mẫu nhập liệu trên sheet "${sheetTaoDonName}".`);
       }
     } catch (errClear) {
       Logger.log("⚠️ Cảnh báo dọn form TAO DON: " + errClear.message);
     }
-    Logger.log(`⏱️ [SERVER] 5. Dọn sheet form TAO DON: ${Date.now() - t5} ms`);
+    Logger.log(`⏱️ [SERVER] 5. Dọn form hoàn tất: ${Date.now() - t5} ms`);
 
-    // MỐC 6: ĐỒNG BỘ NẠP NỐI ĐUÔI VÀO SHEET CACHE (DYNAMIC COLUMNS)
-    const t6 = Date.now();
-    try {
-      if (newCacheRows && Array.isArray(newCacheRows) && newCacheRows.length > 0) {
-        const sheetCacheName = CONFIG.SHEET_CACHE || '_CACHE_DANH_MUC';
-        const sheetCache = ssOp.getSheetByName(sheetCacheName);
-        
-        if (sheetCache) {
-          // 1. Quét Header dòng 1 để thiết lập ánh xạ cột động (Dynamic Columns)
-          const lastColCache = Math.max(sheetCache.getLastColumn(), 6);
-          const headerValues = sheetCache.getRange(1, 1, 1, lastColCache).getValues()[0];
-          const cacheColMap = {};
-          
-          headerValues.forEach((h, idx) => {
-            if (h) {
-              const k = normalizeKey(String(h));
-              cacheColMap[k] = idx + 1; // 1-based index
-            }
-          });
-
-          // Helper tìm vị trí cột động theo nhiều tên alias khả dĩ
-          const getColIdx = (aliases) => {
-            for (let name of aliases) {
-              const k = normalizeKey(name);
-              if (cacheColMap[k]) return cacheColMap[k] - 1; // 0-based cho mảng
-            }
-            return -1;
-          };
-
-          const colTenSP = getColIdx(['Tên Sản Phẩm', 'Ten_San_Pham', 'Sản Phẩm']);
-          const colKhachHang = getColIdx(['Khách Hàng', 'Khach_Hang', 'Tên Khách']);
-          const colCodeSP = getColIdx(['Code Sản Phẩm', 'Code_San_Pham', 'Mã SP Khách']);
-          const colDonVi = getColIdx(['Đơn Vị', 'Don_Vi', 'DVT']);
-          const colDonGia = getColIdx(['Đơn Giá', 'Don_Gia', 'Giá Bán']);
-
-          // 2. Chuyển đổi newCacheRows sang ma trận dữ liệu khớp chuẩn theo vị trí cột động
-          const appendMatrix = [];
-          for (let r = 0; r < newCacheRows.length; r++) {
-            const rawItem = newCacheRows[r]; // [prodName, customerName, codeSP, unit, price]
-            const rowArr = new Array(lastColCache).fill('');
-            
-            if (colTenSP >= 0) rowArr[colTenSP] = rawItem[0] || '';
-            if (colKhachHang >= 0) rowArr[colKhachHang] = rawItem[1] || '';
-            if (colCodeSP >= 0) rowArr[colCodeSP] = rawItem[2] || '';
-            if (colDonVi >= 0) rowArr[colDonVi] = rawItem[3] || '';
-            if (colDonGia >= 0) rowArr[colDonGia] = rawItem[4] || '';
-
-            appendMatrix.push(rowArr);
-          }
-
-          // 3. Batch Write ghi nối đuôi vào dòng cuối của sheet Cache
-          const startWriteRow = sheetCache.getLastRow() + 1;
-          sheetCache.getRange(startWriteRow, 1, appendMatrix.length, lastColCache).setValues(appendMatrix);
-          Logger.log(`⚡ [SERVER] Đã đồng bộ nối đuôi ${appendMatrix.length} sản phẩm mới vào "${sheetCacheName}".`);
-        } else {
-          Logger.log(`⚠️ [SERVER] Không tìm thấy sheet Cache có tên: "${sheetCacheName}" trong file Operation.`);
-        }
-      } else {
-        Logger.log("ℹ️ [SERVER] Không có sản phẩm mới phát sinh để nạp vào Cache.");
+    // MỐC 6: TỰ ĐỘNG ĐỒNG BỘ CACHE
+    if (hasUpdatedExistingProducts || newProductRows.length > 0 || newCustomerRows.length > 0) {
+      try {
+        syncFormDropdowns();
+      } catch (eSync) {
+        Logger.log("⚠️ Lỗi đồng bộ Cache: " + eSync.message);
       }
-    } catch (errCache) {
-      Logger.log("⚠️ Cảnh báo nạp Cache: " + errCache.message);
     }
-    Logger.log(`⏱️ [SERVER] 6. Cập nhật Cache siêu tốc (Fast-Append): ${Date.now() - t6} ms`);
 
-
-    
-
-    const totalServer = Date.now() - tTotalStart;
-    Logger.log(`🏁 [SERVER] === TỔNG THỜI GIAN SERVER XỬ LÝ: ${(totalServer / 1000).toFixed(2)} GIÂY (${totalServer} ms) ===`);
-
+    Logger.log(`⏱️ [SERVER] TỔNG THỜI GIAN THỰC THI: ${Date.now() - tTotalStart} ms`);
     return {
       success: true,
-      orderCount: poGroups.length,
-      itemCount: totalItems,
-      newProductCount: newProductRows.length,
-      summaryText: summaryPOList.join(', ')
+      message: `Đã lưu thành công ${orderRows.length} PO và cập nhật danh mục sản phẩm!`
     };
+
   } finally {
-    // Luôn giải phóng khóa an toàn
-    if (lock) {
-      try { lock.releaseLock(); } catch (e) {}
-    }
+    lock.releaseLock();
+    Logger.log("🔒 [SERVER] Đã giải phóng LockService.");
   }
 }
