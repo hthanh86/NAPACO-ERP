@@ -1,0 +1,59 @@
+<!DOCTYPE html>	
+<html>	
+<head>	
+<base target="_top">	
+<meta charset="utf-8">	
+<?!= include('OrderModal_CSS_JS'); ?>	
+</head>	
+<body>	
+<div class="modal-container">	
+<!-- THANH TỔNG QUAN TRANSACTION -->	
+<div class="top-summary-bar">	
+<div class="top-summary-left">	
+<span class="summary-title">DANH SÁCH ĐƠN HÀNG (PO) TRONG GIAO DỊCH</span>	
+<span id="poCountBadge" class="count-badge">0 PO</span>	
+</div>	
+<div class="top-summary-right">	
+<span id="grandTotalAllBadge" class="grand-total-badge">Tổng giá trị: 0 ₫</span>	
+</div>	
+</div>	
+	
+<!-- DANH SÁCH CÁC KHỐI PO ĐƯỢC PHÂN NHÓM -->	
+<div id="poGroupsContainer" class="po-groups-wrapper"></div>	
+	
+<!-- HỘP TRẠNG THÁI / CẢNH BÁO -->	
+<div id="statusBox" class="status-box" style="display:none;"></div>	
+	
+<!-- NÚT ĐIỀU KHIỂN -->	
+<div class="modal-footer">	
+<button type="button" class="btn btn-secondary" onclick="google.script.host.close()">Đóng / Hủy</button>	
+<button type="button" id="btnSaveOrder" class="btn btn-primary" onclick="handleSaveOrder()">	
+💾 XÁC NHẬN & LƯU TẤT CẢ VÀO DATABASE	
+</button>	
+</div>	
+</div>	
+	
+	
+<script>	
+document.addEventListener('DOMContentLoaded', function() {	
+try {	
+// 1. Nhận chuỗi Base64 từ Backend (Tuyệt đối an toàn trước ký tự đặc biệt)	
+const base64Data = '<?= initialDataJson ?>';	
+if (!base64Data) {	
+console.warn("Dữ liệu khởi tạo rỗng.");	
+return;	
+}	
+	
+// 2. Giải mã Base64 sang chuỗi JSON UTF-8	
+const decodedString = decodeURIComponent(escape(window.atob(base64Data)));	
+const parsedData = JSON.parse(decodedString);	
+console.log("Dữ liệu bóc tách từ Sheet TAO DON:", parsedData);	
+initOrderModal(parsedData);	
+} catch (error) {	
+console.error("Lỗi quá trình khởi tạo Modal:", error);	
+}	
+});	
+</script>	
+	
+</body>	
+</html>	
