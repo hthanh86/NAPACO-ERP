@@ -69,8 +69,12 @@ function syncFormDropdowns() {
   const c_code = getColIndex(spInfo, ['Code_Sanpham', 'Code Sản Phẩm']);
   const c_dvt = getColIndex(spInfo, ['donvi', 'Đơn Vị']);
   const c_gia = getColIndex(spInfo, ['dongia', 'Đơn Giá']);
+  const c_giakhuon = getColIndex(spInfo, ['Gia Khuon', 'Giá Khuôn', 'gia_khuon']);
+  const c_mang = getColIndex(spInfo, ['mang', 'Màng']);
+  const c_type = getColIndex(spInfo, ['type', 'Type', 'Loại']);
+  const c_donggoi = getColIndex(spInfo, ['donggoi', 'Đóng Gói', 'dong_goi']);
 
-  const cacheHeadersSP = [['Tên Sản Phẩm', 'Khách Hàng', 'Code Sản Phẩm', 'Đơn Vị', 'Đơn Giá']];
+  const cacheHeadersSP = [['Tên Sản Phẩm', 'Khách Hàng', 'Code Sản Phẩm', 'Đơn Vị', 'Đơn Giá', 'Giá Khuôn', 'Màng', 'Type', 'Đóng Gói']];
   const cacheRowsSP = [];
   for (let i = 0; i < spData.length; i++) {
     const row = spData[i];
@@ -82,7 +86,11 @@ function syncFormDropdowns() {
         khMap[customerId] || customerId,
         c_code >= 0 ? row[c_code] : '',
         c_dvt >= 0 ? row[c_dvt] : '',
-        c_gia >= 0 ? row[c_gia] : ''
+        c_gia >= 0 ? row[c_gia] : '',
+        c_giakhuon >= 0 ? row[c_giakhuon] : '',
+        c_mang >= 0 ? row[c_mang] : '',
+        c_type >= 0 ? row[c_type] : '',
+        c_donggoi >= 0 ? row[c_donggoi] : ''
       ]);
     }
   }
@@ -93,9 +101,9 @@ function syncFormDropdowns() {
     cacheSheet.getRange(2, 1, cacheRowsSP.length, cacheRowsSP[0].length).setValues(cacheRowsSP);
   }
 
-  cacheSheet.getRange(1, 7).setValue("Danh Sách NV KD").setFontWeight("bold");
+  cacheSheet.getRange(1, 11).setValue("Danh Sách NV KD").setFontWeight("bold");
   if (listNvKinhDoanh.length > 0) {
-    cacheSheet.getRange(2, 7, listNvKinhDoanh.length, 1).setValues(listNvKinhDoanh);
+    cacheSheet.getRange(2, 11, listNvKinhDoanh.length, 1).setValues(listNvKinhDoanh);
   }
 
   // --- 4. DATA VALIDATION CHO TAO DON ---
@@ -112,7 +120,7 @@ function syncFormDropdowns() {
 
   const idxNvTaoDon = getColIndex(taoDonInfo, ['Nhân Viên KD', 'Nhân Viên']);
   if (idxNvTaoDon >= 0 && listNvKinhDoanh.length > 0) {
-    const nvRange = cacheSheet.getRange(2, 7, listNvKinhDoanh.length, 1);
+    const nvRange = cacheSheet.getRange(2, 11, listNvKinhDoanh.length, 1);
     const nvRule = SpreadsheetApp.newDataValidation().requireValueInRange(nvRange, true).setAllowInvalid(true).build();
     taoDonSheet.getRange(taoDonInfo.startDataRow, idxNvTaoDon + 1, CONFIG.MAX_ROWS_TAO_DON, 1).setDataValidation(nvRule);
   }
@@ -270,6 +278,9 @@ function executeSaveOrdersWithSchema(payload) {
     const colIdxSP_DonVi = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'donvi', ['donvi', 'Đơn Vị', 'DVT'])) : -1;
     const colIdxSP_DonGia = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'dongia', ['dongia', 'Đơn Giá', 'Gia_Ban'])) : -1;
     const colIdxSP_GiaKhuon = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'giakhuon', ['Gia Khuon', 'Giá Khuôn', 'gia_khuon'])) : -1;
+    const colIdxSP_Mang = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'mang', ['mang', 'Màng'])) : -1;
+    const colIdxSP_Type = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'type', ['type', 'Type', 'Loại'])) : -1;
+    const colIdxSP_DongGoi = infoSP ? getColIndex(infoSP, getTargetKeys('SAN_PHAM_MASTER', 'donggoi', ['donggoi', 'Đóng Gói', 'dong_goi'])) : -1;
 
     if (shSP && infoSP && infoSP.lastRow >= infoSP.startDataRow) {
       spExistingData = shSP.getRange(infoSP.startDataRow, 1, infoSP.lastRow - infoSP.startDataRow + 1, infoSP.lastCol).getValues();
@@ -403,38 +414,67 @@ function executeSaveOrdersWithSchema(payload) {
               }
 
               // 4. Giá Khuôn (chỉ cập nhật khi khác rỗng và > 0)
-              if (giaKhuon > 0 && colIdxSP_GiaKhuon >= 0) {
-                if (Number(targetRow[colIdxSP_GiaKhuon]) !== giaKhuon) {
-                  targetRow[colIdxSP_GiaKhuon] = giaKhuon;
-                  rowModified = true;
-                }
-              }
+        if (giaKhuon > 0 && colIdxSP_GiaKhuon >= 0) {
+          if (Number(targetRow[colIdxSP_GiaKhuon]) !== giaKhuon) {
+            targetRow[colIdxSP_GiaKhuon] = giaKhuon;
+            rowModified = true;
+          }
+        }
 
-              // 5. Bổ sung customer_id vào sản phẩm nếu trước đó chưa gán
-              if (currentMaKH && colIdxSP_Cust >= 0 && !String(targetRow[colIdxSP_Cust]).trim()) {
-                targetRow[colIdxSP_Cust] = currentMaKH;
-                rowModified = true;
-              }
+        // 5. Màng (cập nhật nếu có dữ liệu mới)
+        const newMang = String(item.mang !== undefined ? item.mang : '').trim();
+        if (newMang !== '' && colIdxSP_Mang >= 0) {
+          if (String(targetRow[colIdxSP_Mang]).trim() !== newMang) {
+            targetRow[colIdxSP_Mang] = newMang;
+            rowModified = true;
+          }
+        }
 
-              if (rowModified) {
-                hasUpdatedExistingProducts = true;
-              }
-            }
-          } else {
-            // --- SẢN PHẨM MỚI: TẠO MÃ SP VÀ THÊM VÀO MASTER ---
-            curSeqSP++;
-            currentMaSP = `SP${String(curSeqSP).padStart(4, '0')}`;
-            const spObj = {
-              spId: currentMaSP,
-              customerId: currentMaKH,
-              mang: item.mang || '',
-              codeSanpham: item.codeSP || item.codeSanpham || '',
-              nameNapaco: item.prodName || '',
-              donvi: item.unit || item.donvi || '',
-              dongia: price,
-              giakhuon: giaKhuon
-            };
-            newProductRows.push(buildRowBySchema(TABLE_MAPPING_SCHEMA.SAN_PHAM_MASTER, infoSP, spObj));
+        // 6. Type (cập nhật nếu có dữ liệu mới)
+        const newType = String(item.type !== undefined ? item.type : '').trim();
+        if (newType !== '' && colIdxSP_Type >= 0) {
+          if (String(targetRow[colIdxSP_Type]).trim() !== newType) {
+            targetRow[colIdxSP_Type] = newType;
+            rowModified = true;
+          }
+        }
+
+        // 7. Đóng Gói (cập nhật nếu có dữ liệu mới)
+        const newDongGoi = String(item.donggoi !== undefined ? item.donggoi : '').trim();
+        if (newDongGoi !== '' && colIdxSP_DongGoi >= 0) {
+          if (String(targetRow[colIdxSP_DongGoi]).trim() !== newDongGoi) {
+            targetRow[colIdxSP_DongGoi] = newDongGoi;
+            rowModified = true;
+          }
+        }
+
+        // 8. Bổ sung customer_id vào sản phẩm nếu trước đó chưa gán
+        if (currentMaKH && colIdxSP_Cust >= 0 && !String(targetRow[colIdxSP_Cust]).trim()) {
+          targetRow[colIdxSP_Cust] = currentMaKH;
+          rowModified = true;
+        }
+
+        if (rowModified) {
+          hasUpdatedExistingProducts = true;
+        }
+      }
+    } else {
+      // --- SẢN PHẨM MỚI: TẠO MÃ SP VÀ THÊM VÀO MASTER ---
+      curSeqSP++;
+      currentMaSP = `SP${String(curSeqSP).padStart(4, '0')}`;
+      const spObj = {
+        spId: currentMaSP,
+        customerId: currentMaKH,
+        mang: item.mang || '',
+        type: item.type || '',
+        donggoi: item.donggoi || '',
+        codeSanpham: item.codeSP || item.codeSanpham || '',
+        nameNapaco: item.prodName || '',
+        donvi: item.unit || item.donvi || '',
+        dongia: price,
+        giakhuon: giaKhuon
+      };
+      newProductRows.push(buildRowBySchema(TABLE_MAPPING_SCHEMA.SAN_PHAM_MASTER, infoSP, spObj));
 
             newCacheRows.push([
               item.prodName || '',

@@ -50,25 +50,38 @@ function getOrderFormDataForModal() {
     };
 
     // Đọc Cache kiểm tra Sản Phẩm và nạp Nhân viên KD
-    let salesStaffList = [];
-    const existingProductSet = new Set();
-    const cacheSheet = ss.getSheetByName(CONFIG.SHEET_CACHE);
+  let salesStaffList = [];
+  const existingProductSet = new Set();
+  const cacheProductMap = {};
+  const cacheSheet = ss.getSheetByName(CONFIG.SHEET_CACHE);
 
-    if (cacheSheet && cacheSheet.getLastRow() >= 2) {
-      const cacheRowsCount = cacheSheet.getLastRow() - 1;
-      const cacheAll = cacheSheet.getRange(2, 1, cacheRowsCount, Math.max(cacheSheet.getLastColumn(), 7)).getValues();
+  if (cacheSheet && cacheSheet.getLastRow() >= 2) {
+    const cacheRowsCount = cacheSheet.getLastRow() - 1;
+    const cacheAll = cacheSheet.getRange(2, 1, cacheRowsCount, Math.max(cacheSheet.getLastColumn(), 11)).getValues();
 
-      for (let i = 0; i < cacheAll.length; i++) {
-        const pName = String(cacheAll[i][0] || '').trim();
-        if (pName) existingProductSet.add(normalizeKey(pName));
+    for (let i = 0; i < cacheAll.length; i++) {
+      const pName = String(cacheAll[i][0] || '').trim();
+      if (pName) {
+        const pKey = normalizeKey(pName);
+        existingProductSet.add(pKey);
+        cacheProductMap[pKey] = {
+          codeSP: cacheAll[i][2] || '',
+          unit: cacheAll[i][3] || '',
+          price: cacheAll[i][4] || '',
+          giaKhuon: cacheAll[i][5] || '',
+          mang: cacheAll[i][6] || '',
+          type: cacheAll[i][7] || '',
+          donggoi: cacheAll[i][8] || ''
+        };
+      }
 
-        const staffVal = String(cacheAll[i][6] || '').trim();
-        if (staffVal) {
-          const parts = staffVal.split(' - ');
-          salesStaffList.push({ display: staffVal, maNV: parts[0] ? parts[0].trim() : staffVal, hoTen: parts[1] ? parts[1].trim() : staffVal });
-        }
+      const staffVal = String(cacheAll[i][10] || '').trim();
+      if (staffVal) {
+        const parts = staffVal.split(' - ');
+        salesStaffList.push({ display: staffVal, maNV: parts[0] ? parts[0].trim() : staffVal, hoTen: parts[1] ? parts[1].trim() : staffVal });
       }
     }
+  }
 
     const toYMD = function(val) {
       if (!val) return '';
@@ -139,15 +152,18 @@ function getOrderFormDataForModal() {
       const isNewProduct = !existingProductSet.has(normalizeKey(sp));
       const giaKhuonVal = c_giakhuon >= 0 ? (Number(row[c_giakhuon]) || 0) : 0;
 
+      const cachedItem = cacheProductMap[normalizeKey(sp)] || {};
       poGroupsMap[po].items.push({
-        codeSP: codeVal,
+        codeSP: codeVal || cachedItem.codeSP || '',
         prodName: sp,
-        unit: dvtVal,
+        unit: dvtVal || cachedItem.unit || '',
         qty: slVal,
-        price: giaVal,
-        giaKhuon: giaKhuonVal,
+        price: giaVal || cachedItem.price || 0,
+        giaKhuon: giaKhuonVal || cachedItem.giaKhuon || 0,
+        mang: mangVal || cachedItem.mang || '',
+        type: cachedItem.type || '',
+        donggoi: cachedItem.donggoi || '',
         note: noteVal,
-        mang: mangVal,
         deliveryDate: ngayGiaoYMD,
         isNewProduct: isNewProduct
       });

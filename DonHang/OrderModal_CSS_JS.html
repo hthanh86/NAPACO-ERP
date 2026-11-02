@@ -109,19 +109,49 @@ const statusBadge = item.isNewProduct
 : `<span class="badge-exist">SP CŨ</span>`;	
 const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0);	
 	
-itemsRowsHtml += `	
-<tr>	
-<td>${iIdx + 1}</td>	
-<td>${statusBadge}</td>	
-<td><input type="text" value="${escapeHtml(item.codeSP)}" placeholder="Code SP..." onchange="updateItemField(${gIdx}, ${iIdx}, 'codeSP', this.value)"></td>	
-<td><input type="text" value="${escapeHtml(item.prodName)}" onchange="updateItemField(${gIdx}, ${iIdx}, 'prodName', this.value)"></td>	
-<td><input type="text" value="${escapeHtml(item.unit)}" onchange="updateItemField(${gIdx}, ${iIdx}, 'unit', this.value)"></td>	
-<td><input type="number" min="1" value="${item.qty}" oninput="updateItemField(${gIdx}, ${iIdx}, 'qty', this.value)"></td>	
-<td><input type="number" min="0" value="${item.price}" oninput="updateItemField(${gIdx}, ${iIdx}, 'price', this.value)"></td>	
-<td id="lineTotal_${gIdx}_${iIdx}" style="font-weight:700; color:#0f172a;">${formatVND(lineTotal)}</td>	
-<td><input type="date" value="${item.deliveryDate}" onchange="updateItemField(${gIdx}, ${iIdx}, 'deliveryDate', this.value)"></td>	
-</tr>	
-`;	
+const valType = String(item.type || '').trim();
+itemsRowsHtml += ` 
+<tr> 
+<td>${iIdx + 1}</td> 
+<td>${statusBadge}</td> 
+<td><input type="text" value="${escapeHtml(item.codeSP)}" placeholder="Code SP..." onchange="updateItemField(${gIdx}, ${iIdx}, 'codeSP', this.value)"></td> 
+<td><input type="text" value="${escapeHtml(item.prodName)}" onchange="updateItemField(${gIdx}, ${iIdx}, 'prodName', this.value)"></td> 
+<td><input type="text" value="${escapeHtml(item.unit)}" onchange="updateItemField(${gIdx}, ${iIdx}, 'unit', this.value)"></td> 
+<td><input type="text" value="${formatNumber(item.qty)}" style="text-align: right;" onfocus="this.value = modalState.poGroups[${gIdx}].items[${iIdx}].qty !== undefined ? modalState.poGroups[${gIdx}].items[${iIdx}].qty : parseRawNumber(this.value)" onblur="updateItemField(${gIdx}, ${iIdx}, 'qty', this.value); this.value = formatNumber(modalState.poGroups[${gIdx}].items[${iIdx}].qty);"></td> 
+<td><input type="text" value="${formatNumber(item.price)}" style="text-align: right;" onfocus="this.value = modalState.poGroups[${gIdx}].items[${iIdx}].price !== undefined ? modalState.poGroups[${gIdx}].items[${iIdx}].price : parseRawNumber(this.value)" onblur="updateItemField(${gIdx}, ${iIdx}, 'price', this.value); this.value = formatNumber(modalState.poGroups[${gIdx}].items[${iIdx}].price);"></td> 
+<td id="lineTotal_${gIdx}_${iIdx}" style="font-weight:700; color:#0f172a; text-align: right;">${formatVND(lineTotal)}</td> 
+<td><input type="date" value="${item.deliveryDate}" onchange="updateItemField(${gIdx}, ${iIdx}, 'deliveryDate', this.value)"></td> 
+<td style="text-align: center;">
+  <button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="toggleDetailRow(${gIdx}, ${iIdx})">Chi tiết</button>
+</td>
+</tr> 
+<tr id="detailRow_${gIdx}_${iIdx}" style="display:none; background:#f8fafc;">
+  <td colspan="10" style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1;">
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+      <div class="form-group">
+        <label>Giá khuôn</label>
+        <input type="text" class="form-control" value="${formatNumber(item.giaKhuon)}" placeholder="Giá khuôn..." style="text-align: right;" onfocus="this.value = (modalState.poGroups[${gIdx}].items[${iIdx}].giaKhuon !== undefined && modalState.poGroups[${gIdx}].items[${iIdx}].giaKhuon !== null) ? modalState.poGroups[${gIdx}].items[${iIdx}].giaKhuon : parseRawNumber(this.value)" onblur="updateItemField(${gIdx}, ${iIdx}, 'giaKhuon', this.value); this.value = formatNumber(modalState.poGroups[${gIdx}].items[${iIdx}].giaKhuon);">
+      </div>
+      <div class="form-group">
+        <label>Màng</label>
+        <input type="text" class="form-control" value="${escapeHtml(item.mang || '')}" placeholder="Quy cách màng..." onchange="updateItemField(${gIdx}, ${iIdx}, 'mang', this.value)">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select class="form-control" onchange="updateItemField(${gIdx}, ${iIdx}, 'type', this.value)">
+          <option value="" ${valType === '' ? 'selected' : ''}>-- Chọn Type --</option>
+          <option value="1" ${valType === '1' ? 'selected' : ''}>1: Định hình</option>
+          <option value="2" ${valType === '2' ? 'selected' : ''}>2: Bế/Cắt tấm</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Đóng gói</label>
+        <input type="text" class="form-control" value="${escapeHtml(item.donggoi || '')}" placeholder="Đóng gói..." onchange="updateItemField(${gIdx}, ${iIdx}, 'donggoi', this.value)">
+      </div>
+    </div>
+  </td>
+</tr>
+`;
 });	
 	
 card.innerHTML = `	
@@ -178,24 +208,25 @@ ${staffOptionsHtml}
 </div>	
 </div>	
 	
-<table class="items-table">	
-<thead>	
-<tr>	
-<th style="width: 32px;">#</th>	
-<th style="width: 72px;">Phân loại</th>	
-<th style="width: 110px;">Code SP</th>	
-<th>Tên Sản Phẩm</th>	
-<th style="width: 70px;">Đơn Vị</th>	
-<th style="width: 95px;">Số Lượng <span class="req">*</span></th>	
-<th style="width: 110px;">Đơn Giá</th>	
-<th style="width: 120px;">Thành Tiền</th>	
-<th style="width: 125px;">Ngày Giao</th>	
-</tr>	
-</thead>	
-<tbody>	
-${itemsRowsHtml}	
-</tbody>	
-</table>	
+<table class="items-table"> 
+    <thead> 
+    <tr> 
+    <th style="width: 32px;">#</th> 
+    <th style="width: 72px;">Phân loại</th> 
+    <th style="width: 110px;">Code SP</th> 
+    <th>Tên Sản Phẩm</th> 
+    <th style="width: 70px;">Đơn Vị</th> 
+    <th style="width: 95px;">Số Lượng <span class="req">*</span></th> 
+    <th style="width: 110px;">Đơn Giá</th> 
+    <th style="width: 120px;">Thành Tiền</th> 
+    <th style="width: 125px;">Ngày Giao</th> 
+    <th style="width: 75px; text-align: center;">Chi tiết</th> 
+    </tr> 
+    </thead> 
+    <tbody> 
+    ${itemsRowsHtml} 
+    </tbody> 
+    </table>
 `;	
 	
 container.appendChild(card);	
@@ -209,17 +240,26 @@ updateRenamedFilePreview(gIdx);
 }	
 }	
 	
-function updateItemField(gIdx, iIdx, field, val) {	
-const item = modalState.poGroups[gIdx].items[iIdx];	
-if (field === 'qty' || field === 'price') {	
-item[field] = Number(val) || 0;	
-const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0);	
-document.getElementById(`lineTotal_${gIdx}_${iIdx}`).textContent = formatVND(lineTotal);	
-recalculateTotals();	
-} else {	
-item[field] = val;	
-}	
-}	
+function updateItemField(gIdx, iIdx, field, val) { 
+const item = modalState.poGroups[gIdx].items[iIdx]; 
+if (field === 'qty' || field === 'price') { 
+item[field] = parseRawNumber(val); 
+const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0); 
+document.getElementById(`lineTotal_${gIdx}_${iIdx}`).textContent = formatVND(lineTotal); 
+recalculateTotals(); 
+} else if (field === 'giaKhuon') {
+item[field] = parseRawNumber(val);
+} else { 
+item[field] = val; 
+} 
+} 
+
+function toggleDetailRow(gIdx, iIdx) {
+  const row = document.getElementById(`detailRow_${gIdx}_${iIdx}`);
+  if (row) {
+    row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+  }
+}
 	
 function handleGroupFileSelect(e, gIdx) {	
 const file = e.target.files[0];	
@@ -277,6 +317,20 @@ if (subBadge) subBadge.textContent = 'Thành tiền PO: ' + formatVND(subTotal);
 });	
 document.getElementById('grandTotalAllBadge').textContent = 'Tổng giá trị: ' + formatVND(grandTotalAll);	
 }	
+
+function formatNumber(num) {
+  if (num === '' || num === null || num === undefined) return '';
+  const n = Number(num);
+  return isNaN(n) ? num : n.toLocaleString('vi-VN');
+}
+
+function parseRawNumber(str) {
+  if (str === '' || str === null || str === undefined) return 0;
+  // Chuẩn hóa định dạng tiếng Việt: bỏ toàn bộ dấu chấm và khoảng trắng ngăn cách hàng nghìn, đổi dấu phẩy thành dấu chấm thập phân
+  const cleaned = String(str).replace(/\./g, '').replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+  const val = Number(cleaned);
+  return isNaN(val) ? 0 : val;
+}
 	
 function formatVND(num) {	
 return (Number(num) || 0).toLocaleString('vi-VN') + ' ₫';	
@@ -358,17 +412,19 @@ function handleSaveOrder() {
     fileName: grp.fileAttachment ? grp.fileAttachment.name : '',
     giakhuon: String(grp.giakhuon || '').trim(),
     items: (grp.items || []).map(it => ({
-      prodName: String(it.prodName || '').trim(),
-      codeSP: String(it.codeSP !== undefined ? it.codeSP : (it.prodCode || '')).trim(),
-      unit: String(it.unit || '').trim(),
-      qty: Number(it.qty) || 0,
-      price: Number(it.price) || 0,
-      giaKhuon: Number(it.giaKhuon) || 0,
-      mang: String(it.mang || '').trim(),
-      note: String(it.note || '').trim(),
-      deliveryDate: String(it.deliveryDate || '').trim(),
-      isNewProduct: it.isNewProduct
-    }))
+        prodName: String(it.prodName || '').trim(),
+        codeSP: String(it.codeSP !== undefined ? it.codeSP : (it.prodCode || '')).trim(),
+        unit: String(it.unit || '').trim(),
+        qty: Number(it.qty) || 0,
+        price: Number(it.price) || 0,
+        giaKhuon: Number(it.giaKhuon) || 0,
+        mang: String(it.mang || '').trim(),
+        type: String(it.type || '').trim(),
+        donggoi: String(it.donggoi || '').trim(),
+        note: String(it.note || '').trim(),
+        deliveryDate: String(it.deliveryDate || '').trim(),
+        isNewProduct: it.isNewProduct
+      }))
   }));
 
   // 4. Gửi dữ liệu sang Backend
