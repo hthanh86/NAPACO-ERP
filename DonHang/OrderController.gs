@@ -276,7 +276,6 @@ function doPost(e) {
  * CẦU NỐI CÔNG KHAI ĐỂ CLIENT LAUNCHER GỌI QUA THƯ VIỆN BACKEND
  */
 
-// 1. Hàm làm mới dữ liệu
 function refreshOrderData(targetSpreadsheetId) {
   return OrderService.syncCacheCatalogFromDatabase(targetSpreadsheetId);
 }
@@ -431,10 +430,6 @@ function openOrderModal(optSourceSpreadsheetId) {
     .setTitle('NAPACO OMS - Tạo Đơn Hàng');
 
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'NAPACO OMS - Phiếu Tạo Đơn Hàng');
-}
-
-function refreshOrderData(targetSpreadsheetId) {
-  return syncFormDropdowns(targetSpreadsheetId);
 }
 
 // 3. Hàm xử lý onEdit tự động điền sản phẩm

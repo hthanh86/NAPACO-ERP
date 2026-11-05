@@ -1013,150 +1013,6 @@ const OrderService = {
     }
   },
 
-  /**
- * ============================================================================
- * NAPACO ENTERPRISE OMS - ORDER SERVICE (CATALOG CACHE SYNCHRONIZER)
- * Tầng kiến trúc: Service / Repository Layer (Backend Script)
- * ============================================================================
- */
-
-/**
- * Đồng bộ danh mục Khách hàng & Sản phẩm từ DB MASTER vào sheet '_CACHE_DANH_MUC'
- * của file Google Sheets Client ('DON HANG'), đồng thời cài đặt lại Dropdown chọn nhanh
- * trên sheet 'TAO DON'.
- * 
- * @param {string=} optTargetSpreadsheetId - ID của file Google Sheet Client đang mở.
- *        Nếu để trống, tự động nhận diện qua SpreadsheetApp.getActiveSpreadsheet().
- * @return {Object} Kết quả đồng bộ chuẩn JSON: { success, customerCount, productCount, message, durationMs }
- */
-  syncCacheCatalogFromDatabase: function (optTargetSpreadsheetId) {
-  const tStart = Date.now();
-  console.log("⏱️ [BACKEND-SYNC] Bắt đầu đồng bộ danh mục...");
-
-  // 1. Xác định file Sheet Client
-  const targetSS = optTargetSpreadsheetId 
-    ? SpreadsheetApp.openById(optTargetSpreadsheetId) 
-    : SpreadsheetApp.getActiveSpreadsheet();
-
-  if (!targetSS) throw new Error("Không xác định được file Google Sheets Client đích!");
-
-  // 2. Mở DB MASTER
-  const masterId = CONFIG.ID_MASTER || CONFIG.DATABASE_SPREADSHEET_ID;
-  const masterSS = SpreadsheetApp.openById(masterId);
-
-  // 3. Đọc 01_KHACH_HANG tạo map: Ma_KH -> Tên Khách Hàng
-  const khSheet = masterSS.getSheetByName(CONFIG.SHEET_KHACH_HANG || '01_KHACH_HANG');
-  const khData = khSheet.getDataRange().getValues();
-  const khMap = {};           // Ma_KH -> Tên KH
-  const uniqueCustomerList = []; // Danh sách tất cả khách hàng để làm Dropdown
-
-  for (let i = 1; i < khData.length; i++) {
-    const maKH = String(khData[i][0] || '').trim(); // Cột A: Ma_KH
-    const tenKH = String(khData[i][1] || '').trim(); // Cột B: name
-    if (maKH && tenKH) {
-      khMap[maKH] = tenKH;
-      if (!uniqueCustomerList.includes(tenKH)) {
-        uniqueCustomerList.push(tenKH);
-      }
-    }
-  }
-
-  // 4. Đọc 02_SAN_PHAM và map CHÍNH XÁC với Khách Hàng sở hữu
-  const spSheet = masterSS.getSheetByName(CONFIG.SHEET_SAN_PHAM || '02_SAN_PHAM');
-  const spData = spSheet.getDataRange().getValues();
-  
-  // Header 02_SAN_PHAM: 0:SP_ID, 1:customer_id, 4:Code_Sanpham, 5:name_napaco, 8:donvi, 14:Gia Khuon, 15:dongia
-  const cacheRows = [];
-  for (let j = 1; j < spData.length; j++) {
-    const tenSP = String(spData[j][5] || '').trim();
-    if (!tenSP) continue;
-
-    const cusId = String(spData[j][1] || '').trim();
-    const tenKHSoHuu = khMap[cusId] || cusId; // LẤY ĐÚNG KHÁCH HÀNG SỞ HỮU SKU NÀY!
-    const codeSP = String(spData[j][4] || '').trim();
-    const donVi = String(spData[j][8] || 'Cái').trim() || 'Cái';
-    const donGia = Number(spData[j][15]) || 0;
-    const giaKhuon = Number(spData[j][14]) || 0;
-    const mang = String(spData[j][2] || '').trim();
-    const type = String(spData[j][3] || '1').trim();
-    const donggoi = String(spData[j][13] || '').trim();
-
-    cacheRows.push([
-      tenSP,        // Cột A: Tên Sản Phẩm
-      tenKHSoHuu,   // Cột B: Khách Hàng sở hữu chính xác của sản phẩm này!
-      codeSP,       // Cột C: Code Sản Phẩm
-      donVi,        // Cột D: Đơn Vị
-      donGia,       // Cột E: Đơn Giá Chuẩn
-      giaKhuon,     // Cột F: Giá Khuôn
-      mang,         // Cột G: Màng
-      type,         // Cột H: Type
-      donggoi       // Cột I: Đóng Gói
-    ]);
-  }
-
-  // 5. Ghi vào sheet _CACHE_DANH_MUC
-  let cacheSheet = targetSS.getSheetByName(CONFIG.SHEET_CACHE || '_CACHE_DANH_MUC');
-  if (!cacheSheet) cacheSheet = targetSS.insertSheet(CONFIG.SHEET_CACHE || '_CACHE_DANH_MUC');
-  cacheSheet.clearContents();
-
-  // Tiêu đề Cache Sản Phẩm (Cột A - I)
-  const cacheHeaders = [['Tên Sản Phẩm', 'Khách Hàng Sở Hữu', 'Code Sản Phẩm', 'Đơn Vị', 'Đơn Giá', 'Giá Khuôn', 'Màng', 'Type', 'Đóng Gói']];
-  cacheSheet.getRange(1, 1, 1, cacheHeaders[0].length).setValues(cacheHeaders).setFontWeight('bold');
-  if (cacheRows.length > 0) {
-    cacheSheet.getRange(2, 1, cacheRows.length, cacheRows[0].length).setValues(cacheRows);
-  }
-
-  // Cột K (Cột 11): Danh sách toàn bộ Khách Hàng duy nhất (phục vụ Dropdown Khách Hàng)
-  cacheSheet.getRange(1, 11).setValue('Danh Sách Tất Cả KH').setFontWeight('bold');
-  if (uniqueCustomerList.length > 0) {
-    const cusColumnData = uniqueCustomerList.map(c => [c]);
-    cacheSheet.getRange(2, 11, cusColumnData.length, 1).setValues(cusColumnData);
-  }
-
-  // 6. Cài đặt Data Validation Dropdown động cho sheet TAO DON
-  const wsSheet = targetSS.getSheetByName(CONFIG.SHEET_TAO_DON || 'TAO DON');
-  if (wsSheet) {
-    // Quét dòng tiêu đề sheet TAO DON để tìm đúng vị trí cột dựa trên CONFIG.FORM_COLUMNS
-    const headerRowIdx = CONFIG.FORM_COLUMNS.HEADER_ROW;
-    const headers = wsSheet.getRange(headerRowIdx, 1, 1, wsSheet.getLastColumn()).getValues()[0];
-    
-    const findCol = (aliases) => {
-      for (let c = 0; c < headers.length; c++) {
-        const text = String(headers[c] || '').trim().toLowerCase();
-        if (aliases.some(a => a.toLowerCase() === text)) return c + 1;
-      }
-      return -1;
-    };
-
-    const colKh = findCol(CONFIG.FORM_COLUMNS.ALIASES.CUSTOMER);
-    const colSp = findCol(CONFIG.FORM_COLUMNS.ALIASES.PRODUCT);
-    const startRow = CONFIG.FORM_COLUMNS.DATA_START_ROW;
-    const numRows = 100;
-
-    // Gán Dropdown Khách Hàng từ Cột K của Cache
-    if (colKh > 0 && uniqueCustomerList.length > 0) {
-      const khRange = cacheSheet.getRange(2, 11, uniqueCustomerList.length, 1);
-      const khRule = SpreadsheetApp.newDataValidation().requireValueInRange(khRange, true).setAllowInvalid(true).build();
-      wsSheet.getRange(startRow, colKh, numRows, 1).setDataValidation(khRule);
-    }
-
-    // Gán Dropdown Sản Phẩm từ Cột A của Cache
-    if (colSp > 0 && cacheRows.length > 0) {
-      const spRange = cacheSheet.getRange(2, 1, cacheRows.length, 1);
-      const spRule = SpreadsheetApp.newDataValidation().requireValueInRange(spRange, true).setAllowInvalid(true).build();
-      wsSheet.getRange(startRow, colSp, numRows, 1).setDataValidation(spRule);
-    }
-  }
-
-  SpreadsheetApp.flush();
-  console.log(`⏱️ [BACKEND-SYNC] ✅ ĐỒNG BỘ XONG (${Date.now() - tStart} ms): ${uniqueCustomerList.length} KH, ${cacheRows.length} SP`);
-  return {
-    success: true,
-    message: `Đã đồng bộ chính xác ${uniqueCustomerList.length} khách hàng và ${cacheRows.length} sản phẩm!`
-  };
-},
-
-
   // ==========================================================================
   // CÁC HÀM HELPER NỘI BỘ (PRIVATE METHODS)
   // ==========================================================================
@@ -1489,5 +1345,107 @@ const OrderService = {
       'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     };
     return map[ext] || 'application/octet-stream';
-  }
+  },
+
+  /**
+   * Đồng bộ danh mục Khách hàng & Sản phẩm từ DB MASTER sang _CACHE_DANH_MUC
+   * Cú pháp giữ nguyên chuẩn Object Literal bên trong OrderService
+   */
+  syncCacheCatalogFromDatabase: function(optTargetSpreadsheetId) {
+    const tStart = Date.now();
+    console.log("⏱️ [BACKEND-SYNC] Bắt đầu đồng bộ danh mục chuẩn...");
+
+    const targetSS = optTargetSpreadsheetId 
+      ? SpreadsheetApp.openById(optTargetSpreadsheetId) 
+      : SpreadsheetApp.getActiveSpreadsheet();
+    if (!targetSS) throw new Error("Không xác định được file Client đích!");
+
+    const masterSS = this.getMasterSpreadsheet_();
+
+    // 1. Tạo bản đồ: Ma_KH -> Tên Khách Hàng
+    const custSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.CUSTOMERS);
+    const custData = custSheet.getDataRange().getValues();
+    const khMap = {};
+    const allCustomerNames = [];
+    for (let i = 1; i < custData.length; i++) {
+      const ma = String(custData[i][0] || '').trim();
+      const ten = String(custData[i][1] || '').trim();
+      if (ma && ten) {
+        khMap[ma] = ten;
+        if (!allCustomerNames.includes(ten)) allCustomerNames.push(ten);
+      }
+    }
+
+    // 2. Đọc Sản Phẩm và ghép ĐÚNG Khách Hàng sở hữu qua customer_id
+    const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
+    const prodData = prodSheet.getDataRange().getValues();
+    const cacheRows = [];
+    for (let j = 1; j < prodData.length; j++) {
+      const tenSP = String(prodData[j][5] || '').trim(); // name_napaco
+      if (!tenSP) continue;
+
+      const cusId = String(prodData[j][1] || '').trim(); // customer_id
+      const tenKH = khMap[cusId] || cusId;              // Khách hàng sở hữu chuẩn xác
+
+      cacheRows.push([
+        tenSP,                             // Cột A: Tên Sản Phẩm
+        tenKH,                             // Cột B: Khách Hàng sở hữu
+        String(prodData[j][4] || '').trim(), // Cột C: Code SP
+        String(prodData[j][8] || 'Cái').trim() || 'Cái', // Cột D: Đơn Vị
+        Number(prodData[j][15]) || 0       // Cột E: Đơn Giá
+      ]);
+    }
+
+    // 3. Ghi đè vào sheet _CACHE_DANH_MUC
+    let cacheSheet = targetSS.getSheetByName(CONFIG.SHEET_NAMES.CACHE_CATALOG || '_CACHE_DANH_MUC');
+    if (!cacheSheet) cacheSheet = targetSS.insertSheet(CONFIG.SHEET_NAMES.CACHE_CATALOG || '_CACHE_DANH_MUC');
+    cacheSheet.clearContents();
+
+    const headers = [['Tên Sản Phẩm', 'Khách Hàng', 'Code SP', 'Đơn Vị', 'Đơn Giá Chuẩn (₫)']];
+    cacheSheet.getRange(1, 1, 1, 5).setValues(headers).setFontWeight('bold');
+    if (cacheRows.length > 0) {
+      cacheSheet.getRange(2, 1, cacheRows.length, 5).setValues(cacheRows);
+    }
+
+    // Cột K (11): Danh sách tất cả khách hàng (Dropdown cột Khách Hàng)
+    cacheSheet.getRange(1, 11).setValue('Danh Sách Tất Cả KH').setFontWeight('bold');
+    if (allCustomerNames.length > 0) {
+      cacheSheet.getRange(2, 11, allCustomerNames.length, 1).setValues(allCustomerNames.map(c => [c]));
+    }
+
+    // 4. Gán Data Validation Dropdown cho sheet TAO DON theo tên cột động từ CONFIG
+    const wsSheet = targetSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_WORKSPACE || 'TAO DON');
+    if (wsSheet) {
+      const headerRow = wsSheet.getRange(CONFIG.FORM_COLUMNS.HEADER_ROW, 1, 1, wsSheet.getLastColumn()).getValues()[0];
+      const findCol = (aliases) => {
+        for (let c = 0; c < headerRow.length; c++) {
+          const text = String(headerRow[c] || '').trim().toLowerCase();
+          if (aliases.some(a => a.toLowerCase() === text)) return c + 1;
+        }
+        return -1;
+      };
+
+      const colKh = findCol(CONFIG.FORM_COLUMNS.ALIASES.CUSTOMER);
+      const colSp = findCol(CONFIG.FORM_COLUMNS.ALIASES.PRODUCT);
+      const startRow = CONFIG.FORM_COLUMNS.DATA_START_ROW;
+      const numRows = 100;
+
+      if (colKh > 0 && allCustomerNames.length > 0) {
+        wsSheet.getRange(startRow, colKh, numRows, 1).setDataValidation(
+          SpreadsheetApp.newDataValidation().requireValueInRange(cacheSheet.getRange(2, 11, allCustomerNames.length, 1), true).setAllowInvalid(true).build()
+        );
+      }
+      if (colSp > 0 && cacheRows.length > 0) {
+        wsSheet.getRange(startRow, colSp, numRows, 1).setDataValidation(
+          SpreadsheetApp.newDataValidation().requireValueInRange(cacheSheet.getRange(2, 1, cacheRows.length, 1), true).setAllowInvalid(true).build()
+        );
+      }
+    }
+
+    SpreadsheetApp.flush();
+    return {
+      success: true,
+      message: `Đã đồng bộ chính xác ${allCustomerNames.length} khách hàng và ${cacheRows.length} sản phẩm!`
+    };
+  },
 };
