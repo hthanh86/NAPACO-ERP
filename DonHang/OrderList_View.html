@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>NAPACO OMS - Tra Cứu Đơn Hàng & Chi Tiết Mặt Hàng (Dual-View)</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, -apple-system, Arial, sans-serif; }
+    body { margin: 0; padding: 16px; background: #f1f5f9; color: #1e293b; font-size: 13px; }
+    .app-wrapper { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+    /* Top Header & Dual-View Switcher */
+    .top-bar {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      color: #ffffff;
+      padding: 14px 20px;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.12);
+    }
+    .brand-title { font-size: 17px; font-weight: 800; letter-spacing: 0.4px; }
+    .brand-sub { font-size: 12px; color: #93c5fd; margin-top: 2px; }
+
+    .view-switcher {
+      display: inline-flex;
+      background: rgba(255,255,255,0.12);
+      padding: 4px;
+      border-radius: 8px;
+      gap: 4px;
+    }
+    .view-btn {
+      border: none;
+      background: transparent;
+      color: #e2e8f0;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 12.5px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .view-btn.active {
+      background: #ffffff;
+      color: #1e3a8a;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kpi-label { font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase; }
+    .kpi-value { font-size: 18px; font-weight: 800; color: #0f172a; }
+    .kpi-value.highlight-green { color: #16a34a; }
+    .kpi-value.highlight-red { color: #dc2626; }
+
+    /* Filter Bar */
+    .filter-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 2fr 1.2fr 1fr 1fr 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 11.5px; font-weight: 700; color: #334155; }
+    .filter-control {
+      padding: 7px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 12.5px;
+      outline: none;
+    }
+    .filter-control:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+    .btn-search {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      height: 34px;
+    }
+    .btn-search:hover { background: #1d4ed8; }
+    .btn-reset {
+      background: #e2e8f0;
+      color: #334155;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      height: 34px;
+    }
+
+    /* Data Table Card */
+    .table-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .table-header-bar {
+      padding: 10px 16px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .table-scroll { overflow-x: auto; max-height: 62vh; overflow-y: auto; }
+    table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.data-table th {
+      position: sticky;
+      top: 0;
+      background: #f1f5f9;
+      color: #334155;
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 2px solid #cbd5e1;
+      white-space: nowrap;
+      z-index: 1;
+    }
+    table.data-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: middle;
+    }
+    table.data-table tr.data-row:hover { background: #f8fafc; }
+
+    /* Badges & Status */
+    .badge { padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px; display: inline-block; white-space: nowrap; }
+    .st-new { background: #fef3c7; color: #b45309; }
+    .st-prod { background: #dbeafe; color: #1d4ed8; }
+    .st-done { background: #dcfce7; color: #15803d; }
+    .st-cancel { background: #fee2e2; color: #b91c1c; }
+
+    .debt-warning { color: #dc2626; font-weight: 800; background: #fef2f2; padding: 2px 6px; border-radius: 4px; }
+    .debt-clear { color: #16a34a; font-weight: 700; }
+
+    .link-btn {
+      color: #2563eb;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .link-btn:hover { text-decoration: underline; }
+
+    .sub-items-box {
+      background: #f8fafc;
+      padding: 10px 16px;
+      border-left: 4px solid #3b82f6;
+    }
+    .sub-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border: 1px solid #cbd5e1; }
+    .sub-table th { background: #eff6ff; color: #1e40af; padding: 6px 8px; border-bottom: 1px solid #bfdbfe; position: static; }
+    .sub-table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- HEADER & CHUYỂN ĐỔI CHẾ ĐỘ XEM KÉP (DUAL-VIEW SWITCHER) -->
+    <div class="top-bar">
+      <div>
+        <div class="brand-title">📦 NAPACO ERP — TRUNG TÂM TRA CỨU ĐƠN HÀNG</div>
+        <div class="brand-sub">Chuyển đổi linh hoạt giữa góc nhìn Quản lý PO (Header) và Chi Tiết Đơn Hàng (Line-Item)</div>
+      </div>
+      <div class="view-switcher">
+        <button type="button" id="btnViewHeader" class="view-btn active" onclick="switchViewMode('HEADER')">
+          (•) Xem theo Đơn Hàng (PO Header)
+        </button>
+        <button type="button" id="btnViewLineItem" class="view-btn" onclick="switchViewMode('LINE_ITEM')">
+          ( ) Xem theo Chi Tiết Mặt Hàng (Line-Item)
+        </button>
+      </div>
+    </div>
+
+    <!-- THANH CHỈ SỐ KPI TỔNG QUAN -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-label">Tổng số Đơn Hàng (PO)</span>
+        <span id="kpiTotalOrders" class="kpi-value">0</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Tổng dòng Mặt Hàng (Line Items)</span>
+        <span id="kpiTotalLines" class="kpi-value">0</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Tổng Giá Trị Đơn Hàng</span>
+        <span id="kpiTotalRevenue" class="kpi-value highlight-green">0 ₫</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Tổng Sản Lượng Còn Nợ Giao (SL_Con_Lai)</span>
+        <span id="kpiTotalRemaining" class="kpi-value highlight-red">0</span>
+      </div>
+    </div>
+
+    <!-- BỘ LỌC TÌM KIẾM ĐA NĂNG -->
+    <div class="filter-card">
+      <div class="filter-group">
+        <label>Từ khóa tìm kiếm nhanh (Mã ĐH, Số PO, Tên SP, Code SP, Mã CTĐH...)</label>
+        <input type="text" id="keywordInput" class="filter-control" placeholder="Gõ tên sản phẩm, khách hàng, mã PO..." oninput="handleInstantFilter()">
+      </div>
+      <div class="filter-group">
+        <label>Khách hàng</label>
+        <select id="customerFilter" class="filter-control" onchange="fetchOrderData()">
+          <option value="ALL">-- Tất cả khách hàng --</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Trạng thái</label>
+        <select id="statusFilter" class="filter-control" onchange="fetchOrderData()">
+          <option value="ALL">-- Tất cả --</option>
+          <option value="Chờ sản xuất">Chờ sản xuất</option>
+          <option value="Đang sản xuất">Đang sản xuất</option>
+          <option value="Hoàn tất">Hoàn tất / Xong</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Từ ngày đặt</label>
+        <input type="date" id="fromDateFilter" class="filter-control" onchange="fetchOrderData()">
+      </div>
+      <div class="filter-group">
+        <label>Đến ngày đặt</label>
+        <input type="date" id="toDateFilter" class="filter-control" onchange="fetchOrderData()">
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button type="button" class="btn-search" onclick="fetchOrderData()">🔍 Lọc</button>
+        <button type="button" class="btn-reset" onclick="resetFilters()">↺ Đặt lại</button>
+      </div>
+    </div>
+
+    <!-- BẢNG DỮ LIỆU ĐỘNG THEO CHẾ ĐỘ XEM -->
+    <div class="table-card">
+      <div class="table-header-bar">
+        <span id="currentViewTitle">DANH SÁCH ĐƠN HÀNG GOM NHÓM THEO PO (HEADER VIEW)</span>
+        <span id="recordCountBadge" style="color:#2563eb;">0 bản ghi</span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody">
+            <tr><td colspan="10" style="text-align:center;padding:24px;color:#64748b;">⏳ Đang tải dữ liệu đơn hàng...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const listState = {
+      viewMode: 'HEADER', // 'HEADER' | 'LINE_ITEM'
+      rawRecords: [],
+      customersPopulated: false
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+      fetchOrderData();
+    });
+
+    /**
+     * Chuyển đổi tức thì giữa View 1 (PO Header) và View 2 (Line-Item)
+     */
+    function switchViewMode(mode) {
+      listState.viewMode = (mode === 'LINE_ITEM') ? 'LINE_ITEM' : 'HEADER';
+
+      const btnHeader = document.getElementById('btnViewHeader');
+      const btnLine = document.getElementById('btnViewLineItem');
+      const titleEl = document.getElementById('currentViewTitle');
+
+      if (listState.viewMode === 'HEADER') {
+        btnHeader.classList.add('active');
+        btnHeader.textContent = '(•) Xem theo Đơn Hàng (PO Header)';
+        btnLine.classList.remove('active');
+        btnLine.textContent = '( ) Xem theo Chi Tiết Mặt Hàng (Line-Item)';
+        titleEl.textContent = 'DANH SÁCH ĐƠN HÀNG GOM NHÓM THEO PO (HEADER VIEW)';
+      } else {
+        btnLine.classList.add('active');
+        btnLine.textContent = '(•) Xem theo Chi Tiết Mặt Hàng (Line-Item)';
+        btnHeader.classList.remove('active');
+        btnHeader.textContent = '( ) Xem theo Đơn Hàng (PO Header)';
+        titleEl.textContent = 'DANH SÁCH PHẲNG CHI TIẾT MẶT HÀNG SẢN XUẤT (LINE-ITEM VIEW)';
+      }
+
+      fetchOrderData();
+    }
+
+    /**
+     * Gọi RPC queryOrdersAndLineItems lấy dữ liệu theo bộ lọc
+     */
+    function fetchOrderData() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:#0284c7;font-weight:600;">⏳ Đang đồng bộ dữ liệu từ Database...</td></tr>';
+
+      const searchParams = {
+        viewMode: listState.viewMode,
+        keyword: document.getElementById('keywordInput').value.trim(),
+        maKH: document.getElementById('customerFilter').value,
+        status: document.getElementById('statusFilter').value,
+        fromDate: document.getElementById('fromDateFilter').value,
+        toDate: document.getElementById('toDateFilter').value,
+        page: 1,
+        pageSize: 500
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res || !res.success) {
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi tải dữ liệu: ' +
+              escapeHtml(res && res.error ? res.error.message : 'Không xác định') + '</td></tr>';
+            return;
+          }
+
+          listState.rawRecords = res.data || [];
+          if (!listState.customersPopulated && res.customers) {
+            populateCustomerFilter(res.customers);
+            listState.customersPopulated = true;
+          }
+
+          updateSummaryKPIs(res.summary);
+          renderTableData(listState.rawRecords);
+        })
+        .withFailureHandler(function(err) {
+          tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi kết nối Server: ' +
+            escapeHtml(err.message) + '</td></tr>';
+        })
+        .queryOrdersAndLineItems(searchParams);
+    }
+
+    /**
+     * Lọc tức thì phía Client khi người dùng gõ vào ô tìm kiếm (Real-time Instant Search)
+     */
+    function handleInstantFilter() {
+      const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
+      if (!kw) {
+        renderTableData(listState.rawRecords);
+        return;
+      }
+
+      const filtered = listState.rawRecords.filter(function(item) {
+        if (listState.viewMode === 'HEADER') {
+          const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
+          const subMatch = (item.items || []).some(function(sub) {
+            return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
+          });
+          return hText.indexOf(kw) !== -1 || subMatch;
+        } else {
+          const lText = [
+            item.idChiTiet, item.maDH, item.soPO, item.khachHang,
+            item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV
+          ].join(' ').toLowerCase();
+          return lText.indexOf(kw) !== -1;
+        }
+      });
+
+      renderTableData(filtered);
+    }
+
+    /**
+     * Render bảng dữ liệu theo chế độ HEADER hoặc LINE_ITEM
+     */
+    function renderTableData(records) {
+      const thead = document.getElementById('tableHead');
+      const tbody = document.getElementById('tableBody');
+      const countEl = document.getElementById('recordCountBadge');
+      countEl.textContent = records.length + (listState.viewMode === 'HEADER' ? ' đơn hàng (PO)' : ' dòng chi tiết mặt hàng');
+
+      if (listState.viewMode === 'HEADER') {
+        thead.innerHTML =
+          '<tr>' +
+            '<th style="width:130px;">Mã Đơn Hàng</th>' +
+            '<th>Khách Hàng</th>' +
+            '<th>Số PO</th>' +
+            '<th style="width:100px;">Ngày Đặt</th>' +
+            '<th style="width:100px;">Ngày Giao DK</th>' +
+            '<th style="text-align:right;">Tổng Giá Trị</th>' +
+            '<th style="text-align:center;">Số Mặt Hàng</th>' +
+            '<th>Tiến Độ Giao</th>' +
+            '<th>Trạng Thái</th>' +
+            '<th style="text-align:center;">File PO</th>' +
+            '<th style="text-align:center;">Chi Tiết</th>' +
+          '</tr>';
+
+        if (records.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:#64748b;">Không tìm thấy đơn hàng nào khớp điều kiện lọc.</td></tr>';
+          return;
+        }
+
+        let html = '';
+        records.forEach(function(ord, idx) {
+          const fileLinkHtml = ord.filePO
+            ? '<a href="' + escapeHtml(ord.filePO) + '" target="_blank" class="link-btn">📎 Xem PO</a>'
+            : '<span style="color:#94a3b8;">-</span>';
+
+          let subRowsHtml = '';
+          (ord.items || []).forEach(function(it, sIdx) {
+            const debtClass = Number(it.conLai) > 0 ? 'debt-warning' : 'debt-clear';
+            subRowsHtml +=
+              '<tr>' +
+                '<td>' + (sIdx + 1) + '</td>' +
+                '<td style="font-weight:700;">' + escapeHtml(it.idChiTiet) + '</td>' +
+                '<td>' + escapeHtml(it.sanPham) + (it.codeSP ? ' <span style="color:#64748b;">(' + escapeHtml(it.codeSP) + ')</span>' : '') + '</td>' +
+                '<td style="text-align:center;">' + escapeHtml(it.dvt) + '</td>' +
+                '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + '</td>' +
+                '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
+                '<td style="text-align:right;">' + formatNumber(it.daGiao) + '</td>' +
+                '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
+                '<td>' + escapeHtml(it.ngayGiao) + '</td>' +
+                '<td>' + escapeHtml(it.tenNV) + '</td>' +
+                '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
+              '</tr>';
+          });
+
+          html +=
+            '<tr class="data-row">' +
+              '<td style="font-weight:800;color:#1e40af;">' + escapeHtml(ord.maDH) + '</td>' +
+              '<td style="font-weight:700;">' + escapeHtml(ord.khachHang) + ' <span style="color:#64748b;font-size:11px;">(' + escapeHtml(ord.maKH) + ')</span></td>' +
+              '<td style="font-weight:700;color:#0f172a;">' + escapeHtml(ord.soPO) + '</td>' +
+              '<td>' + escapeHtml(ord.ngayDat) + '</td>' +
+              '<td>' + escapeHtml(ord.ngayGiaoDK) + '</td>' +
+              '<td style="text-align:right;font-weight:800;color:#0f172a;">' + formatVND(ord.tongGiaTri) + '</td>' +
+              '<td style="text-align:center;font-weight:700;">' + ord.itemCount + ' SP</td>' +
+              '<td>' + escapeHtml(ord.tienDo) + '</td>' +
+              '<td>' + renderStatusBadge(ord.trangThai) + '</td>' +
+              '<td style="text-align:center;">' + fileLinkHtml + '</td>' +
+              '<td style="text-align:center;">' +
+                '<button type="button" class="btn-reset" style="padding:4px 10px;height:auto;font-size:11.5px;" onclick="toggleOrderSubItems(' + idx + ')">▼ Xem SP</button>' +
+              '</td>' +
+            '</tr>' +
+            '<tr id="orderSubRow_' + idx + '" style="display:none;">' +
+              '<td colspan="11" class="sub-items-box">' +
+                '<div style="font-weight:700;margin-bottom:6px;color:#1e3a8a;">Danh sách mặt hàng thuộc đơn ' + escapeHtml(ord.maDH) + ' (Số PO: ' + escapeHtml(ord.soPO) + '):</div>' +
+                '<table class="sub-table">' +
+                  '<thead>' +
+                    '<tr>' +
+                      '<th>#</th><th>Mã CTĐH</th><th>Sản Phẩm (Code SP)</th><th>ĐVT</th>' +
+                      '<th style="text-align:right;">SL Đặt</th><th style="text-align:right;">Đơn Giá</th>' +
+                      '<th style="text-align:right;">Đã Giao</th><th style="text-align:right;">Còn Lại</th>' +
+                      '<th>Ngày Giao</th><th>Sales</th><th>Trạng Thái</th>' +
+                    '</tr>' +
+                  '</thead>' +
+                  '<tbody>' + subRowsHtml + '</tbody>' +
+                '</table>' +
+              '</td>' +
+            '</tr>';
+        });
+
+        tbody.innerHTML = html;
+
+      } else {
+        // CHẾ ĐỘ 2: LINE-ITEM VIEW (BẢNG PHẲNG CHI TIẾT MẶT HÀNG)
+        thead.innerHTML =
+          '<tr>' +
+            '<th style="width:125px;">Mã CTĐH</th>' +
+            '<th style="width:125px;">Mã Đơn Hàng</th>' +
+            '<th>Khách Hàng</th>' +
+            '<th>Sản Phẩm</th>' +
+            '<th style="text-align:right;">SL Đặt</th>' +
+            '<th style="text-align:right;">Đơn Giá</th>' +
+            '<th style="text-align:right;">Đã Giao</th>' +
+            '<th style="text-align:right;">Còn Lại (Nợ)</th>' +
+            '<th style="width:100px;">Ngày Giao</th>' +
+            '<th>Sales</th>' +
+            '<th>Trạng Thái</th>' +
+          '</tr>';
+
+        if (records.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:#64748b;">Không tìm thấy dòng chi tiết mặt hàng nào khớp điều kiện lọc.</td></tr>';
+          return;
+        }
+
+        let html = '';
+        records.forEach(function(it) {
+          const debtClass = Number(it.conLai) > 0 ? 'debt-warning' : 'debt-clear';
+          const codeBadge = it.codeSP ? ' <span style="color:#0369a1;font-weight:700;">[' + escapeHtml(it.codeSP) + ']</span>' : '';
+
+          html +=
+            '<tr class="data-row">' +
+              '<td style="font-weight:800;color:#0f172a;">' + escapeHtml(it.idChiTiet) + '</td>' +
+              '<td>' +
+                '<span class="link-btn" onclick="filterByOrderCode(\'' + escapeHtml(it.maDH) + '\')" title="Bấm để lọc toàn bộ mặt hàng của đơn này">' +
+                  escapeHtml(it.maDH) +
+                '</span>' +
+                '<div style="font-size:11px;color:#64748b;">' + escapeHtml(it.soPO) + '</div>' +
+              '</td>' +
+              '<td style="font-weight:600;">' + escapeHtml(it.khachHang) + '</td>' +
+              '<td>' +
+                '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + codeBadge + '</div>' +
+                '<div style="font-size:11px;color:#64748b;">SKU: ' + escapeHtml(it.maSP) + (it.ghiChu ? ' | Ghi chú: ' + escapeHtml(it.ghiChu) : '') + '</div>' +
+              '</td>' +
+              '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + ' ' + escapeHtml(it.dvt) + '</td>' +
+              '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
+              '<td style="text-align:right;font-weight:600;">' + formatNumber(it.daGiao) + '</td>' +
+              '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
+              '<td style="font-weight:600;">' + escapeHtml(it.ngayGiao) + '</td>' +
+              '<td>' + escapeHtml(it.tenNV) + '</td>' +
+              '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
+            '</tr>';
+        });
+
+        tbody.innerHTML = html;
+      }
+    }
+
+    function toggleOrderSubItems(idx) {
+      const row = document.getElementById('orderSubRow_' + idx);
+      if (row) {
+        row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+      }
+    }
+
+    function filterByOrderCode(maDH) {
+      document.getElementById('keywordInput').value = maDH;
+      handleInstantFilter();
+    }
+
+    function populateCustomerFilter(customers) {
+      const sel = document.getElementById('customerFilter');
+      let html = '<option value="ALL">-- Tất cả khách hàng --</option>';
+      customers.forEach(function(c) {
+        html += '<option value="' + escapeHtml(c.maKH) + '">' + escapeHtml(c.maKH + ' - ' + c.name) + '</option>';
+      });
+      sel.innerHTML = html;
+    }
+
+    function updateSummaryKPIs(summary) {
+      if (!summary) return;
+      document.getElementById('kpiTotalOrders').textContent = formatNumber(summary.totalOrders || 0);
+      document.getElementById('kpiTotalLines').textContent = formatNumber(summary.totalLineItems || 0);
+      document.getElementById('kpiTotalRevenue').textContent = formatVND(summary.totalRevenue || 0);
+      document.getElementById('kpiTotalRemaining').textContent = formatNumber(summary.totalRemainingQty || 0);
+    }
+
+    function resetFilters() {
+      document.getElementById('keywordInput').value = '';
+      document.getElementById('customerFilter').value = 'ALL';
+      document.getElementById('statusFilter').value = 'ALL';
+      document.getElementById('fromDateFilter').value = '';
+      document.getElementById('toDateFilter').value = '';
+      fetchOrderData();
+    }
+
+    function renderStatusBadge(status) {
+      const s = String(status || '').toLowerCase();
+      if (s.indexOf('xong') !== -1 || s.indexOf('hoàn tất') !== -1 || s.indexOf('kết thúc') !== -1) {
+        return '<span class="badge st-done">' + escapeHtml(status) + '</span>';
+      }
+      if (s.indexOf('đang') !== -1) {
+        return '<span class="badge st-prod">' + escapeHtml(status) + '</span>';
+      }
+      if (s.indexOf('hủy') !== -1) {
+        return '<span class="badge st-cancel">' + escapeHtml(status) + '</span>';
+      }
+      return '<span class="badge st-new">' + escapeHtml(status || 'Chờ sản xuất') + '</span>';
+    }
+
+    function formatNumber(num) {
+      return (Number(num) || 0).toLocaleString('vi-VN');
+    }
+
+    function formatVND(num) {
+      return (Number(num) || 0).toLocaleString('vi-VN') + ' ₫';
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

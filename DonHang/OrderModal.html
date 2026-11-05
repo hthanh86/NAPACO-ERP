@@ -1,59 +1,967 @@
-<!DOCTYPE html>	
-<html>	
-<head>	
-<base target="_top">	
-<meta charset="utf-8">	
-<?!= include('OrderModal_CSS_JS'); ?>	
-</head>	
-<body>	
-<div class="modal-container">	
-<!-- THANH TỔNG QUAN TRANSACTION -->	
-<div class="top-summary-bar">	
-<div class="top-summary-left">	
-<span class="summary-title">DANH SÁCH ĐƠN HÀNG (PO) TRONG GIAO DỊCH</span>	
-<span id="poCountBadge" class="count-badge">0 PO</span>	
-</div>	
-<div class="top-summary-right">	
-<span id="grandTotalAllBadge" class="grand-total-badge">Tổng giá trị: 0 ₫</span>	
-</div>	
-</div>	
-	
-<!-- DANH SÁCH CÁC KHỐI PO ĐƯỢC PHÂN NHÓM -->	
-<div id="poGroupsContainer" class="po-groups-wrapper"></div>	
-	
-<!-- HỘP TRẠNG THÁI / CẢNH BÁO -->	
-<div id="statusBox" class="status-box" style="display:none;"></div>	
-	
-<!-- NÚT ĐIỀU KHIỂN -->	
-<div class="modal-footer">	
-<button type="button" class="btn btn-secondary" onclick="google.script.host.close()">Đóng / Hủy</button>	
-<button type="button" id="btnSaveOrder" class="btn btn-primary" onclick="handleSaveOrder()">	
-💾 XÁC NHẬN & LƯU TẤT CẢ VÀO DATABASE	
-</button>	
-</div>	
-</div>	
-	
-	
-<script>	
-document.addEventListener('DOMContentLoaded', function() {	
-try {	
-// 1. Nhận chuỗi Base64 từ Backend (Tuyệt đối an toàn trước ký tự đặc biệt)	
-const base64Data = '<?= initialDataJson ?>';	
-if (!base64Data) {	
-console.warn("Dữ liệu khởi tạo rỗng.");	
-return;	
-}	
-	
-// 2. Giải mã Base64 sang chuỗi JSON UTF-8	
-const decodedString = decodeURIComponent(escape(window.atob(base64Data)));	
-const parsedData = JSON.parse(decodedString);	
-console.log("Dữ liệu bóc tách từ Sheet TAO DON:", parsedData);	
-initOrderModal(parsedData);	
-} catch (error) {	
-console.error("Lỗi quá trình khởi tạo Modal:", error);	
-}	
-});	
-</script>	
-	
-</body>	
-</html>	
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>NAPACO OMS - Tạo Đơn Đặt Hàng</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, -apple-system, Arial, sans-serif; }
+    body { margin: 0; padding: 12px; background: #f1f5f9; color: #1e293b; font-size: 13px; }
+    .modal-container { display: flex; flex-direction: column; gap: 10px; height: 96vh; }
+
+    /* Header & Thanh tổng quan giao dịch */
+    .top-summary-bar {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .top-summary-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .summary-title { font-weight: 700; font-size: 13.5px; letter-spacing: 0.4px; }
+    .count-badge { background: #3b82f6; color: #fff; padding: 3px 10px; border-radius: 12px; font-weight: 700; font-size: 12px; }
+    .auth-badge-locked { background: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+    .auth-badge-hybrid { background: #e0f2fe; color: #075985; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+    .top-summary-right { display: flex; align-items: center; gap: 10px; }
+    .grand-total-badge { background: #16a34a; color: #fff; padding: 5px 14px; border-radius: 6px; font-weight: 700; font-size: 13.5px; }
+    .btn-add-po { background: #2563eb; color: #fff; border: 1px solid #60a5fa; padding: 5px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; }
+    .btn-add-po:hover { background: #1d4ed8; }
+
+    /* Vùng cuộn chứa các khối PO Card */
+    .po-groups-wrapper { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
+
+    .po-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-left: 5px solid #2563eb;
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .po-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .po-card-title { font-weight: 700; font-size: 13.5px; color: #1e40af; display: flex; align-items: center; gap: 8px; }
+    .po-card-actions { display: flex; align-items: center; gap: 8px; }
+    .po-subtotal-badge {
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 12.5px;
+    }
+
+    .grid-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 3px; }
+    .form-group label { font-weight: 600; color: #334155; font-size: 11.5px; }
+    .req { color: #dc2626; }
+    .form-control { padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 12.5px; outline: none; width: 100%; }
+    .form-control:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.12); }
+    .form-control[readonly], .form-control:disabled { background: #f8fafc; font-weight: 700; color: #0f172a; cursor: not-allowed; }
+    .highlight-po { font-weight: 700; color: #1d4ed8; background: #eff6ff; border-color: #93c5fd; }
+
+    /* Hộp đính kèm File PO */
+    .po-upload-box {
+      margin-top: 10px;
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border: 1px dashed #94a3b8;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .po-upload-left { display: flex; align-items: center; gap: 10px; }
+    .upload-btn { background: #2563eb; color: #fff; padding: 5px 11px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 12px; display: inline-block; }
+    .upload-btn:hover { background: #1d4ed8; }
+    .file-name-text { color: #475569; font-size: 12px; font-style: italic; }
+    .rename-preview-label { font-size: 11.5px; color: #64748b; margin-right: 4px; }
+    .rename-badge { background: #dcfce7; color: #166534; font-weight: 700; padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+
+    /* Bảng danh sách mặt hàng trong mỗi PO */
+    .items-table { width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0; }
+    .items-table th { background: #f1f5f9; color: #334155; text-align: left; padding: 6px 7px; border-bottom: 1px solid #cbd5e1; white-space: nowrap; }
+    .items-table td { padding: 5px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+    .items-table input, .items-table select { width: 100%; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; }
+    .badge-new { background: #fef3c7; color: #b45309; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10.5px; display: inline-block; }
+    .badge-exist { background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10.5px; display: inline-block; }
+
+    .po-card-footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .btn-add-line {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-add-line:hover { background: #dbeafe; }
+    .btn-icon-del {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-icon-del:hover { background: #fecaca; }
+
+    /* Hộp thông báo trạng thái */
+    .status-box { padding: 9px 12px; border-radius: 6px; font-weight: 600; font-size: 12.5px; }
+    .status-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .status-success { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .status-loading { background: #e0f2fe; color: #075985; border: 1px solid #7dd3fc; }
+
+    /* Footer điều khiển */
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 6px; border-top: 1px solid #cbd5e1; }
+    .btn { padding: 8px 18px; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-secondary:hover { background: #cbd5e1; }
+    .btn-primary { background: #16a34a; color: #ffffff; }
+    .btn-primary:hover { background: #15803d; }
+    .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <!-- Datalist gợi ý Autocomplete cho Khách hàng và Sản phẩm -->
+  <datalist id="customerDatalist"></datalist>
+  <datalist id="productDatalist"></datalist>
+
+  <div class="modal-container">
+    <!-- THANH TỔNG QUAN GIAO DỊCH & XÁC THỰC KÉP -->
+    <div class="top-summary-bar">
+      <div class="top-summary-left">
+        <span class="summary-title">📋 DANH SÁCH ĐƠN HÀNG (PO) TRONG GIAO DỊCH</span>
+        <span id="poCountBadge" class="count-badge">0 ĐƠN PO</span>
+        <span id="userAuthBadge" class="auth-badge-hybrid">Đang kiểm tra tài khoản...</span>
+      </div>
+      <div class="top-summary-right">
+        <button type="button" class="btn-add-po" onclick="addNewPOGroup()">+ Thêm Đơn PO Mới</button>
+        <span id="grandTotalAllBadge" class="grand-total-badge">Tổng giá trị: 0 ₫</span>
+      </div>
+    </div>
+
+    <!-- DANH SÁCH CÁC KHỐI PO ĐƯỢC PHÂN NHÓM -->
+    <div id="poGroupsContainer" class="po-groups-wrapper"></div>
+
+    <!-- HỘP TRẠNG THÁI / CẢNH BÁO -->
+    <div id="statusBox" class="status-box" style="display:none;"></div>
+
+    <!-- NÚT ĐIỀU KHIỂN -->
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeModalWindow()">Đóng / Hủy</button>
+      <button type="button" id="btnSaveOrder" class="btn btn-primary" onclick="handleSaveOrder()">
+        💾 XÁC NHẬN & LƯU TẤT CẢ VÀO DATABASE
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Trạng thái toàn cục của Modal
+    const modalState = {
+      poGroups: [],
+      salesStaffList: [],
+      customers: [],
+      products: [],
+      currentUser: { isAuthenticated: false, isLockedReadonly: false, maNV: '', display: '' },
+      serverDate: '',
+      defaultDeliveryDate: ''
+    };
+
+    /**
+     * Khởi chạy khi DOM tải xong:
+     * Hỗ trợ nhận dữ liệu từ Base64 template (khi mở từ Sheet TAO DON)
+     * hoặc gọi bất đồng bộ qua RPC nếu mở độc lập.
+     */
+    document.addEventListener('DOMContentLoaded', function() {
+      const today = new Date();
+      const todayIso = formatDateIso(today);
+      const delivIso = formatDateIso(new Date(today.getTime() + 10 * 86400000));
+      modalState.serverDate = todayIso;
+      modalState.defaultDeliveryDate = delivIso;
+
+      try {
+        const base64Data = '<?= typeof initialDataJson !== "undefined" ? initialDataJson : "" ?>';
+        if (base64Data && base64Data.indexOf('initialDataJson') === -1) {
+          const decodedString = decodeURIComponent(escape(window.atob(base64Data)));
+          const parsedData = JSON.parse(decodedString);
+          initOrderModal(parsedData);
+          return;
+        }
+      } catch (err) {
+        console.warn('Chuyển sang nạp dữ liệu qua RPC:', err);
+      }
+
+      // Fallback nạp qua RPC nếu mở trực tiếp
+      showStatus('⏳ Đang tải danh mục Khách hàng, Sản phẩm & Nhân sự...', 'loading');
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideStatus();
+          if (res && res.success) {
+            initOrderModal(res.data);
+          } else {
+            showStatus('❌ Không thể nạp dữ liệu: ' + (res && res.error ? res.error.message : 'Lỗi không xác định'), 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showStatus('❌ Lỗi kết nối Server: ' + err.message, 'error');
+        })
+        .getOrderModalInitData('');
+    });
+
+    /**
+     * Nạp dữ liệu vào state và render toàn bộ giao diện
+     */
+    window.initOrderModal = function(data) {
+      if (!data) return;
+
+      modalState.salesStaffList = data.salesStaffList || [];
+      modalState.customers = data.customers || [];
+      modalState.products = data.products || [];
+      modalState.currentUser = data.currentUser || { isAuthenticated: false, isLockedReadonly: false };
+      modalState.serverDate = data.serverDate || modalState.serverDate;
+      modalState.defaultDeliveryDate = data.defaultDeliveryDate || modalState.defaultDeliveryDate;
+
+      // Chuẩn hóa ngày mặc định TODAY và TODAY + 10 cho từng dòng chi tiết
+      modalState.poGroups = (data.poGroups || []).map(function(grp) {
+        const items = (grp.items || []).map(function(it) {
+          const ngayDat = it.ngayDat || grp.ngayDat || modalState.serverDate;
+          const ngayGiao = it.ngayGiao || it.deliveryDate || grp.ngayGiaoDK || modalState.defaultDeliveryDate;
+          return Object.assign({}, it, {
+            ngayDat: ngayDat,
+            ngayGiao: ngayGiao,
+            deliveryDate: ngayGiao
+          });
+        });
+
+        return Object.assign({}, grp, {
+          ngayDat: grp.ngayDat || modalState.serverDate,
+          ngayGiaoDK: computeMaxDeliveryDate(items, grp.ngayGiaoDK || modalState.defaultDeliveryDate),
+          salesPerson: modalState.currentUser.isAuthenticated
+            ? modalState.currentUser.maNV
+            : (grp.salesPerson || (modalState.salesStaffList[0] ? modalState.salesStaffList[0].maNV : '')),
+          fileAttachment: null,
+          items: items
+        });
+      });
+
+      renderDatalists();
+      renderAuthHeaderBadge();
+      renderAllPOGroups();
+      recalculateTotals();
+    };
+
+    /**
+     * Hiển thị trạng thái xác thực người dùng kép trên Header
+     */
+    function renderAuthHeaderBadge() {
+      const badge = document.getElementById('userAuthBadge');
+      if (!badge) return;
+      const u = modalState.currentUser;
+      if (u && u.isAuthenticated) {
+        badge.className = 'auth-badge-locked';
+        badge.innerHTML = '🔒 Sales: ' + escapeHtml(u.display) + ' (' + escapeHtml(u.email) + ')';
+      } else {
+        badge.className = 'auth-badge-hybrid';
+        badge.innerHTML = '👤 Chế độ chọn Sales linh hoạt (Chưa khớp email tự động)';
+      }
+    }
+
+    /**
+     * Đổ dữ liệu gợi ý cho Datalist Khách hàng và Sản phẩm
+     */
+    function renderDatalists() {
+      const cusListEl = document.getElementById('customerDatalist');
+      if (cusListEl) {
+        cusListEl.innerHTML = modalState.customers.map(function(c) {
+          return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.maKH) + '</option>';
+        }).join('');
+      }
+
+      const prodListEl = document.getElementById('productDatalist');
+      if (prodListEl) {
+        prodListEl.innerHTML = modalState.products.map(function(p) {
+          return '<option value="' + escapeHtml(p.prodName) + '">' + escapeHtml(p.spId + (p.codeSP ? ' - ' + p.codeSP : '')) + '</option>';
+        }).join('');
+      }
+    }
+
+    /**
+     * Render toàn bộ các khối PO Card
+     */
+    function renderAllPOGroups() {
+      const container = document.getElementById('poGroupsContainer');
+      container.innerHTML = '';
+
+      const countBadge = document.getElementById('poCountBadge');
+      if (countBadge) {
+        countBadge.textContent = modalState.poGroups.length + ' ĐƠN PO';
+      }
+
+      modalState.poGroups.forEach(function(grp, gIdx) {
+        const card = document.createElement('div');
+        card.className = 'po-card';
+
+        // Xử lý ô Nhân viên kinh doanh theo cơ chế Xác thực người dùng kép (M1-05)
+        let salesControlHtml = '';
+        if (modalState.currentUser && modalState.currentUser.isAuthenticated) {
+          salesControlHtml =
+            '<input type="text" class="form-control" value="🔒 ' + escapeHtml(modalState.currentUser.display) + '" readonly title="Đã khóa tự động theo Email đăng nhập">';
+        } else {
+          let staffOptionsHtml = '<option value="">-- Chọn NV Kinh Doanh --</option>';
+          modalState.salesStaffList.forEach(function(nv) {
+            const isSelected = grp.salesPerson && (
+              grp.salesPerson === nv.maNV ||
+              grp.salesPerson === nv.display ||
+              grp.salesPerson === nv.hoTen
+            );
+            staffOptionsHtml += '<option value="' + escapeHtml(nv.maNV) + '" ' + (isSelected ? 'selected' : '') + '>' + escapeHtml(nv.display) + '</option>';
+          });
+          salesControlHtml =
+            '<select class="form-control" onchange="updateGroupField(' + gIdx + ', \'salesPerson\', this.value)">' +
+            staffOptionsHtml +
+            '</select>';
+        }
+
+        // Tạo các dòng mặt hàng
+        let itemsRowsHtml = '';
+        grp.items.forEach(function(item, iIdx) {
+          const isNew = Boolean(item.isNew || item.isNewProduct);
+          const statusBadge = isNew
+            ? '<span id="badge_' + gIdx + '_' + iIdx + '" class="badge-new">MỚI</span>'
+            : '<span id="badge_' + gIdx + '_' + iIdx + '" class="badge-exist">CŨ</span>';
+          const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0);
+          const valType = String(item.type || '1').trim();
+
+          itemsRowsHtml +=
+            '<tr>' +
+              '<td style="text-align:center;font-weight:700;color:#475569;">' + (iIdx + 1) + '</td>' +
+              '<td style="text-align:center;">' + statusBadge + '</td>' +
+              '<td><input type="text" list="productDatalist" value="' + escapeHtml(item.prodName) + '" placeholder="Nhập hoặc chọn SP..." onchange="onItemProductChange(' + gIdx + ', ' + iIdx + ', this.value)"></td>' +
+              '<td><input type="text" id="codeSP_' + gIdx + '_' + iIdx + '" value="' + escapeHtml(item.codeSP) + '" placeholder="Code SP..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'codeSP\', this.value)"></td>' +
+              '<td><input type="text" id="unit_' + gIdx + '_' + iIdx + '" value="' + escapeHtml(item.unit || 'Cái') + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'unit\', this.value)"></td>' +
+              '<td><input type="text" value="' + formatNumber(item.qty) + '" style="text-align:right;font-weight:700;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].qty || \'\'" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'qty\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].qty);"></td>' +
+              '<td><input type="text" id="price_' + gIdx + '_' + iIdx + '" value="' + formatNumber(item.price) + '" style="text-align:right;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].price || 0" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'price\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].price);"></td>' +
+              '<td id="lineTotal_' + gIdx + '_' + iIdx + '" style="font-weight:700;color:#0f172a;text-align:right;white-space:nowrap;">' + formatVND(lineTotal) + '</td>' +
+              '<td><input type="date" value="' + escapeHtml(item.ngayDat) + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'ngayDat\', this.value)"></td>' +
+              '<td><input type="date" value="' + escapeHtml(item.ngayGiao) + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'ngayGiao\', this.value)"></td>' +
+              '<td><input type="text" value="' + escapeHtml(item.note || '') + '" placeholder="Ghi chú dòng..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'note\', this.value)"></td>' +
+              '<td style="text-align:center;white-space:nowrap;">' +
+                '<button type="button" class="btn btn-secondary" style="padding:3px 7px;font-size:11px;" onclick="toggleDetailRow(' + gIdx + ', ' + iIdx + ')" title="Cấu hình Khuôn/Màng/Đóng gói">⚙️</button> ' +
+                '<button type="button" class="btn-icon-del" onclick="removeItemRow(' + gIdx + ', ' + iIdx + ')" title="Xóa dòng mặt hàng">🗑️</button>' +
+              '</td>' +
+            '</tr>' +
+            '<tr id="detailRow_' + gIdx + '_' + iIdx + '" style="display:none;background:#f8fafc;">' +
+              '<td colspan="12" style="padding:8px 12px;border-bottom:2px solid #cbd5e1;">' +
+                '<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">' +
+                  '<div class="form-group">' +
+                    '<label>Giá khuôn (VNĐ)</label>' +
+                    '<input type="text" class="form-control" value="' + formatNumber(item.giaKhuon) + '" placeholder="0" style="text-align:right;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].giaKhuon || 0" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'giaKhuon\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].giaKhuon);">' +
+                  '</div>' +
+                  '<div class="form-group">' +
+                    '<label>Quy cách Màng nhựa</label>' +
+                    '<input type="text" class="form-control" value="' + escapeHtml(item.mang || '') + '" placeholder="VD: PET 0.4*550..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'mang\', this.value)">' +
+                  '</div>' +
+                  '<div class="form-group">' +
+                    '<label>Phân loại gia công (Type)</label>' +
+                    '<select class="form-control" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'type\', this.value)">' +
+                      '<option value="1" ' + (valType === '1' ? 'selected' : '') + '>1: Định hình</option>' +
+                      '<option value="2" ' + (valType === '2' ? 'selected' : '') + '>2: Bế / Cắt tấm</option>' +
+                    '</select>' +
+                  '</div>' +
+                  '<div class="form-group">' +
+                    '<label>Quy cách đóng gói</label>' +
+                    '<input type="text" class="form-control" value="' + escapeHtml(item.donggoi || '') + '" placeholder="VD: Thùng carton / Túi PE..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'donggoi\', this.value)">' +
+                  '</div>' +
+                '</div>' +
+              '</td>' +
+            '</tr>';
+        });
+
+        const deletePoBtnHtml = modalState.poGroups.length > 1
+          ? '<button type="button" class="btn-icon-del" onclick="removePOGroup(' + gIdx + ')" title="Xóa khối PO này">✕ Xóa PO</button>'
+          : '';
+
+        const cusBadgeHtml = grp.isNewCustomer
+          ? '<span class="badge-new">KH MỚI</span>'
+          : '<span class="badge-exist">' + escapeHtml(grp.maKH || 'KH CŨ') + '</span>';
+
+        card.innerHTML =
+          '<div class="po-card-header">' +
+            '<div class="po-card-title">' +
+              '<span>📦 ĐƠN HÀNG PO #' + (gIdx + 1) + ' — KHÁCH HÀNG: ' + escapeHtml(grp.customerName || '(Chưa chọn)') + '</span>' +
+              cusBadgeHtml +
+            '</div>' +
+            '<div class="po-card-actions">' +
+              '<span id="poSubtotal_' + gIdx + '" class="po-subtotal-badge">Thành tiền PO: 0 ₫</span>' +
+              deletePoBtnHtml +
+            '</div>' +
+          '</div>' +
+
+          '<div class="grid-form">' +
+            '<div class="form-group">' +
+              '<label>Khách Hàng <span class="req">*</span></label>' +
+              '<input type="text" list="customerDatalist" class="form-control" value="' + escapeHtml(grp.customerName) + '" placeholder="Chọn hoặc gõ tên KH mới..." onchange="onGroupCustomerChange(' + gIdx + ', this.value)">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Số PO (Đối soát & Đặt tên file) <span class="req">*</span></label>' +
+              '<input type="text" id="soPO_' + gIdx + '" class="form-control highlight-po" value="' + escapeHtml(grp.soPO) + '" oninput="updateGroupField(' + gIdx + ', \'soPO\', this.value)">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Nhân Viên Kinh Doanh <span class="req">*</span></label>' +
+              salesControlHtml +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Ghi Chú Đơn Hàng (Lưu kèm PO)</label>' +
+              '<input type="text" class="form-control" value="' + escapeHtml(grp.orderNote || '') + '" placeholder="Ghi chú giao hàng, CO/CQ..." onchange="updateGroupField(' + gIdx + ', \'orderNote\', this.value)">' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="po-upload-box">' +
+            '<div class="po-upload-left">' +
+              '<label class="upload-btn">' +
+                '📎 Đính Kèm Tệp PO #' + (gIdx + 1) + ' (PDF/Ảnh)' +
+                '<input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" hidden onchange="handleGroupFileSelect(event, ' + gIdx + ')">' +
+              '</label>' +
+              '<span id="fileNameDisplay_' + gIdx + '" class="file-name-text">' +
+                (grp.fileAttachment ? ('Đã chọn: ' + escapeHtml(grp.fileAttachment.fileName)) : (grp.existingFileUrl ? 'Đã có link PO từ Sheet' : 'Chưa chọn tệp đính kèm (Tối đa 15MB)')) +
+              '</span>' +
+            '</div>' +
+            '<div class="po-upload-right">' +
+              '<span class="rename-preview-label">Tên chuẩn lưu Drive:</span>' +
+              '<span id="renamedFilePreview_' + gIdx + '" class="rename-badge">PO_' + escapeHtml(grp.soPO) + '_' + escapeHtml(grp.customerName || 'KH') + '</span>' +
+            '</div>' +
+          '</div>' +
+
+          '<table class="items-table">' +
+            '<thead>' +
+              '<tr>' +
+                '<th style="width:30px;text-align:center;">#</th>' +
+                '<th style="width:55px;text-align:center;">Loại</th>' +
+                '<th style="min-width:170px;">Tên Sản Phẩm <span class="req">*</span></th>' +
+                '<th style="width:95px;">Code SP</th>' +
+                '<th style="width:65px;">ĐVT <span class="req">*</span></th>' +
+                '<th style="width:90px;text-align:right;">Số Lượng <span class="req">*</span></th>' +
+                '<th style="width:95px;text-align:right;">Đơn Giá (₫)</th>' +
+                '<th style="width:110px;text-align:right;">Thành Tiền</th>' +
+                '<th style="width:118px;">Ngày Đặt <span class="req">*</span></th>' +
+                '<th style="width:118px;">Ngày Giao <span class="req">*</span></th>' +
+                '<th style="width:120px;">Ghi Chú KT</th>' +
+                '<th style="width:72px;text-align:center;">Thao tác</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>' + itemsRowsHtml + '</tbody>' +
+          '</table>' +
+
+          '<div class="po-card-footer-bar">' +
+            '<button type="button" class="btn-add-line" onclick="addNewItemRow(' + gIdx + ')">+ Thêm dòng sản phẩm</button>' +
+            '<span style="font-size:11.5px;color:#475569;">Ngày giao dự kiến chung của PO (Max): <strong id="maxDelivDisplay_' + gIdx + '" style="color:#1e40af;">' + escapeHtml(grp.ngayGiaoDK) + '</strong></span>' +
+          '</div>';
+
+        container.appendChild(card);
+      });
+    }
+
+    /**
+     * Khi đổi Khách hàng trên PO Card -> Tự kiểm tra KH cũ/mới và gợi ý Số PO
+     */
+    function onGroupCustomerChange(gIdx, val) {
+      const grp = modalState.poGroups[gIdx];
+      const nameClean = String(val || '').trim();
+      grp.customerName = nameClean;
+
+      const existing = modalState.customers.find(function(c) {
+        return c.name.toLowerCase() === nameClean.toLowerCase();
+      });
+      grp.isNewCustomer = !existing;
+      grp.maKH = existing ? existing.maKH : '';
+
+      const yymmdd = modalState.serverDate.replace(/-/g, '').substring(2);
+      const slug = removeVietnameseTones(nameClean).toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const suggestedPO = 'PO-' + yymmdd + '-' + (slug || 'KH');
+      grp.autoPONumber = suggestedPO;
+
+      if (!grp.soPO || grp.soPO.indexOf('-NEW') !== -1) {
+        grp.soPO = suggestedPO;
+      }
+
+      renderAllPOGroups();
+      recalculateTotals();
+    }
+
+    /**
+     * Khi chọn / nhập Tên sản phẩm trên dòng -> Tự nạp Code SP, ĐVT, Đơn giá nếu là SP cũ
+     */
+    function onItemProductChange(gIdx, iIdx, val) {
+      const grp = modalState.poGroups[gIdx];
+      const item = grp.items[iIdx];
+      const pName = String(val || '').trim();
+      item.prodName = pName;
+
+      const matched = modalState.products.find(function(p) {
+        return p.prodName.toLowerCase() === pName.toLowerCase() && (!grp.maKH || p.customerId === grp.maKH);
+      }) || modalState.products.find(function(p) {
+        return p.prodName.toLowerCase() === pName.toLowerCase();
+      });
+
+      if (matched) {
+        item.spId = matched.spId;
+        item.codeSP = matched.codeSP || item.codeSP || '';
+        item.unit = matched.unit || 'Cái';
+        item.price = Number(matched.price) || 0;
+        item.mang = matched.mang || '';
+        item.type = matched.type || '1';
+        item.donggoi = matched.donggoi || '';
+        item.giaKhuon = Number(matched.giaKhuon) || 0;
+        item.isNew = false;
+        item.isNewProduct = false;
+      } else {
+        item.spId = '';
+        item.isNew = true;
+        item.isNewProduct = true;
+      }
+
+      renderAllPOGroups();
+      recalculateTotals();
+    }
+
+    /**
+     * Cập nhật trường thông tin cấp PO Group
+     */
+    function updateGroupField(gIdx, field, val) {
+      modalState.poGroups[gIdx][field] = val;
+      if (field === 'soPO') {
+        updateRenamedFilePreview(gIdx);
+      }
+    }
+
+    /**
+     * Cập nhật trường thông tin cấp Dòng sản phẩm
+     */
+    function updateItemField(gIdx, iIdx, field, val) {
+      const grp = modalState.poGroups[gIdx];
+      const item = grp.items[iIdx];
+
+      if (field === 'qty' || field === 'price') {
+        item[field] = parseRawNumber(val);
+        const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0);
+        const cell = document.getElementById('lineTotal_' + gIdx + '_' + iIdx);
+        if (cell) cell.textContent = formatVND(lineTotal);
+        recalculateTotals();
+      } else if (field === 'giaKhuon') {
+        item.giaKhuon = parseRawNumber(val);
+      } else if (field === 'ngayGiao') {
+        item.ngayGiao = val;
+        item.deliveryDate = val;
+        grp.ngayGiaoDK = computeMaxDeliveryDate(grp.items, grp.ngayGiaoDK);
+        const maxEl = document.getElementById('maxDelivDisplay_' + gIdx);
+        if (maxEl) maxEl.textContent = grp.ngayGiaoDK;
+      } else {
+        item[field] = val;
+      }
+    }
+
+    /**
+     * Thêm 1 dòng mặt hàng mới vào PO Card (Tự điền Ngày đặt = TODAY, Ngày giao = TODAY + 10)
+     */
+    function addNewItemRow(gIdx) {
+      const grp = modalState.poGroups[gIdx];
+      grp.items.push({
+        spId: '',
+        prodName: '',
+        codeSP: '',
+        unit: 'Cái',
+        qty: 5000,
+        price: 0,
+        giaKhuon: 0,
+        mang: '',
+        type: '1',
+        donggoi: '',
+        ngayDat: modalState.serverDate,
+        ngayGiao: modalState.defaultDeliveryDate,
+        deliveryDate: modalState.defaultDeliveryDate,
+        note: '',
+        isNew: true,
+        isNewProduct: true
+      });
+      grp.ngayGiaoDK = computeMaxDeliveryDate(grp.items, modalState.defaultDeliveryDate);
+      renderAllPOGroups();
+      recalculateTotals();
+    }
+
+    /**
+     * Xóa 1 dòng mặt hàng khỏi PO Card
+     */
+    function removeItemRow(gIdx, iIdx) {
+      const grp = modalState.poGroups[gIdx];
+      if (grp.items.length <= 1) {
+        showStatus('⚠️ Mỗi đơn hàng PO phải có tối thiểu 1 dòng sản phẩm!', 'error');
+        return;
+      }
+      grp.items.splice(iIdx, 1);
+      grp.ngayGiaoDK = computeMaxDeliveryDate(grp.items, modalState.defaultDeliveryDate);
+      renderAllPOGroups();
+      recalculateTotals();
+    }
+
+    /**
+     * Thêm 1 khối PO Card mới (Hỗ trợ tạo nhiều đơn của nhiều khách hàng trong 1 lần)
+     */
+    function addNewPOGroup() {
+      const yymmdd = modalState.serverDate.replace(/-/g, '').substring(2);
+      const defaultPO = 'PO-' + yymmdd + '-KH' + (modalState.poGroups.length + 1);
+      modalState.poGroups.push({
+        customerName: '',
+        maKH: '',
+        isNewCustomer: true,
+        soPO: defaultPO,
+        autoPONumber: defaultPO,
+        salesPerson: modalState.currentUser.isAuthenticated
+          ? modalState.currentUser.maNV
+          : (modalState.salesStaffList[0] ? modalState.salesStaffList[0].maNV : ''),
+        ngayDat: modalState.serverDate,
+        ngayGiaoDK: modalState.defaultDeliveryDate,
+        orderNote: '',
+        existingFileUrl: '',
+        fileAttachment: null,
+        items: [{
+          spId: '',
+          prodName: '',
+          codeSP: '',
+          unit: 'Cái',
+          qty: 5000,
+          price: 0,
+          giaKhuon: 0,
+          mang: '',
+          type: '1',
+          donggoi: '',
+          ngayDat: modalState.serverDate,
+          ngayGiao: modalState.defaultDeliveryDate,
+          deliveryDate: modalState.defaultDeliveryDate,
+          note: '',
+          isNew: true,
+          isNewProduct: true
+        }]
+      });
+      renderAllPOGroups();
+      recalculateTotals();
+    }
+
+    /**
+     * Xóa 1 khối PO Card
+     */
+    function removePOGroup(gIdx) {
+      if (modalState.poGroups.length <= 1) return;
+      modalState.poGroups.splice(gIdx, 1);
+      renderAllPOGroups();
+      recalculateTotals();
+    }
+
+    /**
+     * Bật/tắt dòng cấu hình kỹ thuật (Giá khuôn, Màng, Type, Đóng gói)
+     */
+    function toggleDetailRow(gIdx, iIdx) {
+      const row = document.getElementById('detailRow_' + gIdx + '_' + iIdx);
+      if (row) {
+        row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+      }
+    }
+
+    /**
+     * Xử lý chọn tệp PO đính kèm -> Kiểm tra tối đa 15MB -> Chuyển sang Base64
+     */
+    function handleGroupFileSelect(e, gIdx) {
+      const file = e.target.files[0];
+      const grp = modalState.poGroups[gIdx];
+
+      if (!file) {
+        grp.fileAttachment = null;
+        document.getElementById('fileNameDisplay_' + gIdx).textContent = 'Chưa chọn tệp đính kèm';
+        updateRenamedFilePreview(gIdx);
+        return;
+      }
+
+      if (file.size > 15 * 1024 * 1024) {
+        showStatus('⚠️ Tệp "' + file.name + '" vượt quá giới hạn 15MB!', 'error');
+        e.target.value = '';
+        return;
+      }
+
+      const ext = file.name.indexOf('.') !== -1 ? file.name.split('.').pop().toLowerCase() : 'pdf';
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const base64String = evt.target.result.split(',')[1];
+        grp.fileAttachment = {
+          fileName: file.name,
+          extension: ext,
+          mimeType: file.type || 'application/octet-stream',
+          base64: base64String
+        };
+        document.getElementById('fileNameDisplay_' + gIdx).textContent = 'Đã chọn: ' + file.name;
+        updateRenamedFilePreview(gIdx);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function updateRenamedFilePreview(gIdx) {
+      const grp = modalState.poGroups[gIdx];
+      const soPO = (grp.soPO || '').trim() || grp.autoPONumber || 'PO';
+      const cus = (grp.customerName || 'KH').trim();
+      const previewEl = document.getElementById('renamedFilePreview_' + gIdx);
+      if (!previewEl) return;
+      if (grp.fileAttachment) {
+        previewEl.textContent = 'PO_' + soPO + '_' + cus + '.' + grp.fileAttachment.extension;
+      } else {
+        previewEl.textContent = 'PO_' + soPO + '_' + cus;
+      }
+    }
+
+    /**
+     * Tính lại tổng thành tiền của từng PO và Tổng giá trị toàn giao dịch
+     */
+    function recalculateTotals() {
+      let grandTotalAll = 0;
+      modalState.poGroups.forEach(function(grp, gIdx) {
+        const subTotal = grp.items.reduce(function(sum, it) {
+          return sum + ((Number(it.qty) || 0) * (Number(it.price) || 0));
+        }, 0);
+        grandTotalAll += subTotal;
+        const subBadge = document.getElementById('poSubtotal_' + gIdx);
+        if (subBadge) subBadge.textContent = 'Thành tiền PO: ' + formatVND(subTotal);
+      });
+      const grandEl = document.getElementById('grandTotalAllBadge');
+      if (grandEl) grandEl.textContent = 'Tổng giá trị: ' + formatVND(grandTotalAll);
+    }
+
+    /**
+     * Tìm ngày hẹn giao xa nhất trong các mặt hàng để gán cho NgayGiaoDK của PO (TC-02)
+     */
+    function computeMaxDeliveryDate(items, fallbackDate) {
+      let maxD = '';
+      (items || []).forEach(function(it) {
+        const d = it.ngayGiao || it.deliveryDate || '';
+        if (d && (!maxD || d > maxD)) maxD = d;
+      });
+      return maxD || fallbackDate;
+    }
+
+    /**
+     * Kiểm tra hợp lệ dữ liệu 100% và gửi giao dịch lưu liên tầng về Backend
+     */
+    function handleSaveOrder() {
+      const poCustomerMap = {};
+
+      if (!modalState.poGroups || modalState.poGroups.length === 0) {
+        showStatus('⚠️ Không có dữ liệu đơn hàng nào để lưu!', 'error');
+        return;
+      }
+
+      for (let g = 0; g < modalState.poGroups.length; g++) {
+        const grp = modalState.poGroups[g];
+        const po = String(grp.soPO || '').trim();
+        const cust = String(grp.customerName || '').trim();
+
+        if (!cust) {
+          showStatus('⚠️ Đơn PO #' + (g + 1) + ': Vui lòng nhập hoặc chọn Khách hàng!', 'error');
+          return;
+        }
+        if (!po) {
+          showStatus('⚠️ Đơn PO #' + (g + 1) + ' (' + cust + '): Vui lòng nhập Số PO!', 'error');
+          return;
+        }
+        if (!grp.salesPerson || !String(grp.salesPerson).trim()) {
+          showStatus('⚠️ Đơn PO #' + (g + 1) + ' (' + po + '): Vui lòng chọn Nhân viên Kinh doanh phụ trách!', 'error');
+          return;
+        }
+
+        const poUpper = po.toUpperCase();
+        if (poCustomerMap[poUpper] && poCustomerMap[poUpper] !== cust.toLowerCase()) {
+          showStatus('⚠️ Lỗi: Số PO "' + po + '" đang bị dùng chung cho 2 khách hàng khác nhau!', 'error');
+          return;
+        }
+        poCustomerMap[poUpper] = cust.toLowerCase();
+
+        for (let i = 0; i < grp.items.length; i++) {
+          const it = grp.items[i];
+          if (!it.prodName || !String(it.prodName).trim()) {
+            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ': Tên sản phẩm không được để trống!', 'error');
+            return;
+          }
+          if (!it.unit || !String(it.unit).trim()) {
+            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ': Đơn vị tính không được để trống!', 'error');
+            return;
+          }
+          if (Number(it.qty) <= 0) {
+            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ' (' + it.prodName + '): Số lượng đặt phải nguyên dương (> 0)!', 'error');
+            return;
+          }
+          if (Number(it.price) < 0) {
+            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ' (' + it.prodName + '): Đơn giá phải >= 0 VNĐ!', 'error');
+            return;
+          }
+          if (!it.ngayDat || !it.ngayGiao) {
+            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ': Vui lòng nhập đầy đủ Ngày đặt và Ngày giao!', 'error');
+            return;
+          }
+          if (it.ngayGiao < it.ngayDat) {
+            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ': Ngày hẹn giao không được nhỏ hơn Ngày đặt!', 'error');
+            return;
+          }
+        }
+      }
+
+      // Khóa nút chống click đúp
+      const btnSave = document.getElementById('btnSaveOrder');
+      if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.textContent = '⏳ Đang lưu giao dịch vào Database...';
+      }
+      showStatus('⏳ Đang thực thi giao dịch ACID (Upsert KH/SP, Upload File PO & Ghi đơn hàng)...', 'loading');
+
+      const payload = {
+        poGroups: modalState.poGroups.map(function(grp) {
+          const maxDeliv = computeMaxDeliveryDate(grp.items, grp.ngayGiaoDK || modalState.defaultDeliveryDate);
+          return {
+            customerName: String(grp.customerName || '').trim(),
+            soPO: String(grp.soPO || '').trim(),
+            salesPerson: String(grp.salesPerson || '').trim(),
+            ngayDat: grp.items[0] ? grp.items[0].ngayDat : (grp.ngayDat || modalState.serverDate),
+            ngayGiaoDK: maxDeliv,
+            orderNote: String(grp.orderNote || '').trim(),
+            existingFileUrl: grp.existingFileUrl || '',
+            fileData: grp.fileAttachment ? {
+              fileName: grp.fileAttachment.fileName,
+              mimeType: grp.fileAttachment.mimeType,
+              base64: grp.fileAttachment.base64
+            } : null,
+            items: grp.items.map(function(it) {
+              return {
+                prodName: String(it.prodName || '').trim(),
+                codeSP: String(it.codeSP || '').trim(),
+                unit: String(it.unit || 'Cái').trim(),
+                qty: Number(it.qty) || 0,
+                price: Number(it.price) || 0,
+                giaKhuon: Number(it.giaKhuon) || 0,
+                mang: String(it.mang || '').trim(),
+                type: String(it.type || '1').trim(),
+                donggoi: String(it.donggoi || '').trim(),
+                ngayDat: String(it.ngayDat || modalState.serverDate).trim(),
+                ngayGiao: String(it.ngayGiao || modalState.defaultDeliveryDate).trim(),
+                note: String(it.note || '').trim(),
+                isNew: Boolean(it.isNew || it.isNewProduct)
+              };
+            })
+          };
+        })
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success) {
+            showStatus('✅ ' + res.message, 'success');
+            setTimeout(function() {
+              closeModalWindow();
+            }, 800);
+          } else {
+            if (btnSave) {
+              btnSave.disabled = false;
+              btnSave.textContent = '💾 XÁC NHẬN & LƯU TẤT CẢ VÀO DATABASE';
+            }
+            const errMsg = (res && res.error && res.error.message) ? res.error.message : (res && res.message ? res.message : 'Lỗi không xác định');
+            showStatus('❌ Lỗi khi lưu: ' + errMsg, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.textContent = '💾 XÁC NHẬN & LƯU TẤT CẢ VÀO DATABASE';
+          }
+          showStatus('❌ Lỗi hệ thống: ' + (err && err.message ? err.message : String(err)), 'error');
+        })
+        .saveOrderTransaction(payload);
+    }
+
+    function closeModalWindow() {
+      if (typeof google !== 'undefined' && google.script && google.script.host) {
+        google.script.host.close();
+      }
+    }
+
+    function formatDateIso(d) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return yyyy + '-' + mm + '-' + dd;
+    }
+
+    function formatNumber(num) {
+      if (num === '' || num === null || num === undefined) return '';
+      const n = Number(num);
+      return isNaN(n) ? num : n.toLocaleString('vi-VN');
+    }
+
+    function parseRawNumber(str) {
+      if (str === '' || str === null || str === undefined) return 0;
+      const cleaned = String(str).replace(/\./g, '').replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+      const val = Number(cleaned);
+      return isNaN(val) ? 0 : val;
+    }
+
+    function formatVND(num) {
+      return (Number(num) || 0).toLocaleString('vi-VN') + ' ₫';
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function removeVietnameseTones(str) {
+      if (!str) return '';
+      return String(str)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D');
+    }
+
+    function showStatus(msg, type) {
+      const box = document.getElementById('statusBox');
+      box.style.display = 'block';
+      box.className = 'status-box status-' + type;
+      box.textContent = msg;
+    }
+
+    function hideStatus() {
+      const box = document.getElementById('statusBox');
+      if (box) box.style.display = 'none';
+    }
+  </script>
+</body>
+</html>
