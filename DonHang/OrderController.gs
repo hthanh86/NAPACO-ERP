@@ -117,8 +117,13 @@ const OrderController = {
    * 3. Lưu giao dịch tạo đơn hàng liên tầng (Flow-based Upsert) có LockService
    * Đáp ứng chuẩn API Contract: saveOrderTransaction(payload)
    */
+  
   saveOrderTransaction: function(payload) {
     try {
+      if (!payload || !payload.poGroups || payload.poGroups.length === 0) {
+        throw new Error("Dữ liệu đơn hàng gửi lên không hợp lệ hoặc danh sách rỗng!");
+      }
+      // Chuyển toàn bộ việc quản lý Lock và ghi DB cho OrderService
       return OrderService.saveOrderTransaction(payload);
     } catch (err) {
       console.error('[OrderController.saveOrderTransaction] Error:', err);
@@ -283,6 +288,9 @@ function refreshOrderData(targetSpreadsheetId) {
 /**
  * ĐỌC DỮ LIỆU TỪ SHEET 'TAO DON' THEO TÊN CỘT ĐỘNG VÀ ĐÓNG GÓI CHO MODAL
  */
+/**
+ * ĐỌC DỮ LIỆU TỪ SHEET 'TAO DON' THEO TÊN CỘT ĐỘNG VÀ ĐÓNG GÓI CHO MODAL
+ */
 function getOrderFormDataForModal(optSourceSpreadsheetId) {
   try {
     const ss = optSourceSpreadsheetId 
@@ -290,7 +298,7 @@ function getOrderFormDataForModal(optSourceSpreadsheetId) {
       : SpreadsheetApp.getActiveSpreadsheet();
     if (!ss) return JSON.stringify({ poGroups: [], salesStaffList: [] });
 
-    const sheet = ss.getSheetByName(CONFIG.SHEET_TAO_DON || 'TAO DON');
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAMES.ORDER_WORKSPACE || 'TAO DON');
     if (!sheet) return JSON.stringify({ poGroups: [], salesStaffList: [] });
 
     const headerRowIdx = CONFIG.FORM_COLUMNS.HEADER_ROW;
@@ -306,7 +314,7 @@ function getOrderFormDataForModal(optSourceSpreadsheetId) {
     const findColIdx = (aliases) => {
       for (let c = 0; c < headers.length; c++) {
         const text = String(headers[c] || '').trim().toLowerCase();
-        if (aliases.some(a => a.toLowerCase() === text)) return c; // 0-based index
+        if (aliases.some(a => text.includes(a.toLowerCase()))) return c;
       }
       return -1;
     };
@@ -321,25 +329,66 @@ function getOrderFormDataForModal(optSourceSpreadsheetId) {
     const c_note  = findColIdx(CONFIG.FORM_COLUMNS.ALIASES.NOTE);
     const c_link  = findColIdx(CONFIG.FORM_COLUMNS.ALIASES.LINK_PO);
 
-    // 2. Đọc Cache Sản phẩm để tra cứu thông tin kỹ thuật bổ trợ
-    const cacheSheet = ss.getSheetByName(CONFIG.SHEET_CACHE || '_CACHE_DANH_MUC');
+    // 2. Đọc Cache Sản phẩm và Danh sách Nhân Viên KD từ _CACHE_DANH_MUC
+    const cacheSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CACHE_CATALOG || '_CACHE_DANH_MUC');
     const cacheProductMap = {};
+    const salesStaffList = [];
+
     if (cacheSheet && cacheSheet.getLastRow() >= 2) {
-      const cacheData = cacheSheet.getRange(2, 1, cacheSheet.getLastRow() - 1, 9).getValues();
+      const cacheRowsCount = cacheSheet.getLastRow() - 1;
+
+      // Đọc Sản phẩm từ Cột A:E
+      const cacheData = cacheSheet.getRange(2, 1, cacheRowsCount, 5).getValues();
       for (let i = 0; i < cacheData.length; i++) {
         const pName = String(cacheData[i][0] || '').trim().toLowerCase();
         if (pName) {
           cacheProductMap[pName] = {
-            giaKhuon: cacheData[i][5] || 0,
-            mang: cacheData[i][6] || '',
-            type: cacheData[i][7] || '1',
-            donggoi: cacheData[i][8] || ''
+            unit: cacheData[i][3] || 'Cái',
+            price: Number(cacheData[i][4]) || 0
           };
+        }
+      }
+
+      // Đọc Danh sách Nhân Viên KD từ Cột G (Cột 7)
+      if (cacheSheet.getLastColumn() >= 7) {
+        const staffVals = cacheSheet.getRange(2, 7, cacheRowsCount, 1).getValues();
+        for (let s = 0; s < staffVals.length; s++) {
+          const val = String(staffVals[s][0] || '').trim();
+          if (val) {
+            const parts = val.split(' - ');
+            salesStaffList.push({
+              display: val,
+              maNV: parts[0] ? parts[0].trim() : val,
+              hoTen: parts[1] ? parts[1].trim() : val
+            });
+          }
         }
       }
     }
 
-    // 3. Đọc dữ liệu các dòng trên TAO DON và gom nhóm theo PO
+    // Fallback: nếu Cache chưa có NV thì lấy qua Service
+    if (salesStaffList.length === 0 && typeof OrderService.getCatalogAndAuthData === 'function') {
+      const authData = OrderService.getCatalogAndAuthData();
+      if (authData && authData.salesStaffList) {
+        authData.salesStaffList.forEach(st => salesStaffList.push(st));
+      }
+    }
+
+    // 3. Tự động nhận diện tài khoản Google đăng nhập để chọn sẵn Sales
+    let defaultSalesPerson = '';
+    try {
+      const userEmail = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
+      if (userEmail && typeof OrderService.getCatalogAndAuthData === 'function') {
+        const authData = OrderService.getCatalogAndAuthData();
+        if (authData.currentUser && authData.currentUser.display) {
+          defaultSalesPerson = authData.currentUser.display;
+        }
+      }
+    } catch (e) {
+      defaultSalesPerson = '';
+    }
+
+    // 4. Đọc dữ liệu các dòng trên TAO DON và gom nhóm theo PO
     const rawData = sheet.getRange(startDataRow, 1, lastRow - startDataRow + 1, lastCol).getValues();
     const poGroupsMap = {};
     const today = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "yyyy-MM-dd");
@@ -348,7 +397,7 @@ function getOrderFormDataForModal(optSourceSpreadsheetId) {
     for (let r = 0; r < rawData.length; r++) {
       const row = rawData[r];
       const prodName = c_sp >= 0 ? String(row[c_sp] || '').trim() : '';
-      if (!prodName) continue; // Bỏ qua dòng trống sản phẩm
+      if (!prodName) continue;
 
       const custName = c_kh >= 0 ? String(row[c_kh] || '').trim() : '';
       let poNum = c_po >= 0 ? String(row[c_po] || '').trim() : '';
@@ -366,7 +415,7 @@ function getOrderFormDataForModal(optSourceSpreadsheetId) {
           customerName: custName,
           soPO: poNum,
           autoPONumber: poNum,
-          salesPerson: '',
+          salesPerson: defaultSalesPerson,
           ngayDat: today,
           ngayGiaoDK: defaultDelivery,
           orderNote: orderNote,
@@ -386,11 +435,11 @@ function getOrderFormDataForModal(optSourceSpreadsheetId) {
         codeSP: codeSP,
         unit: unit,
         qty: qty > 0 ? qty : 5000,
-        price: price,
-        giaKhuon: cached.giaKhuon || 0,
-        mang: cached.mang || '',
-        type: cached.type || '1',
-        donggoi: cached.donggoi || '',
+        price: price > 0 ? price : (cached.price || 0),
+        giaKhuon: 0,
+        mang: '',
+        type: '1',
+        donggoi: '',
         ngayDat: today,
         ngayGiao: defaultDelivery,
         deliveryDate: defaultDelivery,
@@ -401,7 +450,7 @@ function getOrderFormDataForModal(optSourceSpreadsheetId) {
 
     return JSON.stringify({
       poGroups: Object.values(poGroupsMap),
-      salesStaffList: []
+      salesStaffList: salesStaffList
     });
 
   } catch (err) {
@@ -454,5 +503,71 @@ function saveOrderFromModal(payload) {
     return res;
   } else {
     throw new Error('Không tìm thấy hàm xử lý ghi đơn hàng (saveOrderTransaction / executeSaveOrdersWithSchema)!');
+  }
+}
+
+function test_refreshOrderData_Backend() {
+  const masterSS = SpreadsheetApp.openById(CONFIG.ID_MASTER);
+  
+  // IN RA TẤT CẢ TÊN SHEET ĐANG CÓ TRONG 01. DB MASTER ĐỂ ĐỐI CHIẾU
+  const allSheetNames = masterSS.getSheets().map(s => s.getName());
+  console.log("🔍 [DEBUG-MASTER] Danh sách tên Sheet trong DB MASTER:", JSON.stringify(allSheetNames));
+
+  // Thử mở sheet nhân viên theo cấu hình
+  const empSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.EMPLOYEES);
+  if (!empSheet) {
+    console.error("❌ [DEBUG-MASTER] KHÔNG TÌM THẤY SHEET:", CONFIG.SHEET_NAMES.EMPLOYEES);
+  } else {
+    console.log("✅ [DEBUG-MASTER] Tìm thấy sheet:", empSheet.getName(), "- Số dòng:", empSheet.getLastRow());
+    console.log("🔍 [DEBUG-MASTER] Dòng tiêu đề (Row 1):", JSON.stringify(empSheet.getRange(1, 1, 1, empSheet.getLastColumn()).getValues()[0]));
+    if (empSheet.getLastRow() >= 2) {
+      console.log("🔍 [DEBUG-MASTER] Dòng dữ liệu đầu tiên (Row 2):", JSON.stringify(empSheet.getRange(2, 1, 1, empSheet.getLastColumn()).getValues()[0]));
+    }
+    // In ra các dòng từ 4 đến 7 để xác định vị trí tiêu đề và dòng dữ liệu đầu tiên
+  for (let r = 4; r <= 8; r++) {
+    const rowVals = empSheet.getRange(r, 1, 1, empSheet.getLastColumn()).getValues()[0];
+    console.log(`🔍 [ROW-${r}]:`, JSON.stringify(rowVals));
+  }
+  }
+
+  // Chạy đồng bộ như cũ
+  const TEST_CLIENT_SPREADSHEET_ID = '1iOJq_bxA6c8Oky1hsH-7ukiyT8YyGCLLgJ8AJ1Om5bE';
+  const result = OrderService.syncCacheCatalogFromDatabase(TEST_CLIENT_SPREADSHEET_ID);
+  console.log("✅ [TEST-BACKEND] Kết quả:", JSON.stringify(result));
+}
+
+/**
+ * RPC: Tìm kiếm tệp trên Google Drive của người dùng theo từ khóa
+ * @param {string} keyword Từ khóa tìm kiếm (tên file, số PO, tên khách...)
+ * @return {{success: boolean, files: Array<{id: string, name: string, url: string, mimeType: string, size: number, updated: string}>}}
+ */
+function searchUserDriveFiles(keyword) {
+  try {
+    const kw = String(keyword || '').trim();
+    if (!kw) return { success: true, files: [] };
+    
+    // Tìm kiếm tệp không nằm trong thùng rác
+    const safeKw = kw.replace(/'/g, "\\'");
+    const query = "title contains '" + safeKw + "' and trashed = false";
+    const fileIterator = DriveApp.searchFiles(query);
+    
+    const results = [];
+    let count = 0;
+    while (fileIterator.hasNext() && count < 20) {
+      const file = fileIterator.next();
+      results.push({
+        id: file.getId(),
+        name: file.getName(),
+        url: file.getUrl(),
+        mimeType: file.getMimeType(),
+        size: file.getSize(),
+        updated: Utilities.formatDate(file.getLastUpdated(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy")
+      });
+      count++;
+    }
+    return { success: true, files: results };
+  } catch (err) {
+    console.error("❌ Lỗi searchUserDriveFiles:", err);
+    return { success: false, error: err.message, files: [] };
   }
 }

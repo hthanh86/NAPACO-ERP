@@ -29,8 +29,6 @@
     .auth-badge-hybrid { background: #e0f2fe; color: #075985; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 12px; }
     .top-summary-right { display: flex; align-items: center; gap: 10px; }
     .grand-total-badge { background: #16a34a; color: #fff; padding: 5px 14px; border-radius: 6px; font-weight: 700; font-size: 13.5px; }
-    .btn-add-po { background: #2563eb; color: #fff; border: 1px solid #60a5fa; padding: 5px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; }
-    .btn-add-po:hover { background: #1d4ed8; }
 
     /* Vùng cuộn chứa các khối PO Card */
     .po-groups-wrapper { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
@@ -86,14 +84,17 @@
       flex-wrap: wrap;
       gap: 8px;
     }
-    .po-upload-left { display: flex; align-items: center; gap: 10px; }
-    .upload-btn { background: #2563eb; color: #fff; padding: 5px 11px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 12px; display: inline-block; }
+    .po-upload-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .upload-btn { background: #2563eb; color: #fff; padding: 5px 11px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
     .upload-btn:hover { background: #1d4ed8; }
-    .file-name-text { color: #475569; font-size: 12px; font-style: italic; }
-    .rename-preview-label { font-size: 11.5px; color: #64748b; margin-right: 4px; }
-    .rename-badge { background: #dcfce7; color: #166534; font-weight: 700; padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+    .btn-drive-search { background: #0284c7; color: #fff; border: none; padding: 5px 11px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-drive-search:hover { background: #0369a1; }
+    .btn-clear-file { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; cursor: pointer; }
+    .file-name-text { color: #475569; font-size: 12px; }
+    .rename-preview-label { font-size: 11.5px; color: #64748b; margin-right: 4px; font-weight: 600; }
+    .rename-badge { background: #dcfce7; color: #166534; font-weight: 700; padding: 4px 10px; border-radius: 4px; font-size: 12px; border: 1px solid #86efac; }
 
-    /* Bảng danh sách mặt hàng trong mỗi PO */
+    /* Bảng danh sách mặt hàng */
     .items-table { width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0; }
     .items-table th { background: #f1f5f9; color: #334155; text-align: left; padding: 6px 7px; border-bottom: 1px solid #cbd5e1; white-space: nowrap; }
     .items-table td { padding: 5px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
@@ -103,21 +104,10 @@
 
     .po-card-footer-bar {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
       margin-top: 8px;
     }
-    .btn-add-line {
-      background: #eff6ff;
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
-      padding: 4px 10px;
-      border-radius: 5px;
-      font-weight: 600;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .btn-add-line:hover { background: #dbeafe; }
     .btn-icon-del {
       background: #fee2e2;
       color: #b91c1c;
@@ -143,15 +133,62 @@
     .btn-primary { background: #16a34a; color: #ffffff; }
     .btn-primary:hover { background: #15803d; }
     .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    /* Modal con tìm kiếm Google Drive */
+    .drive-modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .drive-modal-box {
+      background: #ffffff;
+      width: 720px;
+      max-width: 95vw;
+      max-height: 85vh;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+    .drive-modal-header {
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+    }
+    .drive-modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .drive-search-bar { display: flex; gap: 8px; }
+    .drive-file-list { border: 1px solid #e2e8f0; border-radius: 6px; overflow-y: auto; max-height: 320px; }
+    .drive-file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      cursor: pointer;
+    }
+    .drive-file-item:hover { background: #f0fdf4; }
+    .drive-file-item:last-child { border-bottom: none; }
+    .drive-file-info { display: flex; flex-direction: column; gap: 2px; }
+    .drive-file-name { font-weight: 600; color: #0f172a; }
+    .drive-file-meta { font-size: 11px; color: #64748b; }
+    .btn-choose-file { background: #16a34a; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
   </style>
 </head>
 <body>
-  <!-- Datalist gợi ý Autocomplete cho Khách hàng và Sản phẩm -->
   <datalist id="customerDatalist"></datalist>
   <datalist id="productDatalist"></datalist>
 
   <div class="modal-container">
-    <!-- THANH TỔNG QUAN GIAO DỊCH & XÁC THỰC KÉP -->
+    <!-- THANH TỔNG QUAN GIAO DỊCH -->
     <div class="top-summary-bar">
       <div class="top-summary-left">
         <span class="summary-title">📋 DANH SÁCH ĐƠN HÀNG (PO) TRONG GIAO DỊCH</span>
@@ -159,12 +196,12 @@
         <span id="userAuthBadge" class="auth-badge-hybrid">Đang kiểm tra tài khoản...</span>
       </div>
       <div class="top-summary-right">
-        <button type="button" class="btn-add-po" onclick="addNewPOGroup()">+ Thêm Đơn PO Mới</button>
+        <!-- ĐÃ BỎ NÚT "+ Thêm Đơn PO Mới" THEO YÊU CẦU 1 -->
         <span id="grandTotalAllBadge" class="grand-total-badge">Tổng giá trị: 0 ₫</span>
       </div>
     </div>
 
-    <!-- DANH SÁCH CÁC KHỐI PO ĐƯỢC PHÂN NHÓM -->
+    <!-- DANH SÁCH CÁC KHỐI PO CARD -->
     <div id="poGroupsContainer" class="po-groups-wrapper"></div>
 
     <!-- HỘP TRẠNG THÁI / CẢNH BÁO -->
@@ -179,8 +216,28 @@
     </div>
   </div>
 
+  <!-- MODAL CON TÌM KIẾM GOOGLE DRIVE -->
+  <div id="driveSearchModal" class="drive-modal-overlay" style="display:none;">
+    <div class="drive-modal-box">
+      <div class="drive-modal-header">
+        <span>🔍 TÌM VÀ CHỌN TỆP TỪ GOOGLE DRIVE</span>
+        <button type="button" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;" onclick="closeDriveSearchModal()">✕</button>
+      </div>
+      <div class="drive-modal-body">
+        <div class="drive-search-bar">
+          <input type="text" id="driveSearchKeyword" class="form-control" placeholder="Nhập tên tệp, số PO hoặc tên khách hàng..." onkeydown="if(event.key==='Enter') executeDriveSearch()">
+          <button type="button" class="btn btn-primary" style="padding:6px 14px;" onclick="executeDriveSearch()">Tìm kiếm</button>
+        </div>
+        <div id="driveSearchStatus" style="font-size:12px;color:#64748b;display:none;"></div>
+        <div id="driveSearchResults" class="drive-file-list" style="display:none;"></div>
+      </div>
+      <div style="padding:8px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" style="padding:6px 14px;" onclick="closeDriveSearchModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // Trạng thái toàn cục của Modal
     const modalState = {
       poGroups: [],
       salesStaffList: [],
@@ -188,20 +245,14 @@
       products: [],
       currentUser: { isAuthenticated: false, isLockedReadonly: false, maNV: '', display: '' },
       serverDate: '',
-      defaultDeliveryDate: ''
+      defaultDeliveryDate: '',
+      activeDriveTargetGIdx: null
     };
 
-    /**
-     * Khởi chạy khi DOM tải xong:
-     * Hỗ trợ nhận dữ liệu từ Base64 template (khi mở từ Sheet TAO DON)
-     * hoặc gọi bất đồng bộ qua RPC nếu mở độc lập.
-     */
     document.addEventListener('DOMContentLoaded', function() {
       const today = new Date();
-      const todayIso = formatDateIso(today);
-      const delivIso = formatDateIso(new Date(today.getTime() + 10 * 86400000));
-      modalState.serverDate = todayIso;
-      modalState.defaultDeliveryDate = delivIso;
+      modalState.serverDate = formatDateIso(today);
+      modalState.defaultDeliveryDate = formatDateIso(new Date(today.getTime() + 10 * 86400000));
 
       try {
         const base64Data = '<?= typeof initialDataJson !== "undefined" ? initialDataJson : "" ?>';
@@ -212,10 +263,9 @@
           return;
         }
       } catch (err) {
-        console.warn('Chuyển sang nạp dữ liệu qua RPC:', err);
+        console.warn('Fallback nạp RPC:', err);
       }
 
-      // Fallback nạp qua RPC nếu mở trực tiếp
       showStatus('⏳ Đang tải danh mục Khách hàng, Sản phẩm & Nhân sự...', 'loading');
       google.script.run
         .withSuccessHandler(function(res) {
@@ -232,9 +282,6 @@
         .getOrderModalInitData('');
     });
 
-    /**
-     * Nạp dữ liệu vào state và render toàn bộ giao diện
-     */
     window.initOrderModal = function(data) {
       if (!data) return;
 
@@ -245,7 +292,6 @@
       modalState.serverDate = data.serverDate || modalState.serverDate;
       modalState.defaultDeliveryDate = data.defaultDeliveryDate || modalState.defaultDeliveryDate;
 
-      // Chuẩn hóa ngày mặc định TODAY và TODAY + 10 cho từng dòng chi tiết
       modalState.poGroups = (data.poGroups || []).map(function(grp) {
         const items = (grp.items || []).map(function(it) {
           const ngayDat = it.ngayDat || grp.ngayDat || modalState.serverDate;
@@ -264,6 +310,7 @@
             ? modalState.currentUser.maNV
             : (grp.salesPerson || (modalState.salesStaffList[0] ? modalState.salesStaffList[0].maNV : '')),
           fileAttachment: null,
+          driveFileInfo: grp.existingFileUrl ? { name: 'Tệp từ Sheet', url: grp.existingFileUrl } : null,
           items: items
         });
       });
@@ -274,9 +321,6 @@
       recalculateTotals();
     };
 
-    /**
-     * Hiển thị trạng thái xác thực người dùng kép trên Header
-     */
     function renderAuthHeaderBadge() {
       const badge = document.getElementById('userAuthBadge');
       if (!badge) return;
@@ -286,13 +330,10 @@
         badge.innerHTML = '🔒 Sales: ' + escapeHtml(u.display) + ' (' + escapeHtml(u.email) + ')';
       } else {
         badge.className = 'auth-badge-hybrid';
-        badge.innerHTML = '👤 Chế độ chọn Sales linh hoạt (Chưa khớp email tự động)';
+        badge.innerHTML = '👤 Chế độ chọn Sales linh hoạt';
       }
     }
 
-    /**
-     * Đổ dữ liệu gợi ý cho Datalist Khách hàng và Sản phẩm
-     */
     function renderDatalists() {
       const cusListEl = document.getElementById('customerDatalist');
       if (cusListEl) {
@@ -309,9 +350,6 @@
       }
     }
 
-    /**
-     * Render toàn bộ các khối PO Card
-     */
     function renderAllPOGroups() {
       const container = document.getElementById('poGroupsContainer');
       container.innerHTML = '';
@@ -325,7 +363,6 @@
         const card = document.createElement('div');
         card.className = 'po-card';
 
-        // Xử lý ô Nhân viên kinh doanh theo cơ chế Xác thực người dùng kép (M1-05)
         let salesControlHtml = '';
         if (modalState.currentUser && modalState.currentUser.isAuthenticated) {
           salesControlHtml =
@@ -346,148 +383,354 @@
             '</select>';
         }
 
-        // Tạo các dòng mặt hàng
         let itemsRowsHtml = '';
         grp.items.forEach(function(item, iIdx) {
           const isNew = Boolean(item.isNew || item.isNewProduct);
           const statusBadge = isNew
-            ? '<span id="badge_' + gIdx + '_' + iIdx + '" class="badge-new">MỚI</span>'
-            : '<span id="badge_' + gIdx + '_' + iIdx + '" class="badge-exist">CŨ</span>';
+            ? '<span class="badge-new">MỚI</span>'
+            : '<span class="badge-exist">CŨ</span>';
           const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0);
           const valType = String(item.type || '1').trim();
 
           itemsRowsHtml +=
             '<tr>' +
-              '<td style="text-align:center;font-weight:700;color:#475569;">' + (iIdx + 1) + '</td>' +
-              '<td style="text-align:center;">' + statusBadge + '</td>' +
-              '<td><input type="text" list="productDatalist" value="' + escapeHtml(item.prodName) + '" placeholder="Nhập hoặc chọn SP..." onchange="onItemProductChange(' + gIdx + ', ' + iIdx + ', this.value)"></td>' +
-              '<td><input type="text" id="codeSP_' + gIdx + '_' + iIdx + '" value="' + escapeHtml(item.codeSP) + '" placeholder="Code SP..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'codeSP\', this.value)"></td>' +
-              '<td><input type="text" id="unit_' + gIdx + '_' + iIdx + '" value="' + escapeHtml(item.unit || 'Cái') + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'unit\', this.value)"></td>' +
-              '<td><input type="text" value="' + formatNumber(item.qty) + '" style="text-align:right;font-weight:700;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].qty || \'\'" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'qty\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].qty);"></td>' +
-              '<td><input type="text" id="price_' + gIdx + '_' + iIdx + '" value="' + formatNumber(item.price) + '" style="text-align:right;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].price || 0" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'price\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].price);"></td>' +
-              '<td id="lineTotal_' + gIdx + '_' + iIdx + '" style="font-weight:700;color:#0f172a;text-align:right;white-space:nowrap;">' + formatVND(lineTotal) + '</td>' +
-              '<td><input type="date" value="' + escapeHtml(item.ngayDat) + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'ngayDat\', this.value)"></td>' +
-              '<td><input type="date" value="' + escapeHtml(item.ngayGiao) + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'ngayGiao\', this.value)"></td>' +
-              '<td><input type="text" value="' + escapeHtml(item.note || '') + '" placeholder="Ghi chú dòng..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'note\', this.value)"></td>' +
-              '<td style="text-align:center;white-space:nowrap;">' +
-                '<button type="button" class="btn btn-secondary" style="padding:3px 7px;font-size:11px;" onclick="toggleDetailRow(' + gIdx + ', ' + iIdx + ')" title="Cấu hình Khuôn/Màng/Đóng gói">⚙️</button> ' +
-                '<button type="button" class="btn-icon-del" onclick="removeItemRow(' + gIdx + ', ' + iIdx + ')" title="Xóa dòng mặt hàng">🗑️</button>' +
-              '</td>' +
+            '<td style="text-align:center;font-weight:700;color:#475569;">' + (iIdx + 1) + '</td>' +
+            '<td style="text-align:center;">' + statusBadge + '</td>' +
+            '<td><input type="text" list="productDatalist" value="' + escapeHtml(item.prodName) + '" placeholder="Nhập SP..." onchange="onItemProductChange(' + gIdx + ', ' + iIdx + ', this.value)"></td>' +
+            '<td><input type="text" value="' + escapeHtml(item.codeSP) + '" placeholder="Code..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'codeSP\', this.value)"></td>' +
+            '<td><input type="text" value="' + escapeHtml(item.unit || 'Cái') + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'unit\', this.value)"></td>' +
+            '<td><input type="text" value="' + formatNumber(item.qty) + '" style="text-align:right;font-weight:700;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].qty || \'\'" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'qty\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].qty);"></td>' +
+            '<td><input type="text" value="' + formatNumber(item.price) + '" style="text-align:right;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].price || 0" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'price\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].price);"></td>' +
+            '<td id="lineTotal_' + gIdx + '_' + iIdx + '" style="font-weight:700;color:#0f172a;text-align:right;white-space:nowrap;">' + formatVND(lineTotal) + '</td>' +
+            '<td><input type="date" value="' + escapeHtml(item.ngayDat) + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'ngayDat\', this.value)"></td>' +
+            '<td><input type="date" value="' + escapeHtml(item.ngayGiao) + '" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'ngayGiao\', this.value)"></td>' +
+            '<td><input type="text" value="' + escapeHtml(item.note || '') + '" placeholder="Ghi chú..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'note\', this.value)"></td>' +
+            '<td style="text-align:center;white-space:nowrap;">' +
+            '<button type="button" class="btn btn-secondary" style="padding:3px 7px;font-size:11px;" onclick="toggleDetailRow(' + gIdx + ', ' + iIdx + ')" title="Khuôn/Màng/Đóng gói">⚙️</button> ' +
+            '<button type="button" class="btn-icon-del" onclick="removeItemRow(' + gIdx + ', ' + iIdx + ')" title="Xóa dòng mặt hàng">🗑️</button>' +
+            '</td>' +
             '</tr>' +
             '<tr id="detailRow_' + gIdx + '_' + iIdx + '" style="display:none;background:#f8fafc;">' +
-              '<td colspan="12" style="padding:8px 12px;border-bottom:2px solid #cbd5e1;">' +
-                '<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">' +
-                  '<div class="form-group">' +
-                    '<label>Giá khuôn (VNĐ)</label>' +
-                    '<input type="text" class="form-control" value="' + formatNumber(item.giaKhuon) + '" placeholder="0" style="text-align:right;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].giaKhuon || 0" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'giaKhuon\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].giaKhuon);">' +
-                  '</div>' +
-                  '<div class="form-group">' +
-                    '<label>Quy cách Màng nhựa</label>' +
-                    '<input type="text" class="form-control" value="' + escapeHtml(item.mang || '') + '" placeholder="VD: PET 0.4*550..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'mang\', this.value)">' +
-                  '</div>' +
-                  '<div class="form-group">' +
-                    '<label>Phân loại gia công (Type)</label>' +
-                    '<select class="form-control" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'type\', this.value)">' +
-                      '<option value="1" ' + (valType === '1' ? 'selected' : '') + '>1: Định hình</option>' +
-                      '<option value="2" ' + (valType === '2' ? 'selected' : '') + '>2: Bế / Cắt tấm</option>' +
-                    '</select>' +
-                  '</div>' +
-                  '<div class="form-group">' +
-                    '<label>Quy cách đóng gói</label>' +
-                    '<input type="text" class="form-control" value="' + escapeHtml(item.donggoi || '') + '" placeholder="VD: Thùng carton / Túi PE..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'donggoi\', this.value)">' +
-                  '</div>' +
-                '</div>' +
-              '</td>' +
+            '<td colspan="12" style="padding:8px 12px;border-bottom:2px solid #cbd5e1;">' +
+            '<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">' +
+            '<div class="form-group"><label>Giá khuôn (VNĐ)</label><input type="text" class="form-control" value="' + formatNumber(item.giaKhuon) + '" style="text-align:right;" onfocus="this.value = modalState.poGroups[' + gIdx + '].items[' + iIdx + '].giaKhuon || 0" onblur="updateItemField(' + gIdx + ', ' + iIdx + ', \'giaKhuon\', this.value); this.value = formatNumber(modalState.poGroups[' + gIdx + '].items[' + iIdx + '].giaKhuon);"></div>' +
+            '<div class="form-group"><label>Quy cách Màng nhựa</label><input type="text" class="form-control" value="' + escapeHtml(item.mang || '') + '" placeholder="VD: PET 0.4*550..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'mang\', this.value)"></div>' +
+            '<div class="form-group"><label>Phân loại gia công</label><select class="form-control" onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'type\', this.value)"><option value="1" ' + (valType === '1' ? 'selected' : '') + '>1: Định hình</option><option value="2" ' + (valType === '2' ? 'selected' : '') + '>2: Bế / Cắt tấm</option></select></div>' +
+            '<div class="form-group"><label>Quy cách đóng gói</label><input type="text" class="form-control" value="' + escapeHtml(item.donggoi || '') + '" placeholder="VD: Thùng carton..." onchange="updateItemField(' + gIdx + ', ' + iIdx + ', \'donggoi\', this.value)"></div>' +
+            '</div>' +
+            '</td>' +
             '</tr>';
         });
 
-        const deletePoBtnHtml = modalState.poGroups.length > 1
-          ? '<button type="button" class="btn-icon-del" onclick="removePOGroup(' + gIdx + ')" title="Xóa khối PO này">✕ Xóa PO</button>'
-          : '';
-
-        const cusBadgeHtml = grp.isNewCustomer
-          ? '<span class="badge-new">KH MỚI</span>'
-          : '<span class="badge-exist">' + escapeHtml(grp.maKH || 'KH CŨ') + '</span>';
+        // Xử lý hiển thị thông tin tệp đính kèm
+        let fileStatusText = 'Chưa chọn tệp đính kèm';
+        let clearFileBtnHtml = '';
+        if (grp.fileAttachment) {
+          fileStatusText = '📁 Từ máy: <strong>' + escapeHtml(grp.fileAttachment.fileName) + '</strong>';
+          clearFileBtnHtml = '<button type="button" class="btn-clear-file" onclick="clearAttachedFile(' + gIdx + ')">✕ Hủy tệp</button>';
+        } else if (grp.driveFileInfo) {
+          fileStatusText = '☁️ Từ Drive: <a href="' + escapeHtml(grp.driveFileInfo.url) + '" target="_blank" style="color:#0284c7;font-weight:700;">' + escapeHtml(grp.driveFileInfo.name) + '</a>';
+          clearFileBtnHtml = '<button type="button" class="btn-clear-file" onclick="clearAttachedFile(' + gIdx + ')">✕ Hủy tệp</button>';
+        }
 
         card.innerHTML =
           '<div class="po-card-header">' +
-            '<div class="po-card-title">' +
-              '<span>📦 ĐƠN HÀNG PO #' + (gIdx + 1) + ' — KHÁCH HÀNG: ' + escapeHtml(grp.customerName || '(Chưa chọn)') + '</span>' +
-              cusBadgeHtml +
-            '</div>' +
-            '<div class="po-card-actions">' +
-              '<span id="poSubtotal_' + gIdx + '" class="po-subtotal-badge">Thành tiền PO: 0 ₫</span>' +
-              deletePoBtnHtml +
-            '</div>' +
+          '<div class="po-card-title">' +
+          '<span>📦 ĐƠN HÀNG PO #' + (gIdx + 1) + ' — KHÁCH HÀNG: ' + escapeHtml(grp.customerName || '(Chưa chọn)') + '</span>' +
+          '</div>' +
+          '<div class="po-card-actions">' +
+          '<span id="poSubtotal_' + gIdx + '" class="po-subtotal-badge">Thành tiền PO: 0 ₫</span>' +
+          '</div>' +
           '</div>' +
 
           '<div class="grid-form">' +
-            '<div class="form-group">' +
-              '<label>Khách Hàng <span class="req">*</span></label>' +
-              '<input type="text" list="customerDatalist" class="form-control" value="' + escapeHtml(grp.customerName) + '" placeholder="Chọn hoặc gõ tên KH mới..." onchange="onGroupCustomerChange(' + gIdx + ', this.value)">' +
-            '</div>' +
-            '<div class="form-group">' +
-              '<label>Số PO (Đối soát & Đặt tên file) <span class="req">*</span></label>' +
-              '<input type="text" id="soPO_' + gIdx + '" class="form-control highlight-po" value="' + escapeHtml(grp.soPO) + '" oninput="updateGroupField(' + gIdx + ', \'soPO\', this.value)">' +
-            '</div>' +
-            '<div class="form-group">' +
-              '<label>Nhân Viên Kinh Doanh <span class="req">*</span></label>' +
-              salesControlHtml +
-            '</div>' +
-            '<div class="form-group">' +
-              '<label>Ghi Chú Đơn Hàng (Lưu kèm PO)</label>' +
-              '<input type="text" class="form-control" value="' + escapeHtml(grp.orderNote || '') + '" placeholder="Ghi chú giao hàng, CO/CQ..." onchange="updateGroupField(' + gIdx + ', \'orderNote\', this.value)">' +
-            '</div>' +
+          '<div class="form-group">' +
+          '<label>Khách Hàng <span class="req">*</span></label>' +
+          '<input type="text" list="customerDatalist" class="form-control" value="' + escapeHtml(grp.customerName) + '" placeholder="Khách hàng..." onchange="onGroupCustomerChange(' + gIdx + ', this.value)">' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label>Số PO (Đối soát & Đặt tên file) <span class="req">*</span></label>' +
+          '<input type="text" id="soPO_' + gIdx + '" class="form-control highlight-po" value="' + escapeHtml(grp.soPO) + '" oninput="updateGroupField(' + gIdx + ', \'soPO\', this.value)">' +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label>Nhân Viên Kinh Doanh <span class="req">*</span></label>' +
+          salesControlHtml +
+          '</div>' +
+          '<div class="form-group">' +
+          '<label>Ghi Chú Đơn Hàng</label>' +
+          '<input type="text" class="form-control" value="' + escapeHtml(grp.orderNote || '') + '" placeholder="Ghi chú đơn hàng..." onchange="updateGroupField(' + gIdx + ', \'orderNote\', this.value)">' +
+          '</div>' +
           '</div>' +
 
+          /* HỘP ĐÍNH KÈM TỆP: ĐÍNH KÈM MÁY HOẶC SEARCH DRIVE */
           '<div class="po-upload-box">' +
-            '<div class="po-upload-left">' +
-              '<label class="upload-btn">' +
-                '📎 Đính Kèm Tệp PO #' + (gIdx + 1) + ' (PDF/Ảnh)' +
-                '<input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" hidden onchange="handleGroupFileSelect(event, ' + gIdx + ')">' +
-              '</label>' +
-              '<span id="fileNameDisplay_' + gIdx + '" class="file-name-text">' +
-                (grp.fileAttachment ? ('Đã chọn: ' + escapeHtml(grp.fileAttachment.fileName)) : (grp.existingFileUrl ? 'Đã có link PO từ Sheet' : 'Chưa chọn tệp đính kèm (Tối đa 15MB)')) +
-              '</span>' +
-            '</div>' +
-            '<div class="po-upload-right">' +
-              '<span class="rename-preview-label">Tên chuẩn lưu Drive:</span>' +
-              '<span id="renamedFilePreview_' + gIdx + '" class="rename-badge">PO_' + escapeHtml(grp.soPO) + '_' + escapeHtml(grp.customerName || 'KH') + '</span>' +
-            '</div>' +
+          '<div class="po-upload-left">' +
+          '<label class="upload-btn">' +
+          '📎 Chọn tệp từ máy' +
+          '<input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" hidden onchange="handleGroupFileSelect(event, ' + gIdx + ')">' +
+          '</label>' +
+          '<button type="button" class="btn-drive-search" onclick="openDriveSearchModal(' + gIdx + ')">🔍 Tìm trên Google Drive</button>' +
+          '<span id="fileNameDisplay_' + gIdx + '" class="file-name-text">' + fileStatusText + '</span>' +
+          clearFileBtnHtml +
+          '</div>' +
+          /* YÊU CẦU 3: SỬA THÀNH "Tên lưu file:" VÀ GIỐNG VỚI SỐ PO */
+          '<div class="po-upload-right">' +
+          '<span class="rename-preview-label">Tên lưu file:</span>' +
+          '<span id="renamedFilePreview_' + gIdx + '" class="rename-badge">' + escapeHtml(grp.soPO || 'Chưa có Số PO') + '</span>' +
+          '</div>' +
           '</div>' +
 
           '<table class="items-table">' +
-            '<thead>' +
-              '<tr>' +
-                '<th style="width:30px;text-align:center;">#</th>' +
-                '<th style="width:55px;text-align:center;">Loại</th>' +
-                '<th style="min-width:170px;">Tên Sản Phẩm <span class="req">*</span></th>' +
-                '<th style="width:95px;">Code SP</th>' +
-                '<th style="width:65px;">ĐVT <span class="req">*</span></th>' +
-                '<th style="width:90px;text-align:right;">Số Lượng <span class="req">*</span></th>' +
-                '<th style="width:95px;text-align:right;">Đơn Giá (₫)</th>' +
-                '<th style="width:110px;text-align:right;">Thành Tiền</th>' +
-                '<th style="width:118px;">Ngày Đặt <span class="req">*</span></th>' +
-                '<th style="width:118px;">Ngày Giao <span class="req">*</span></th>' +
-                '<th style="width:120px;">Ghi Chú KT</th>' +
-                '<th style="width:72px;text-align:center;">Thao tác</th>' +
-              '</tr>' +
-            '</thead>' +
-            '<tbody>' + itemsRowsHtml + '</tbody>' +
+          '<thead>' +
+          '<tr>' +
+          '<th style="width:30px;text-align:center;">#</th>' +
+          '<th style="width:50px;text-align:center;">Loại</th>' +
+          '<th style="min-width:170px;">Tên Sản Phẩm <span class="req">*</span></th>' +
+          '<th style="width:95px;">Code SP</th>' +
+          '<th style="width:65px;">ĐVT <span class="req">*</span></th>' +
+          '<th style="width:90px;text-align:right;">Số Lượng <span class="req">*</span></th>' +
+          '<th style="width:95px;text-align:right;">Đơn Giá (₫)</th>' +
+          '<th style="width:110px;text-align:right;">Thành Tiền</th>' +
+          '<th style="width:115px;">Ngày Đặt <span class="req">*</span></th>' +
+          '<th style="width:115px;">Ngày Giao <span class="req">*</span></th>' +
+          '<th style="width:120px;">Ghi Chú KT</th>' +
+          '<th style="width:65px;text-align:center;">Thao tác</th>' +
+          '</tr>' +
+          '</thead>' +
+          '<tbody>' + itemsRowsHtml + '</tbody>' +
           '</table>' +
 
+          /* YÊU CẦU 2: ĐÃ BỎ NÚT "+ Thêm dòng sản phẩm" */
           '<div class="po-card-footer-bar">' +
-            '<button type="button" class="btn-add-line" onclick="addNewItemRow(' + gIdx + ')">+ Thêm dòng sản phẩm</button>' +
-            '<span style="font-size:11.5px;color:#475569;">Ngày giao dự kiến chung của PO (Max): <strong id="maxDelivDisplay_' + gIdx + '" style="color:#1e40af;">' + escapeHtml(grp.ngayGiaoDK) + '</strong></span>' +
+          '<span style="font-size:11.5px;color:#475569;">Ngày giao dự kiến chung (Max): <strong id="maxDelivDisplay_' + gIdx + '" style="color:#1e40af;">' + escapeHtml(grp.ngayGiaoDK) + '</strong></span>' +
           '</div>';
 
         container.appendChild(card);
       });
     }
 
-    /**
-     * Khi đổi Khách hàng trên PO Card -> Tự kiểm tra KH cũ/mới và gợi ý Số PO
-     */
+    /* YÊU CẦU 4: HÀM KIỂM TRA TÊN TỆP NGẮN/QUY TẮC HAY DÀI LOẰNG NGOẰNG */
+    function checkFileNamingRule(fileName) {
+      if (!fileName) return { isClean: false, baseName: '' };
+      let baseName = fileName.trim();
+      const dotIdx = baseName.lastIndexOf('.');
+      if (dotIdx !== -1) {
+        baseName = baseName.substring(0, dotIdx).trim();
+      }
+
+      // Nếu tên dài hơn 35 ký tự -> coi như dài loằng ngoằng
+      if (baseName.length > 35) return { isClean: false, baseName: baseName };
+
+      // Chứa chuỗi số liên tục >= 10 số (mã máy ảnh/timestamp ngẫu nhiên)
+      if (/\d{10,}/.test(baseName)) return { isClean: false, baseName: baseName };
+
+      // Tiền tố camera/máy scan phổ biến
+      if (/^(img|image|scan|camscanner|doc|document|screenshot|photo|wp_)\b/i.test(baseName)) {
+        return { isClean: false, baseName: baseName };
+      }
+
+      return { isClean: true, baseName: baseName };
+    }
+
+    function applyFileSelectionToPO(gIdx, fileName) {
+      const grp = modalState.poGroups[gIdx];
+      const rule = checkFileNamingRule(fileName);
+
+      if (rule.isClean && rule.baseName) {
+        // Tên ngắn gọn, có quy tắc -> Gán Số PO = Tên file
+        grp.soPO = rule.baseName;
+      } else {
+        // Tên file dài loằng ngoằng hoặc không có quy tắc -> Dùng tên PO tự sinh
+        grp.soPO = grp.autoPONumber;
+      }
+
+      // Cập nhật lên ô input Số PO trên giao diện
+      const poInput = document.getElementById('soPO_' + gIdx);
+      if (poInput) poInput.value = grp.soPO;
+
+      updateRenamedFilePreview(gIdx);
+    }
+
+    /* XỬ LÝ CHỌN TỆP TỪ MÁY TÍNH */
+    function handleGroupFileSelect(e, gIdx) {
+      const file = e.target.files[0];
+      const grp = modalState.poGroups[gIdx];
+
+      if (!file) return;
+
+      if (file.size > 15 * 1024 * 1024) {
+        showStatus('⚠️ Tệp "' + file.name + '" vượt quá giới hạn 15MB!', 'error');
+        e.target.value = '';
+        return;
+      }
+
+      const ext = file.name.indexOf('.') !== -1 ? file.name.split('.').pop().toLowerCase() : 'pdf';
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const base64String = evt.target.result.split(',')[1];
+        grp.fileAttachment = {
+          fileName: file.name,
+          extension: ext,
+          mimeType: file.type || 'application/octet-stream',
+          base64: base64String
+        };
+        grp.existingFileUrl = '';
+        grp.driveFileInfo = null;
+
+        // Áp dụng quy tắc đặt tên Số PO & cập nhật xem trước
+        applyFileSelectionToPO(gIdx, file.name);
+
+        const nameDisp = document.getElementById('fileNameDisplay_' + gIdx);
+        if (nameDisp) nameDisp.innerHTML = '📁 Từ máy: <strong>' + escapeHtml(file.name) + '</strong>';
+        renderAllPOGroups();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /* YÊU CẦU 5: XỬ LÝ TÌM VÀ CHỌN TỆP TỪ GOOGLE DRIVE */
+    function openDriveSearchModal(gIdx) {
+      modalState.activeDriveTargetGIdx = gIdx;
+      const grp = modalState.poGroups[gIdx];
+      const defaultKeyword = (grp.customerName || grp.soPO || '').replace(/^PO-\d+-/, '');
+
+      const kwInput = document.getElementById('driveSearchKeyword');
+      kwInput.value = defaultKeyword;
+
+      document.getElementById('driveSearchResults').style.display = 'none';
+      document.getElementById('driveSearchResults').innerHTML = '';
+      document.getElementById('driveSearchStatus').style.display = 'none';
+      document.getElementById('driveSearchModal').style.display = 'flex';
+
+      if (defaultKeyword) executeDriveSearch();
+    }
+
+    function closeDriveSearchModal() {
+      document.getElementById('driveSearchModal').style.display = 'none';
+      modalState.activeDriveTargetGIdx = null;
+    }
+
+    function executeDriveSearch() {
+      const kw = document.getElementById('driveSearchKeyword').value.trim();
+      if (!kw) return;
+
+      const statusEl = document.getElementById('driveSearchStatus');
+      const resultsEl = document.getElementById('driveSearchResults');
+
+      statusEl.style.display = 'block';
+      statusEl.textContent = '⏳ Đang tìm kiếm trên Google Drive của bạn...';
+      resultsEl.style.display = 'none';
+      resultsEl.innerHTML = '';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success) {
+            statusEl.style.display = 'none';
+            if (!res.files || res.files.length === 0) {
+              statusEl.style.display = 'block';
+              statusEl.textContent = '🔍 Không tìm thấy tệp nào phù hợp với từ khóa: "' + kw + '"';
+              return;
+            }
+
+            resultsEl.style.display = 'block';
+            resultsEl.innerHTML = res.files.map(function(f, fIdx) {
+              return '<div class="drive-file-item">' +
+                '<div class="drive-file-info">' +
+                '<span class="drive-file-name">' + escapeHtml(f.name) + '</span>' +
+                '<span class="drive-file-meta">Cập nhật: ' + escapeHtml(f.updated) + ' | Dung lượng: ' + formatFileSize(f.size) + '</span>' +
+                '</div>' +
+                '<button type="button" class="btn-choose-file" onclick="chooseDriveFile(' + fIdx + ')">Chọn tệp này</button>' +
+                '</div>';
+            }).join('');
+
+            window._cachedDriveSearchFiles = res.files;
+          } else {
+            statusEl.style.display = 'block';
+            statusEl.textContent = '❌ Lỗi tìm kiếm Drive: ' + (res.error || 'Không xác định');
+          }
+        })
+        .withFailureHandler(function(err) {
+          statusEl.style.display = 'block';
+          statusEl.textContent = '❌ Lỗi kết nối máy chủ: ' + err.message;
+        })
+        .searchUserDriveFiles(kw);
+    }
+
+    function chooseDriveFile(fIdx) {
+      const file = window._cachedDriveSearchFiles ? window._cachedDriveSearchFiles[fIdx] : null;
+      if (!file || modalState.activeDriveTargetGIdx === null) return;
+
+      const gIdx = modalState.activeDriveTargetGIdx;
+      const grp = modalState.poGroups[gIdx];
+
+      // Lưu trực tiếp URL của tệp trên Drive, không copy hay upload lại
+      grp.existingFileUrl = file.url;
+      grp.fileAttachment = null;
+      grp.driveFileInfo = { name: file.name, url: file.url };
+
+      // Áp dụng quy tắc kiểm tra tên tệp cho Số PO
+      applyFileSelectionToPO(gIdx, file.name);
+
+      closeDriveSearchModal();
+      renderAllPOGroups();
+      showStatus('✅ Đã đính kèm tệp từ Google Drive: ' + file.name + ' (Lưu link trực tiếp, không copy).', 'success');
+      setTimeout(hideStatus, 4000);
+    }
+
+    function clearAttachedFile(gIdx) {
+      const grp = modalState.poGroups[gIdx];
+      grp.fileAttachment = null;
+      grp.existingFileUrl = '';
+      grp.driveFileInfo = null;
+      renderAllPOGroups();
+    }
+
+    /* YÊU CẦU 3: HIỂN THỊ "TÊN LƯU FILE" TRÙNG HOÀN TOÀN VỚI "SỐ PO" */
+    function updateRenamedFilePreview(gIdx) {
+      const grp = modalState.poGroups[gIdx];
+      const soPO = (grp.soPO || '').trim() || grp.autoPONumber || 'PO';
+      const previewEl = document.getElementById('renamedFilePreview_' + gIdx);
+      if (!previewEl) return;
+
+      if (grp.fileAttachment && grp.fileAttachment.extension) {
+        previewEl.textContent = soPO + '.' + grp.fileAttachment.extension;
+      } else if (grp.driveFileInfo && grp.driveFileInfo.name.indexOf('.') !== -1) {
+        const ext = grp.driveFileInfo.name.split('.').pop();
+        previewEl.textContent = soPO + '.' + ext;
+      } else {
+        previewEl.textContent = soPO;
+      }
+    }
+
+    function updateGroupField(gIdx, field, val) {
+      modalState.poGroups[gIdx][field] = val;
+      if (field === 'soPO') {
+        updateRenamedFilePreview(gIdx);
+      }
+    }
+
+    function updateItemField(gIdx, iIdx, field, val) {
+      const grp = modalState.poGroups[gIdx];
+      const item = grp.items[iIdx];
+
+      if (field === 'qty' || field === 'price') {
+        item[field] = parseRawNumber(val);
+        const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0);
+        const cell = document.getElementById('lineTotal_' + gIdx + '_' + iIdx);
+        if (cell) cell.textContent = formatVND(lineTotal);
+        recalculateTotals();
+      } else if (field === 'giaKhuon') {
+        item.giaKhuon = parseRawNumber(val);
+      } else if (field === 'ngayGiao') {
+        item.ngayGiao = val;
+        item.deliveryDate = val;
+        grp.ngayGiaoDK = computeMaxDeliveryDate(grp.items, grp.ngayGiaoDK);
+        const maxEl = document.getElementById('maxDelivDisplay_' + gIdx);
+        if (maxEl) maxEl.textContent = grp.ngayGiaoDK;
+      } else {
+        item[field] = val;
+      }
+    }
+
     function onGroupCustomerChange(gIdx, val) {
       const grp = modalState.poGroups[gIdx];
       const nameClean = String(val || '').trim();
@@ -504,7 +747,7 @@
       const suggestedPO = 'PO-' + yymmdd + '-' + (slug || 'KH');
       grp.autoPONumber = suggestedPO;
 
-      if (!grp.soPO || grp.soPO.indexOf('-NEW') !== -1) {
+      if (!grp.soPO || grp.soPO.startsWith('PO-')) {
         grp.soPO = suggestedPO;
       }
 
@@ -512,9 +755,6 @@
       recalculateTotals();
     }
 
-    /**
-     * Khi chọn / nhập Tên sản phẩm trên dòng -> Tự nạp Code SP, ĐVT, Đơn giá nếu là SP cũ
-     */
     function onItemProductChange(gIdx, iIdx, val) {
       const grp = modalState.poGroups[gIdx];
       const item = grp.items[iIdx];
@@ -548,73 +788,6 @@
       recalculateTotals();
     }
 
-    /**
-     * Cập nhật trường thông tin cấp PO Group
-     */
-    function updateGroupField(gIdx, field, val) {
-      modalState.poGroups[gIdx][field] = val;
-      if (field === 'soPO') {
-        updateRenamedFilePreview(gIdx);
-      }
-    }
-
-    /**
-     * Cập nhật trường thông tin cấp Dòng sản phẩm
-     */
-    function updateItemField(gIdx, iIdx, field, val) {
-      const grp = modalState.poGroups[gIdx];
-      const item = grp.items[iIdx];
-
-      if (field === 'qty' || field === 'price') {
-        item[field] = parseRawNumber(val);
-        const lineTotal = (Number(item.qty) || 0) * (Number(item.price) || 0);
-        const cell = document.getElementById('lineTotal_' + gIdx + '_' + iIdx);
-        if (cell) cell.textContent = formatVND(lineTotal);
-        recalculateTotals();
-      } else if (field === 'giaKhuon') {
-        item.giaKhuon = parseRawNumber(val);
-      } else if (field === 'ngayGiao') {
-        item.ngayGiao = val;
-        item.deliveryDate = val;
-        grp.ngayGiaoDK = computeMaxDeliveryDate(grp.items, grp.ngayGiaoDK);
-        const maxEl = document.getElementById('maxDelivDisplay_' + gIdx);
-        if (maxEl) maxEl.textContent = grp.ngayGiaoDK;
-      } else {
-        item[field] = val;
-      }
-    }
-
-    /**
-     * Thêm 1 dòng mặt hàng mới vào PO Card (Tự điền Ngày đặt = TODAY, Ngày giao = TODAY + 10)
-     */
-    function addNewItemRow(gIdx) {
-      const grp = modalState.poGroups[gIdx];
-      grp.items.push({
-        spId: '',
-        prodName: '',
-        codeSP: '',
-        unit: 'Cái',
-        qty: 5000,
-        price: 0,
-        giaKhuon: 0,
-        mang: '',
-        type: '1',
-        donggoi: '',
-        ngayDat: modalState.serverDate,
-        ngayGiao: modalState.defaultDeliveryDate,
-        deliveryDate: modalState.defaultDeliveryDate,
-        note: '',
-        isNew: true,
-        isNewProduct: true
-      });
-      grp.ngayGiaoDK = computeMaxDeliveryDate(grp.items, modalState.defaultDeliveryDate);
-      renderAllPOGroups();
-      recalculateTotals();
-    }
-
-    /**
-     * Xóa 1 dòng mặt hàng khỏi PO Card
-     */
     function removeItemRow(gIdx, iIdx) {
       const grp = modalState.poGroups[gIdx];
       if (grp.items.length <= 1) {
@@ -627,62 +800,6 @@
       recalculateTotals();
     }
 
-    /**
-     * Thêm 1 khối PO Card mới (Hỗ trợ tạo nhiều đơn của nhiều khách hàng trong 1 lần)
-     */
-    function addNewPOGroup() {
-      const yymmdd = modalState.serverDate.replace(/-/g, '').substring(2);
-      const defaultPO = 'PO-' + yymmdd + '-KH' + (modalState.poGroups.length + 1);
-      modalState.poGroups.push({
-        customerName: '',
-        maKH: '',
-        isNewCustomer: true,
-        soPO: defaultPO,
-        autoPONumber: defaultPO,
-        salesPerson: modalState.currentUser.isAuthenticated
-          ? modalState.currentUser.maNV
-          : (modalState.salesStaffList[0] ? modalState.salesStaffList[0].maNV : ''),
-        ngayDat: modalState.serverDate,
-        ngayGiaoDK: modalState.defaultDeliveryDate,
-        orderNote: '',
-        existingFileUrl: '',
-        fileAttachment: null,
-        items: [{
-          spId: '',
-          prodName: '',
-          codeSP: '',
-          unit: 'Cái',
-          qty: 5000,
-          price: 0,
-          giaKhuon: 0,
-          mang: '',
-          type: '1',
-          donggoi: '',
-          ngayDat: modalState.serverDate,
-          ngayGiao: modalState.defaultDeliveryDate,
-          deliveryDate: modalState.defaultDeliveryDate,
-          note: '',
-          isNew: true,
-          isNewProduct: true
-        }]
-      });
-      renderAllPOGroups();
-      recalculateTotals();
-    }
-
-    /**
-     * Xóa 1 khối PO Card
-     */
-    function removePOGroup(gIdx) {
-      if (modalState.poGroups.length <= 1) return;
-      modalState.poGroups.splice(gIdx, 1);
-      renderAllPOGroups();
-      recalculateTotals();
-    }
-
-    /**
-     * Bật/tắt dòng cấu hình kỹ thuật (Giá khuôn, Màng, Type, Đóng gói)
-     */
     function toggleDetailRow(gIdx, iIdx) {
       const row = document.getElementById('detailRow_' + gIdx + '_' + iIdx);
       if (row) {
@@ -690,58 +807,6 @@
       }
     }
 
-    /**
-     * Xử lý chọn tệp PO đính kèm -> Kiểm tra tối đa 15MB -> Chuyển sang Base64
-     */
-    function handleGroupFileSelect(e, gIdx) {
-      const file = e.target.files[0];
-      const grp = modalState.poGroups[gIdx];
-
-      if (!file) {
-        grp.fileAttachment = null;
-        document.getElementById('fileNameDisplay_' + gIdx).textContent = 'Chưa chọn tệp đính kèm';
-        updateRenamedFilePreview(gIdx);
-        return;
-      }
-
-      if (file.size > 15 * 1024 * 1024) {
-        showStatus('⚠️ Tệp "' + file.name + '" vượt quá giới hạn 15MB!', 'error');
-        e.target.value = '';
-        return;
-      }
-
-      const ext = file.name.indexOf('.') !== -1 ? file.name.split('.').pop().toLowerCase() : 'pdf';
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const base64String = evt.target.result.split(',')[1];
-        grp.fileAttachment = {
-          fileName: file.name,
-          extension: ext,
-          mimeType: file.type || 'application/octet-stream',
-          base64: base64String
-        };
-        document.getElementById('fileNameDisplay_' + gIdx).textContent = 'Đã chọn: ' + file.name;
-        updateRenamedFilePreview(gIdx);
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function updateRenamedFilePreview(gIdx) {
-      const grp = modalState.poGroups[gIdx];
-      const soPO = (grp.soPO || '').trim() || grp.autoPONumber || 'PO';
-      const cus = (grp.customerName || 'KH').trim();
-      const previewEl = document.getElementById('renamedFilePreview_' + gIdx);
-      if (!previewEl) return;
-      if (grp.fileAttachment) {
-        previewEl.textContent = 'PO_' + soPO + '_' + cus + '.' + grp.fileAttachment.extension;
-      } else {
-        previewEl.textContent = 'PO_' + soPO + '_' + cus;
-      }
-    }
-
-    /**
-     * Tính lại tổng thành tiền của từng PO và Tổng giá trị toàn giao dịch
-     */
     function recalculateTotals() {
       let grandTotalAll = 0;
       modalState.poGroups.forEach(function(grp, gIdx) {
@@ -756,9 +821,6 @@
       if (grandEl) grandEl.textContent = 'Tổng giá trị: ' + formatVND(grandTotalAll);
     }
 
-    /**
-     * Tìm ngày hẹn giao xa nhất trong các mặt hàng để gán cho NgayGiaoDK của PO (TC-02)
-     */
     function computeMaxDeliveryDate(items, fallbackDate) {
       let maxD = '';
       (items || []).forEach(function(it) {
@@ -768,9 +830,6 @@
       return maxD || fallbackDate;
     }
 
-    /**
-     * Kiểm tra hợp lệ dữ liệu 100% và gửi giao dịch lưu liên tầng về Backend
-     */
     function handleSaveOrder() {
       const poCustomerMap = {};
 
@@ -815,7 +874,7 @@
             return;
           }
           if (Number(it.qty) <= 0) {
-            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ' (' + it.prodName + '): Số lượng đặt phải nguyên dương (> 0)!', 'error');
+            showStatus('⚠️ Đơn PO "' + po + '" - Dòng #' + (i + 1) + ' (' + it.prodName + '): Số lượng đặt phải > 0!', 'error');
             return;
           }
           if (Number(it.price) < 0) {
@@ -833,13 +892,12 @@
         }
       }
 
-      // Khóa nút chống click đúp
       const btnSave = document.getElementById('btnSaveOrder');
       if (btnSave) {
         btnSave.disabled = true;
         btnSave.textContent = '⏳ Đang lưu giao dịch vào Database...';
       }
-      showStatus('⏳ Đang thực thi giao dịch ACID (Upsert KH/SP, Upload File PO & Ghi đơn hàng)...', 'loading');
+      showStatus('⏳ Đang thực thi giao dịch lưu đơn hàng...', 'loading');
 
       const payload = {
         poGroups: modalState.poGroups.map(function(grp) {
@@ -932,6 +990,14 @@
 
     function formatVND(num) {
       return (Number(num) || 0).toLocaleString('vi-VN') + ' ₫';
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
     function escapeHtml(str) {

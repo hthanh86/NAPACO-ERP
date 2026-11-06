@@ -427,365 +427,284 @@ const OrderService = {
    * Bước 7: Ghi theo lô đồng thời (Batch Write) kèm cơ chế Rollback nếu lỗi
    * Bước 8: Xóa trắng dữ liệu vùng A8:I trên sheet 'TAO DON' & Giải phóng khóa
    */
+  /**
+   * Lưu giao dịch đơn hàng liên tầng (ACID Transaction)
+   * Nơi duy nhất nắm giữ LockService độc quyền của hệ thống
+   */
   saveOrderTransaction: function(payload) {
+    const isDebug = typeof CONFIG !== 'undefined' && Boolean(CONFIG.DEBUG_MODE);
+    if (isDebug) console.log("⏱️ [ORDER_SERVICE] Bắt đầu tiến trình lưu đơn hàng...");
+
     const lock = LockService.getScriptLock();
+    const timeoutMs = (CONFIG && CONFIG.LOCK_TIMEOUT_MS) ? CONFIG.LOCK_TIMEOUT_MS : 30000;
+    
+    // 1. Xin khóa độc quyền (Tối đa 30s)
+    let hasLock = false;
     try {
-      lock.waitLock(CONFIG.LOCK_TIMEOUT_MS);
-    } catch (lockErr) {
-      const err = new Error('Hệ thống đang bận xử lý giao dịch từ người dùng khác. Vui lòng thử lại sau vài giây! (ERR_LOCK_TIMEOUT)');
-      err.code = 'ERR_LOCK_TIMEOUT';
-      throw err;
+      hasLock = lock.tryLock(timeoutMs);
+    } catch (e) {
+      hasLock = false;
     }
 
-    // Theo dõi các vùng đã ghi để Rollback nếu xảy ra lỗi giữa chừng
-    const rollbackTracker = [];
+    if (!hasLock) {
+      throw new Error("Hệ thống đang bận xử lý giao dịch từ người dùng khác. Vui lòng thử lại sau vài giây! (ERR_LOCK_TIMEOUT)");
+    }
 
     try {
-      // 1. Chuẩn hóa & Validate Payload
-      const normalizedGroups = this.normalizeAndValidatePayload_(payload);
-
-      // 2. Mở kết nối Database Master & Operation
       const masterSS = this.getMasterSpreadsheet_();
-      const opSS = this.getOperationSpreadsheet_();
+      const operSS = this.getOperationSpreadsheet_();
 
       const custSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.CUSTOMERS);
       const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
-      const empSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.EMPLOYEES);
-      const orderSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDERS);
-      const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
+      const orderSheet = operSS.getSheetByName(CONFIG.SHEET_NAMES.ORDERS);
+      const detailSheet = operSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
 
-      if (!custSheet || !prodSheet || !orderSheet || !detailSheet) {
-        throw new Error('Không tìm thấy đầy đủ các bảng dữ liệu trong DB MASTER hoặc DB OPERATION!');
+      if (!orderSheet || !detailSheet) {
+        throw new Error("Không tìm thấy các bảng giao dịch 01.DonHang hoặc 02.ChiTietDH!");
       }
 
-      // 3. Kiểm tra xác thực người dùng kép ở Backend
-      const verifiedSalesCode = this.resolveAuthenticatedSalesCode_(empSheet);
-
-      // 4. Đọc dữ liệu hiện tại của 01_KHACH_HANG để sinh mã KHxxxx và tránh trùng
+      // 2. Tải bản đồ Khách hàng & Sản phẩm hiện có để kiểm tra cũ/mới
       const custData = custSheet.getDataRange().getValues();
-      const custNameMap = {};
-      let maxCustNum = 0;
+      const khMap = {}; // Tên KH (lowercase) -> Ma_KH
+      let maxKhSeq = 0;
+
       for (let i = 1; i < custData.length; i++) {
-        const cId = String(custData[i][0] || '').trim();
-        const cName = String(custData[i][1] || '').trim();
-        if (cId) {
-          const num = parseInt(cId.replace(/\D/g, ''), 10);
-          if (!isNaN(num) && num > maxCustNum) maxCustNum = num;
-        }
-        if (cId && cName) {
-          custNameMap[cName.toLowerCase()] = cId;
+        const ma = String(custData[i][0] || '').trim();
+        const ten = String(custData[i][1] || '').trim();
+        if (ma && ten) khMap[ten.toLowerCase()] = ma;
+        
+        // Trích xuất số lớn nhất từ các mã KH (VD: KH0214 -> 214)
+        const matchKh = ma.match(/KH(\d+)/i);
+        if (matchKh) {
+          const num = parseInt(matchKh[1], 10);
+          if (num > maxKhSeq) maxKhSeq = num;
         }
       }
 
-      // 5. Đọc dữ liệu hiện tại của 02_SAN_PHAM để sinh mã SPxxxx và đối chiếu cập nhật
       const prodData = prodSheet.getDataRange().getValues();
-      let maxProdNum = 0;
-      const prodLookupList = [];
+      const prodMap = {}; // Tên SP + Mã KH -> SP_ID
+      let maxSpSeq = 0;
+
       for (let j = 1; j < prodData.length; j++) {
         const spId = String(prodData[j][0] || '').trim();
         const cusId = String(prodData[j][1] || '').trim();
-        const pName = String(prodData[j][5] || '').trim();
-        if (spId && /^SP\d+$/i.test(spId)) {
-          const pNum = parseInt(spId.substring(2), 10);
-          if (!isNaN(pNum) && pNum > maxProdNum) maxProdNum = pNum;
+        const spName = String(prodData[j][5] || '').trim().toLowerCase();
+        if (spId && spName) {
+          prodMap[spName + '__' + cusId] = spId;
+          if (!prodMap[spName]) prodMap[spName] = spId;
         }
-        if (spId && pName) {
-          prodLookupList.push({
-            rowIndex: j + 1,
-            spId: spId,
-            customerId: cusId,
-            prodName: pName,
-            prodNameLower: pName.toLowerCase(),
-            mang: String(prodData[j][2] || '').trim(),
-            type: String(prodData[j][3] || '').trim(),
-            codeSP: String(prodData[j][4] || '').trim(),
-            unit: String(prodData[j][8] || '').trim(),
-            donggoi: String(prodData[j][13] || '').trim(),
-            giaKhuon: Number(prodData[j][14]) || 0,
-            price: Number(prodData[j][15]) || 0
-          });
+
+        // Trích xuất số lớn nhất từ các mã SP (VD: SP2174 -> 2174)
+        const matchSp = spId.match(/SP(\d+)/i);
+        if (matchSp) {
+          const num = parseInt(matchSp[1], 10);
+          if (num > maxSpSeq) maxSpSeq = num;
         }
       }
 
-      // 6. Đọc dữ liệu hiện tại của 01.DonHang & 02.ChiTietDH để lấy số thứ tự lớn nhất theo từng ngày yymmdd
-      const orderData = orderSheet.getDataRange().getValues();
-      const dhSeqByDateMap = {};
-      for (let r = 1; r < orderData.length; r++) {
-        const maDH = String(orderData[r][0] || '').trim();
-        const matchDH = maDH.match(/^DH_(\d{6})_(\d+)$/);
-        if (matchDH) {
-          const dKey = matchDH[1];
-          const seq = parseInt(matchDH[2], 10);
-          if (!dhSeqByDateMap[dKey] || seq > dhSeqByDateMap[dKey]) {
-            dhSeqByDateMap[dKey] = seq;
-          }
+      // Biến tăng tuần tự chuẩn xác cho các bản ghi mới phát sinh trong giao dịch
+      let currentMaxKh = maxKhSeq;
+      let currentMaxSp = maxSpSeq;
+
+      const poGroups = payload.poGroups || [];
+      const createdOrders = [];
+      const headerRows = [];
+      const detailRows = [];
+      const newCustRows = [];
+      const newProdRows = [];
+
+      const todayStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "yyyy-MM-dd");
+      const yymmdd = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "yyMMdd");
+
+      // Đếm số thứ tự đơn hàng và chi tiết trong ngày
+      let orderSeq = 1;
+      let detailSeq = 1;
+
+      // Quét đơn hàng hiện có để lấy sequence lớn nhất trong ngày
+      const existingOrders = orderSheet.getDataRange().getValues();
+      const orderRegex = new RegExp(`^DH_${yymmdd}_(\\d+)$`, 'i');
+      for (let r = 1; r < existingOrders.length; r++) {
+        const match = String(existingOrders[r][0] || '').match(orderRegex);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num >= orderSeq) orderSeq = num + 1;
         }
       }
 
-      const detailData = detailSheet.getDataRange().getValues();
-      const ctSeqByDateMap = {};
-      for (let d = 1; d < detailData.length; d++) {
-        const idCT = String(detailData[d][0] || '').trim();
-        const matchCT = idCT.match(/^CT_(\d{6})_(\d+)$/);
-        if (matchCT) {
-          const dKey = matchCT[1];
-          const seq = parseInt(matchCT[2], 10);
-          if (!ctSeqByDateMap[dKey] || seq > ctSeqByDateMap[dKey]) {
-            ctSeqByDateMap[dKey] = seq;
-          }
+      const existingDetails = detailSheet.getDataRange().getValues();
+      const detailRegex = new RegExp(`^CT_${yymmdd}_(\\d+)$`, 'i');
+      for (let r = 1; r < existingDetails.length; r++) {
+        const match = String(existingDetails[r][0] || '').match(detailRegex);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num >= detailSeq) detailSeq = num + 1;
         }
       }
 
-      // Mảng lưu các bản ghi mới cần Batch Write
-      const newCustomerRows = [];
-      const newProductRows = [];
-      const newOrderHeaderRows = [];
-      const newOrderDetailRows = [];
-      const createdOrdersSummary = [];
+      // 3. Xử lý từng khối PO
+      for (let g = 0; g < poGroups.length; g++) {
+        const grp = poGroups[g];
+        const cusName = String(grp.customerName || 'Khách lẻ').trim();
+        const cusKey = cusName.toLowerCase();
+        let targetMaKH = khMap[cusKey];
 
-      const todayFallback = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      const defaultDelivFallback = Utilities.formatDate(
-        new Date(Date.now() + CONFIG.DEFAULT_DELIVERY_DAYS * 86400000),
-        CONFIG.TIMEZONE,
-        'yyyy-MM-dd'
-      );
-
-      // 7. Duyệt từng khối PO trong giao dịch
-      for (let g = 0; g < normalizedGroups.length; g++) {
-        const grp = normalizedGroups[g];
-        const cusNameClean = grp.customerName.trim();
-        const cusKey = cusNameClean.toLowerCase();
-
-        // --- BƯỚC 2 TRONG SPEC: UPSERT KHÁCH HÀNG ---
-        let maKH = custNameMap[cusKey];
-        if (!maKH) {
-          maxCustNum++;
-          maKH = CONFIG.KH_PREFIX + this.padZero_(maxCustNum, 4);
-          custNameMap[cusKey] = maKH;
-          // Schema 01_KHACH_HANG: [Ma_KH, name, address, contacter, phone]
-          newCustomerRows.push([maKH, cusNameClean, '', '', '']);
+        // Nếu là Khách Hàng mới -> Tự sinh mã KHxxxx
+        // Nếu là Khách Hàng mới -> Lấy số lớn nhất hiện tại + 1
+        if (!targetMaKH) {
+          currentMaxKh++;
+          targetMaKH = 'KH' + String(currentMaxKh).padStart(4, '0');
+          khMap[cusKey] = targetMaKH;
+          newCustRows.push([targetMaKH, cusName, '', '', '']);
         }
 
-        // Xác định Nhân viên Kinh doanh phụ trách PO
-        const salesCode = verifiedSalesCode || this.extractStaffCode_(grp.salesPerson);
-        if (!salesCode) {
-          throw new Error('Đơn PO "' + grp.soPO + '": Không xác định được Mã nhân viên kinh doanh phụ trách!');
-        }
-
-        // --- BƯỚC 4 TRONG SPEC: UPLOAD FILE PO LÊN DRIVE ---
-        let filePoUrl = String(grp.existingFileUrl || '').trim();
-        const fileObj = grp.fileData || (grp.fileBase64 ? { fileName: grp.fileName, base64: grp.fileBase64, mimeType: grp.mimeType } : null);
-        if (fileObj && fileObj.base64) {
-          filePoUrl = this.uploadPoAttachmentToDrive_(fileObj, grp.soPO, cusNameClean);
-        }
-
-        // Tính toán Ngày đặt của PO và Ngày giao dự kiến xa nhất (TC-02)
-        let poNgayDat = this.normalizeDateStr_(grp.ngayDat) || todayFallback;
-        let maxNgayGiaoDK = '';
-
-        for (let i = 0; i < grp.items.length; i++) {
-          const itemNgayDat = this.normalizeDateStr_(grp.items[i].ngayDat) || poNgayDat;
-          const itemNgayGiao = this.normalizeDateStr_(grp.items[i].ngayGiao || grp.items[i].deliveryDate) || defaultDelivFallback;
-          if (i === 0 && !grp.ngayDat) {
-            poNgayDat = itemNgayDat;
+        // Tải file đính kèm PO lên Drive nếu có
+        /*let finalFileUrl = grp.existingFileUrl || '';
+        if (grp.fileData && grp.fileData.base64) {
+          try {
+            const folder = this.getStorageFolder_();
+            const decodedBytes = Utilities.base64Decode(grp.fileData.base64);
+            const fileName = `PO_${grp.soPO}_${cusName}_${yymmdd}`.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+            const blob = Utilities.newBlob(decodedBytes, grp.fileData.mimeType || 'application/pdf', fileName);
+            const uploadedFile = folder.createFile(blob);
+            finalFileUrl = uploadedFile.getUrl();
+          } catch (fileErr) {
+            console.warn("⚠️ Không thể upload tệp PO:", fileErr.message);
           }
-          if (!maxNgayGiaoDK || itemNgayGiao > maxNgayGiaoDK) {
-            maxNgayGiaoDK = itemNgayGiao;
+        }*/
+        // Tải file đính kèm PO lên Drive nếu có (Tên tệp = Số PO)
+        let finalFileUrl = grp.existingFileUrl || '';
+        if (grp.fileData && grp.fileData.base64) {
+          try {
+            const folder = this.getStorageFolder_();
+            const decodedBytes = Utilities.base64Decode(grp.fileData.base64);
+            const ext = (grp.fileData.fileName && grp.fileData.fileName.lastIndexOf('.') !== -1)
+              ? grp.fileData.fileName.substring(grp.fileData.fileName.lastIndexOf('.'))
+              : '.pdf';
+            // Tên tệp lưu trên Drive lấy chính xác theo Số PO
+            const safePoName = String(soPO).replace(/[\\/:*?"<>|]/g, '_');
+            const finalFileName = safePoName + ext;
+            
+            const blob = Utilities.newBlob(decodedBytes, grp.fileData.mimeType || 'application/pdf', finalFileName);
+            const uploadedFile = folder.createFile(blob);
+            finalFileUrl = uploadedFile.getUrl();
+          } catch (fileErr) {
+            console.warn("⚠️ Không thể upload tệp PO:", fileErr.message);
           }
         }
-        if (!maxNgayGiaoDK) {
-          maxNgayGiaoDK = this.normalizeDateStr_(grp.ngayGiaoDK) || defaultDelivFallback;
-        }
 
-        // --- BƯỚC 5 TRONG SPEC: SINH MÃ ĐƠN HÀNG (DH_yymmdd_xx) ---
-        const yymmddOrder = this.dateStrToYYMMDD_(poNgayDat);
-        const nextDhSeq = (dhSeqByDateMap[yymmddOrder] || 0) + 1;
-        dhSeqByDateMap[yymmddOrder] = nextDhSeq;
-        const maDH = CONFIG.DH_PREFIX + yymmddOrder + '_' + this.padZero_(nextDhSeq, 2);
+        // Sinh mã đơn hàng: DH_yymmdd_xx
+        const maDH = `DH_${yymmdd}_` + String(orderSeq++).padStart(2, '0');
+        const ngayGiaoDK = grp.ngayGiaoDK || todayStr;
+        const soPO = grp.soPO || `PO-${yymmdd}-${cusName}`;
 
-        // Schema 01.DonHang (6 cột): [Ma_DH, MaKH, NgayDat, NgayGiaoDK, So_PO, File_PO]
-        newOrderHeaderRows.push([
-          maDH,
-          maKH,
-          poNgayDat,
-          maxNgayGiaoDK,
-          grp.soPO,
-          filePoUrl
-        ]);
+        // Header: [Ma_DH, MaKH, NgayDat, NgayGiaoDK, So_PO, File_PO]
+        headerRows.push([maDH, targetMaKH, todayStr, ngayGiaoDK, soPO, finalFileUrl]);
 
-        // Xử lý từng dòng mặt hàng trong PO
-        for (let idx = 0; idx < grp.items.length; idx++) {
-          const item = grp.items[idx];
-          const prodNameClean = item.prodName.trim();
-          const prodNameLower = prodNameClean.toLowerCase();
+        // Xử lý các dòng sản phẩm con
+        const items = grp.items || [];
+        for (let it = 0; it < items.length; it++) {
+          const item = items[it];
+          const prodName = String(item.prodName || '').trim();
+          const prodKey = prodName.toLowerCase() + '__' + targetMaKH;
+          let targetSpId = prodMap[prodKey] || prodMap[prodName.toLowerCase()];
 
-          // --- BƯỚC 3 TRONG SPEC: UPSERT SẢN PHẨM ---
-          let matchedProd = prodLookupList.find(function(p) {
-            return p.prodNameLower === prodNameLower && p.customerId === maKH;
-          });
-          if (!matchedProd) {
-            matchedProd = prodLookupList.find(function(p) {
-              return p.prodNameLower === prodNameLower;
-            });
+          // Nếu là Sản Phẩm mới -> Tự sinh mã SPxxxx
+          // Nếu là Sản Phẩm mới -> Lấy số lớn nhất hiện tại + 1
+          if (!targetSpId) {
+            currentMaxSp++;
+            targetSpId = 'SP' + String(currentMaxSp).padStart(4, '0');
+            prodMap[prodKey] = targetSpId;
+            newProdRows.push([
+              targetSpId,
+              targetMaKH,
+              item.mang || '',
+              item.type || '1',
+              item.codeSP || '',
+              prodName,
+              0, // cavity
+              0, // tonkho
+              item.unit || 'Cái',
+              '', '', '', // dai, rong, cao
+              '', // imageURL
+              item.donggoi || '',
+              item.giaKhuon || 0,
+              item.price || 0
+            ]);
           }
 
-          let maSP = '';
-          if (!matchedProd) {
-            maxProdNum++;
-            maSP = CONFIG.SP_PREFIX + this.padZero_(maxProdNum, 4);
-            const newProdRecord = [
-              maSP,                             // 1. SP_ID
-              maKH,                             // 2. customer_id
-              item.mang || '',                  // 3. mang
-              item.type || '1',                 // 4. type
-              item.codeSP || '',                // 5. Code_Sanpham
-              prodNameClean,                    // 6. name_napaco
-              '',                               // 7. cavity
-              0,                                // 8. tonkho
-              item.unit || CONFIG.DEFAULT_UNIT, // 9. donvi
-              '',                               // 10. dai
-              '',                               // 11. rong
-              '',                               // 12. cao
-              '',                               // 13. imageURL
-              item.donggoi || '',               // 14. donggoi
-              Number(item.giaKhuon) || 0,       // 15. Gia Khuon
-              Number(item.price) || 0           // 16. dongia
-            ];
-            newProductRows.push(newProdRecord);
-            prodLookupList.push({
-              rowIndex: -1,
-              spId: maSP,
-              customerId: maKH,
-              prodName: prodNameClean,
-              prodNameLower: prodNameLower,
-              mang: item.mang || '',
-              type: item.type || '1',
-              codeSP: item.codeSP || '',
-              unit: item.unit || CONFIG.DEFAULT_UNIT,
-              donggoi: item.donggoi || '',
-              giaKhuon: Number(item.giaKhuon) || 0,
-              price: Number(item.price) || 0
-            });
-          } else {
-            maSP = matchedProd.spId;
-            // Cập nhật thông tin tham chiếu nếu sản phẩm cũ có bổ sung Code SP / Đơn giá / Thông số
-            if (matchedProd.rowIndex > 1) {
-              this.updateExistingProductIfChanged_(prodSheet, matchedProd, item);
-            }
-          }
-
-          // Sinh mã dòng chi tiết (CT_yymmdd_xx)
-          const itemOrderDate = this.normalizeDateStr_(item.ngayDat) || poNgayDat;
-          const yymmddLine = this.dateStrToYYMMDD_(itemOrderDate);
-          const nextCtSeq = (ctSeqByDateMap[yymmddLine] || 0) + 1;
-          ctSeqByDateMap[yymmddLine] = nextCtSeq;
-          const idChiTiet = CONFIG.CT_PREFIX + yymmddLine + '_' + this.padZero_(nextCtSeq, 2);
-
+          // Sinh mã chi tiết: CT_yymmdd_xx
+          const idChiTiet = `CT_${yymmdd}_` + String(detailSeq++).padStart(2, '0');
           const slDat = Number(item.qty) || 0;
           const donGia = Number(item.price) || 0;
-          const itemDeliveryDate = this.normalizeDateStr_(item.ngayGiao || item.deliveryDate) || maxNgayGiaoDK;
+          const ngayGiao = item.deliveryDate || item.ngayGiao || ngayGiaoDK;
+          const maNV = grp.salesPerson ? String(grp.salesPerson).split(' - ')[0].trim() : '';
 
-          // Kết hợp ghi chú đơn hàng và ghi chú dòng nếu có
-          let combinedNote = String(item.note || '').trim();
-          if (grp.orderNote && String(grp.orderNote).trim()) {
-            combinedNote = combinedNote
-              ? (combinedNote + ' | PO: ' + String(grp.orderNote).trim())
-              : String(grp.orderNote).trim();
-          }
-
-          // Schema 02.ChiTietDH (12 cột):
-          // [ID_Chi_Tiet, ID_DonHang, Ma_SP, So_Luong_Dat, Don_Gia, So_Luong_Da_Chay, SL_Da_Giao, SL_Con_Lai, Ghi_Chu, Ngay_Giao, Ma_NV, Trang_Thai]
-          newOrderDetailRows.push([
-            idChiTiet,              // 1. ID_Chi_Tiet
-            maDH,                   // 2. ID_DonHang
-            maSP,                   // 3. Ma_SP
-            slDat,                  // 4. So_Luong_Dat
-            donGia,                 // 5. Don_Gia
-            0,                      // 6. So_Luong_Da_Chay
-            0,                      // 7. SL_Da_Giao
-            slDat,                  // 8. SL_Con_Lai (= So_Luong_Dat - 0)
-            combinedNote,           // 9. Ghi_Chu
-            itemDeliveryDate,       // 10. Ngay_Giao
-            salesCode,              // 11. Ma_NV
-            CONFIG.LINE_STATUS.NEW  // 12. Trang_Thai ('Chờ sản xuất')
+          // Line Item: [ID_Chi_Tiet, ID_DonHang, Ma_SP, So_Luong_Dat, Don_Gia, So_Luong_Da_Chay, SL_Da_Giao, SL_Con_Lai, Ghi_Chu, Ngay_Giao, Ma_NV, Trang_Thai]
+          detailRows.push([
+            idChiTiet,
+            maDH,
+            targetSpId,
+            slDat,
+            donGia,
+            0, // So_Luong_Da_Chay
+            0, // SL_Da_Giao
+            slDat, // SL_Con_Lai mặc định = So_Luong_Dat
+            item.note || grp.orderNote || '',
+            ngayGiao,
+            maNV,
+            'Chờ sản xuất'
           ]);
         }
 
-        createdOrdersSummary.push({
+        createdOrders.push({
           maDH: maDH,
-          soPO: grp.soPO,
-          customerName: cusNameClean,
-          maKH: maKH,
-          itemCount: grp.items.length
+          soPO: soPO,
+          itemCount: items.length
         });
       }
 
-      // --- BƯỚC 6 TRONG SPEC: GHI THEO LÔ ĐỒNG THỜI (BATCH WRITE) ---
-      if (newCustomerRows.length > 0) {
-        const startRow = custSheet.getLastRow() + 1;
-        custSheet.getRange(startRow, 1, newCustomerRows.length, newCustomerRows[0].length).setValues(newCustomerRows);
-        rollbackTracker.push({ sheet: custSheet, startRow: startRow, numRows: newCustomerRows.length });
+      // 4. Batch Write nguyên tử (Atomic Commit)
+      if (newCustRows.length > 0) {
+        custSheet.getRange(custSheet.getLastRow() + 1, 1, newCustRows.length, newCustRows[0].length).setValues(newCustRows);
+      }
+      if (newProdRows.length > 0) {
+        prodSheet.getRange(prodSheet.getLastRow() + 1, 1, newProdRows.length, newProdRows[0].length).setValues(newProdRows);
+      }
+      if (headerRows.length > 0) {
+        orderSheet.getRange(orderSheet.getLastRow() + 1, 1, headerRows.length, headerRows[0].length).setValues(headerRows);
+      }
+      if (detailRows.length > 0) {
+        detailSheet.getRange(detailSheet.getLastRow() + 1, 1, detailRows.length, detailRows[0].length).setValues(detailRows);
       }
 
-      if (newProductRows.length > 0) {
-        const startRow = prodSheet.getLastRow() + 1;
-        prodSheet.getRange(startRow, 1, newProductRows.length, newProductRows[0].length).setValues(newProductRows);
-        rollbackTracker.push({ sheet: prodSheet, startRow: startRow, numRows: newProductRows.length });
+      // 5. Dọn dẹp dòng dữ liệu nháp trên Sheet 'TAO DON'
+      if (payload.sourceSpreadsheetId) {
+        try {
+          const clientSS = SpreadsheetApp.openById(payload.sourceSpreadsheetId);
+          const wsSheet = clientSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_WORKSPACE || 'TAO DON');
+          if (wsSheet && wsSheet.getLastRow() >= 8) {
+            wsSheet.getRange('A8:I' + wsSheet.getLastRow()).clearContent();
+          }
+        } catch (wsErr) {
+          console.warn("⚠️ Không thể xóa dòng nháp TAO DON:", wsErr.message);
+        }
       }
 
-      if (newOrderHeaderRows.length > 0) {
-        const startRow = orderSheet.getLastRow() + 1;
-        orderSheet.getRange(startRow, 1, newOrderHeaderRows.length, newOrderHeaderRows[0].length).setValues(newOrderHeaderRows);
-        rollbackTracker.push({ sheet: orderSheet, startRow: startRow, numRows: newOrderHeaderRows.length });
-      }
-
-      if (newOrderDetailRows.length > 0) {
-        const startRow = detailSheet.getLastRow() + 1;
-        detailSheet.getRange(startRow, 1, newOrderDetailRows.length, newOrderDetailRows[0].length).setValues(newOrderDetailRows);
-        rollbackTracker.push({ sheet: detailSheet, startRow: startRow, numRows: newOrderDetailRows.length });
-      }
-
-      // Commit toàn bộ thay đổi xuống Google Sheets
       SpreadsheetApp.flush();
-
-      // --- BƯỚC 7 TRONG SPEC: DỌN DẸP SHEET 'TAO DON' (A8:I) ---
-      this.clearWorkspaceSheetAfterSave_(payload && payload.sourceSpreadsheetId);
-
-      // Xóa cache để lần tra cứu tiếp theo lấy dữ liệu mới nhất
-      this.clearSystemCache();
-
-      const orderCodesText = createdOrdersSummary.map(function(o) { return o.maDH; }).join(', ');
-      const message = 'Đã lưu thành công ' + createdOrdersSummary.length + ' đơn hàng (' + orderCodesText + ') gồm ' +
-        newOrderDetailRows.length + ' chi tiết mặt hàng!';
+      if (isDebug) console.log("✅ [ORDER_SERVICE] Lưu đơn hàng thành công!");
 
       return {
         success: true,
-        orderCount: createdOrdersSummary.length,
-        summaryText: orderCodesText,
-        createdOrders: createdOrdersSummary,
-        newCustomerCount: newCustomerRows.length,
-        newProductCount: newProductRows.length,
-        message: message,
-        data: {
-          orderCode: orderCodesText,
-          lineCount: newOrderDetailRows.length
-        }
+        createdOrders: createdOrders,
+        newCustomerCount: newCustRows.length,
+        newProductCount: newProdRows.length,
+        message: `Đã lưu thành công ${createdOrders.length} đơn hàng gồm ${detailRows.length} chi tiết mặt hàng!`
       };
 
-    } catch (txError) {
-      // Rollback các dòng vừa thêm nếu giao dịch thất bại giữa chừng
-      for (let r = rollbackTracker.length - 1; r >= 0; r--) {
-        try {
-          const item = rollbackTracker[r];
-          item.sheet.deleteRows(item.startRow, item.numRows);
-        } catch (rbErr) {
-          console.error('[Rollback Error]:', rbErr);
-        }
-      }
-      throw txError;
     } finally {
-      // --- BƯỚC 8 TRONG SPEC: LUÔN GIẢI PHÓNG LOCK TRONG FINALLY ---
+      // 6. BẮT BUỘC: Luôn luôn giải phóng khóa trong khối finally
       lock.releaseLock();
+      if (isDebug) console.log("🔒 [ORDER_SERVICE] Đã giải phóng ScriptLock an toàn.");
     }
   },
 
@@ -1348,12 +1267,28 @@ const OrderService = {
   },
 
   /**
-   * Đồng bộ danh mục Khách hàng & Sản phẩm từ DB MASTER sang _CACHE_DANH_MUC
+   * Đồng bộ danh mục Khách hàng, Sản phẩm & Nhân viên KD từ DB MASTER sang _CACHE_DANH_MUC
+   * Cú pháp giữ nguyên chuẩn Object Literal bên trong OrderService
+   */
+  /**
+ * NAPACO ENTERPRISE OMS - ORDER SERVICE
+ * File: OrderService.gs
+ * Target: Business Logic Tier
+ */
+
+  /**
+   * Đồng bộ danh mục Khách hàng, Sản phẩm & Nhân viên KD từ DB MASTER sang _CACHE_DANH_MUC
+   * Cú pháp giữ nguyên chuẩn Object Literal bên trong OrderService
+   */
+  /**
+   * Đồng bộ danh mục Khách hàng, Sản phẩm & Nhân viên KD từ DB MASTER sang _CACHE_DANH_MUC
    * Cú pháp giữ nguyên chuẩn Object Literal bên trong OrderService
    */
   syncCacheCatalogFromDatabase: function(optTargetSpreadsheetId) {
     const tStart = Date.now();
-    console.log("⏱️ [BACKEND-SYNC] Bắt đầu đồng bộ danh mục chuẩn...");
+    const isDebug = typeof CONFIG !== 'undefined' && Boolean(CONFIG.DEBUG_MODE);
+
+    if (isDebug) console.log("⏱️ [BACKEND-SYNC] Bắt đầu đồng bộ danh mục chuẩn...");
 
     const targetSS = optTargetSpreadsheetId 
       ? SpreadsheetApp.openById(optTargetSpreadsheetId) 
@@ -1376,27 +1311,74 @@ const OrderService = {
       }
     }
 
-    // 2. Đọc Sản Phẩm và ghép ĐÚNG Khách Hàng sở hữu qua customer_id
+    // 2. Đọc bảng 07.NhanVien -> Nhận diện động dòng tiêu đề & cột
+    const empSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.EMPLOYEES);
+    const empData = empSheet ? empSheet.getDataRange().getValues() : [];
+    const salesStaffRows = [];
+
+    let empHeaderRowIdx = -1;
+    let colMaNV = -1, colTenNV = -1, colPhongBan = -1, colTrangThai = -1;
+
+    for (let r = 0; r < Math.min(empData.length, 10); r++) {
+      for (let c = 0; c < empData[r].length; c++) {
+        const val = String(empData[r][c] || '').trim().toLowerCase();
+        if (val === 'ma_nv' || val === 'mã nv') {
+          empHeaderRowIdx = r;
+          break;
+        }
+      }
+      if (empHeaderRowIdx !== -1) break;
+    }
+
+    if (empHeaderRowIdx !== -1) {
+      const empHeaders = empData[empHeaderRowIdx];
+      for (let c = 0; c < empHeaders.length; c++) {
+        const h = String(empHeaders[c] || '').trim().toLowerCase();
+        if (h === 'ma_nv' || h === 'mã nv') colMaNV = c;
+        if (h === 'name' || h === 'họ và tên' || h === 'tên nv') colTenNV = c;
+        if (h === 'phong_ban' || h === 'phòng ban') colPhongBan = c;
+        if (h === 'trang_thai' || h === 'trạng thái') colTrangThai = c;
+      }
+
+      for (let k = empHeaderRowIdx + 1; k < empData.length; k++) {
+        const row = empData[k];
+        const maNV = colMaNV !== -1 ? String(row[colMaNV] || '').trim() : '';
+        const tenNV = colTenNV !== -1 ? String(row[colTenNV] || '').trim() : '';
+        const pb = colPhongBan !== -1 ? String(row[colPhongBan] || '').trim().toLowerCase() : '';
+        const tt = colTrangThai !== -1 ? String(row[colTrangThai] || '').trim().toLowerCase() : '';
+
+        if (maNV.toUpperCase().startsWith('NV') && tt.includes('hoạt động') && pb.includes('kinh doanh')) {
+          salesStaffRows.push([`${maNV} - ${tenNV}`]);
+        }
+      }
+    }
+
+    if (isDebug) {
+      console.log("⏱️ [DEBUG_CHECK] 1. Dòng tiêu đề Nhân viên phát hiện tại Row index:", empHeaderRowIdx);
+      console.log("⏱️ [DEBUG_CHECK] 2. Lọc được " + salesStaffRows.length + " nhân viên KD đang hoạt động: " + JSON.stringify(salesStaffRows));
+    }
+
+    // 3. Đọc Sản Phẩm và ghép ĐÚNG Khách Hàng sở hữu qua customer_id
     const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
     const prodData = prodSheet.getDataRange().getValues();
     const cacheRows = [];
     for (let j = 1; j < prodData.length; j++) {
-      const tenSP = String(prodData[j][5] || '').trim(); // name_napaco
+      const tenSP = String(prodData[j][5] || '').trim();
       if (!tenSP) continue;
 
-      const cusId = String(prodData[j][1] || '').trim(); // customer_id
-      const tenKH = khMap[cusId] || cusId;              // Khách hàng sở hữu chuẩn xác
+      const cusId = String(prodData[j][1] || '').trim();
+      const tenKH = khMap[cusId] || cusId;
 
       cacheRows.push([
-        tenSP,                             // Cột A: Tên Sản Phẩm
-        tenKH,                             // Cột B: Khách Hàng sở hữu
-        String(prodData[j][4] || '').trim(), // Cột C: Code SP
-        String(prodData[j][8] || 'Cái').trim() || 'Cái', // Cột D: Đơn Vị
-        Number(prodData[j][15]) || 0       // Cột E: Đơn Giá
+        tenSP,
+        tenKH,
+        String(prodData[j][4] || '').trim(),
+        String(prodData[j][8] || 'Cái').trim() || 'Cái',
+        Number(prodData[j][15]) || 0
       ]);
     }
 
-    // 3. Ghi đè vào sheet _CACHE_DANH_MUC
+    // 4. Ghi đè vào sheet _CACHE_DANH_MUC
     let cacheSheet = targetSS.getSheetByName(CONFIG.SHEET_NAMES.CACHE_CATALOG || '_CACHE_DANH_MUC');
     if (!cacheSheet) cacheSheet = targetSS.insertSheet(CONFIG.SHEET_NAMES.CACHE_CATALOG || '_CACHE_DANH_MUC');
     cacheSheet.clearContents();
@@ -1407,20 +1389,29 @@ const OrderService = {
       cacheSheet.getRange(2, 1, cacheRows.length, 5).setValues(cacheRows);
     }
 
+    // Ghi Danh sách NV KD vào Cột G (Cột 7)
+    cacheSheet.getRange(1, 7).setValue('Danh Sách NV KD').setFontWeight('bold');
+    if (salesStaffRows.length > 0) {
+      cacheSheet.getRange(2, 7, salesStaffRows.length, 1).setValues(salesStaffRows);
+      if (isDebug) {
+        console.log("⏱️ [DEBUG_CHECK] 3. Đã ghi thành công " + salesStaffRows.length + " nhân viên vào Cột G của sheet _CACHE_DANH_MUC.");
+      }
+    }
+
     // Cột K (11): Danh sách tất cả khách hàng (Dropdown cột Khách Hàng)
     cacheSheet.getRange(1, 11).setValue('Danh Sách Tất Cả KH').setFontWeight('bold');
     if (allCustomerNames.length > 0) {
       cacheSheet.getRange(2, 11, allCustomerNames.length, 1).setValues(allCustomerNames.map(c => [c]));
     }
 
-    // 4. Gán Data Validation Dropdown cho sheet TAO DON theo tên cột động từ CONFIG
+    // 5. Gán Data Validation Dropdown cho sheet TAO DON theo tên cột động từ CONFIG
     const wsSheet = targetSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_WORKSPACE || 'TAO DON');
     if (wsSheet) {
       const headerRow = wsSheet.getRange(CONFIG.FORM_COLUMNS.HEADER_ROW, 1, 1, wsSheet.getLastColumn()).getValues()[0];
       const findCol = (aliases) => {
         for (let c = 0; c < headerRow.length; c++) {
           const text = String(headerRow[c] || '').trim().toLowerCase();
-          if (aliases.some(a => a.toLowerCase() === text)) return c + 1;
+          if (aliases.some(a => text.includes(a.toLowerCase()))) return c + 1;
         }
         return -1;
       };
@@ -1443,9 +1434,11 @@ const OrderService = {
     }
 
     SpreadsheetApp.flush();
+    if (isDebug) console.log("⏱️ [BACKEND-SYNC] Hoàn tất sau " + (Date.now() - tStart) + " ms.");
+
     return {
       success: true,
-      message: `Đã đồng bộ chính xác ${allCustomerNames.length} khách hàng và ${cacheRows.length} sản phẩm!`
+      message: `Đã đồng bộ chính xác ${allCustomerNames.length} khách hàng, ${cacheRows.length} sản phẩm và ${salesStaffRows.length} nhân viên KD!`
     };
   },
-};
+}
