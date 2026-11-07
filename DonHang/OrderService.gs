@@ -750,6 +750,9 @@ const OrderService = {
     const orderRows = orderSheet.getDataRange().getValues();
     const detailRows = detailSheet.getDataRange().getValues();
 
+    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Đọc map khuôn định hình */
+    const moldMap = this.getMoldsMap_();
+
     // 1. Ánh xạ toàn bộ Header Đơn hàng (01.DonHang)
     const orderMap = {};
     const orderHeadersList = [];
@@ -817,6 +820,13 @@ const OrderService = {
       const dvt = prodObj ? prodObj.unit : 'Cái';
       const thanhTien = slDat * donGia;
 
+      /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Bổ sung Màng, Khuôn, Tên NV fallback ---, ImageURL, GiaKhuon */
+      const mangVal = prodObj && prodObj.mang ? prodObj.mang : '---';
+      const maKhuonVal = moldMap[maSP] || '---';
+      const tenSalesVal = (empObj && empObj.hoTen) ? empObj.hoTen : '---';
+      const imageURL = prodObj && prodObj.imageURL ? prodObj.imageURL : '';
+      const giaKhuon = prodObj && prodObj.giaKhuon ? prodObj.giaKhuon : 0;
+
       const lineObj = {
         idChiTiet: idChiTiet,
         maDH: idDonHang,
@@ -838,8 +848,14 @@ const OrderService = {
         ghiChu: ghiChu,
         ngayGiao: ngayGiao || (parentOrder ? parentOrder.ngayGiaoDK : ''),
         maNV: maNV,
-        tenNV: empObj ? empObj.hoTen : maNV,
-        trangThai: trangThaiRaw
+        /* [MỚI] Gán tên hiển thị chuẩn xác */
+        tenNV: tenSalesVal,
+        trangThai: trangThaiRaw,
+        /* [MỚI] Trường dữ liệu theo đặc tả */
+        mang: mangVal,
+        maKhuon: maKhuonVal,
+        imageURL: imageURL,
+        giaKhuon: giaKhuon
       };
 
       allLineItems.push(lineObj);
@@ -1454,5 +1470,301 @@ const OrderService = {
       success: true,
       message: `Đã đồng bộ chính xác ${allCustomerNames.length} khách hàng, ${cacheRows.length} sản phẩm và ${salesStaffRows.length} nhân viên KD!`
     };
+  },
+
+  /**
+   * [MỚI - SPEC-OMS-LINEITEM-202611-01] Đọc bảng 05.Cong_Cu và tạo map Khuôn định hình theo SP_ID
+   * @private
+   */
+  getMoldsMap_: function() {
+    try {
+      const masterSS = this.getMasterSpreadsheet_();
+      const sheetName = (CONFIG.SHEET_NAMES && CONFIG.SHEET_NAMES.TOOLS) ? CONFIG.SHEET_NAMES.TOOLS : '05.Cong_Cu';
+      const toolSheet = masterSS.getSheetByName(sheetName);
+      if (!toolSheet) return {};
+
+      const data = toolSheet.getDataRange().getValues();
+      if (data.length <= 1) return {};
+
+      const headers = data[0].map(h => String(h || '').trim());
+      const colSpId = headers.indexOf(CONFIG.COLUMNS.TOOLS.SP_ID);
+      const colType = headers.indexOf(CONFIG.COLUMNS.TOOLS.TOOL_TYPE);
+      const colMold = headers.indexOf(CONFIG.COLUMNS.TOOLS.MOLD_CODE);
+
+      if (colSpId === -1 || colMold === -1) return {};
+
+      const moldMap = {};
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const spId = String(row[colSpId] || '').trim();
+        const type = colType !== -1 ? String(row[colType] || '').trim() : '';
+        const moldCode = String(row[colMold] || '').trim();
+
+        // Điều kiện: LoaiCC == "KhuonDinhHinh" và có MaSP hợp lệ
+        if (spId && (!type || type.toLowerCase() === 'khuondinhhinh') && moldCode) {
+          moldMap[spId] = moldCode;
+        }
+      }
+      return moldMap;
+    } catch (e) {
+      console.warn('[OrderService.getMoldsMap_] Cảnh báo đọc khuôn:', e.message);
+      return {};
+    }
+  },
+
+  /**
+   * [MỚI - SPEC-OMS-LINEITEM-202611-01] Chỉnh sửa hàng loạt (Bulk Edit) với LockService và Batch Read/Write
+   * @param {Object} payload { targetIds: string[], fieldsToUpdate: Object }
+   */
+  updateOrderLineItemsBulk: function(payload) {
+    /* [MỚI - VẤN ĐỀ 5] Hỗ trợ đồng thời 2 cấu trúc payload: mảng itemsToUpdate (riêng từng SP) hoặc targetIds chung */
+    let updateMap = {}; // idChiTiet -> fieldsToUpdate
+    if (payload && Array.isArray(payload.itemsToUpdate) && payload.itemsToUpdate.length > 0) {
+      payload.itemsToUpdate.forEach(item => {
+        if (item.idChiTiet) updateMap[item.idChiTiet] = item.fields || {};
+      });
+    } else if (payload && Array.isArray(payload.targetIds) && payload.targetIds.length > 0) {
+      const commonFields = payload.fieldsToUpdate || {};
+      payload.targetIds.forEach(id => {
+        updateMap[id] = commonFields;
+      });
+    } else {
+      return { success: false, message: 'Danh sách dòng mặt hàng cần cập nhật không hợp lệ.' };
+    }
+
+    const targetIds = Object.keys(updateMap);
+    if (targetIds.length === 0) {
+      return { success: false, message: 'Không có dữ liệu mặt hàng nào được chọn.' };
+    }
+
+    // 1. KIỂM TRA PHÂN QUYỀN SERVER-SIDE
+    const catalog = this.getCatalogAndAuthData();
+    const currentUser = catalog.currentUser;
+    const allowedRoles = CONFIG.ALLOWED_ROLES_BULK_EDIT || ['Kinh doanh', 'QLSX', 'QC', 'Kho'];
+
+    let hasPermission = false;
+    if (currentUser && currentUser.isAuthenticated) {
+      const uRole = String(currentUser.role || '').toLowerCase();
+      const uDept = String(currentUser.phongBan || '').toLowerCase();
+      const uAccess = String(currentUser.quyenTruyCap || '').toLowerCase();
+      if (uAccess.includes('admin') || uAccess.includes('manager')) {
+        hasPermission = true;
+      } else {
+        hasPermission = allowedRoles.some(r => {
+          const rLow = r.toLowerCase();
+          return uRole.includes(rLow) || uDept.includes(rLow);
+        });
+      }
+    } else {
+      try {
+        if (Session.getActiveUser().getEmail()) hasPermission = true;
+      } catch (e) {
+        hasPermission = false;
+      }
+    }
+
+    if (!hasPermission) {
+      return { success: false, message: 'Bạn không có quyền thực hiện thao tác này.' };
+    }
+
+    // 2. KHÓA HỆ THỐNG CHỐNG RACE CONDITION (TIMEOUT 30s)
+    const lock = LockService.getScriptLock();
+    let hasLock = false;
+    try {
+      hasLock = lock.tryLock(30000);
+    } catch (e) {
+      hasLock = false;
+    }
+
+    if (!hasLock) {
+      return { success: false, message: 'Hệ thống đang bận xử lý giao dịch khác. Vui lòng thử lại sau 30 giây.' };
+    }
+
+    try {
+      const operSS = this.getOperationSpreadsheet_();
+      const masterSS = this.getMasterSpreadsheet_();
+
+      const detailSheet = operSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
+      const orderSheet = operSS.getSheetByName(CONFIG.SHEET_NAMES.ORDERS);
+      const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
+
+      if (!detailSheet || !orderSheet || !prodSheet) {
+        throw new Error('Không tìm thấy các sheet cơ sở dữ liệu cần cập nhật.');
+      }
+
+      // Đọc toàn bộ bảng 02.ChiTietDH (Batch Read)
+      const detailData = detailSheet.getDataRange().getValues();
+      const dHeaders = detailData[0].map(h => String(h || '').trim());
+      
+      const colIdChiTiet = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.ID);
+      const colIdDH = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.ORDER_ID);
+      const colMaSP = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRODUCT_ID);
+      const colSlDat = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_ORDER);
+      const colDonGia = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRICE);
+      const colDaGiao = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_DELIVERED);
+      const colConLai = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_REMAINING);
+      const colNgayGiao = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.DELIVERY_DATE);
+
+      const targetIdSet = new Set(targetIds);
+      const affectedOrdersMap = {}; // maDH -> ngayDat mới
+      const affectedProductsMap = {}; // maSP -> { mang, giaKhuon, donvi }
+      let updatedCount = 0;
+
+      // 3. CẬP NHẬT TRONG BỘ NHỚ BẢNG 02.ChiTietDH
+      for (let r = 1; r < detailData.length; r++) {
+        const rowId = String(detailData[r][colIdChiTiet] || '').trim();
+        if (targetIdSet.has(rowId)) {
+          const fields = updateMap[rowId] || {};
+          updatedCount++;
+
+          const currentDH = String(detailData[r][colIdDH] || '').trim();
+          const currentSP = String(detailData[r][colMaSP] || '').trim();
+
+          if (currentDH && fields.ngayDat) {
+            affectedOrdersMap[currentDH] = fields.ngayDat;
+          }
+          if (currentSP) {
+            if (!affectedProductsMap[currentSP]) affectedProductsMap[currentSP] = {};
+            if (fields.mang !== undefined && fields.mang !== '') affectedProductsMap[currentSP].mang = fields.mang;
+            if (fields.giaKhuon !== undefined && fields.giaKhuon !== '') affectedProductsMap[currentSP].giaKhuon = fields.giaKhuon;
+            if (fields.dvt !== undefined && fields.dvt !== '') affectedProductsMap[currentSP].donvi = fields.dvt;
+          }
+
+          // Cập nhật Số lượng đặt & Tính lại SL_Con_Lai
+          if (fields.soLuongDat !== undefined && fields.soLuongDat !== null && fields.soLuongDat !== '') {
+            const newSlDat = Number(fields.soLuongDat) || 0;
+            detailData[r][colSlDat] = newSlDat;
+            const currentDaGiao = Number(detailData[r][colDaGiao]) || 0;
+            detailData[r][colConLai] = Math.max(0, newSlDat - currentDaGiao);
+          }
+
+          // Cập nhật Đơn giá
+          if (fields.donGia !== undefined && fields.donGia !== null && fields.donGia !== '') {
+            detailData[r][colDonGia] = Number(fields.donGia) || 0;
+          }
+
+          // Cập nhật Ngày giao
+          if (fields.ngayGiao !== undefined && fields.ngayGiao !== null && fields.ngayGiao !== '') {
+            detailData[r][colNgayGiao] = this.formatSheetDate_(fields.ngayGiao);
+          }
+        }
+      }
+
+      // Batch Write bảng 02.ChiTietDH
+      if (updatedCount > 0) {
+        detailSheet.getRange(1, 1, detailData.length, detailData[0].length).setValues(detailData);
+      }
+
+      // 4. CẬP NHẬT HEADER BẢNG 01.DonHang
+      const affectedDHKeys = Object.keys(affectedOrdersMap);
+      if (affectedDHKeys.length > 0) {
+        const orderData = orderSheet.getDataRange().getValues();
+        const oHeaders = orderData[0].map(h => String(h || '').trim());
+        const colMaDH = oHeaders.indexOf(CONFIG.COLUMNS.ORDERS.ID);
+        const colNgayDat = oHeaders.indexOf(CONFIG.COLUMNS.ORDERS.ORDER_DATE);
+
+        if (colMaDH !== -1 && colNgayDat !== -1) {
+          let orderChanged = false;
+          for (let ro = 1; ro < orderData.length; ro++) {
+            const oId = String(orderData[ro][colMaDH] || '').trim();
+            if (affectedOrdersMap[oId]) {
+              orderData[ro][colNgayDat] = this.formatSheetDate_(affectedOrdersMap[oId]);
+              orderChanged = true;
+            }
+          }
+          if (orderChanged) {
+            orderSheet.getRange(1, 1, orderData.length, orderData[0].length).setValues(orderData);
+          }
+        }
+      }
+
+      // 5. CẬP NHẬT MASTER 01_02_SAN_PHAM (Màng, Giá khuôn, Đơn vị tính)
+      const affectedSPKeys = Object.keys(affectedProductsMap);
+      if (affectedSPKeys.length > 0) {
+        const prodData = prodSheet.getDataRange().getValues();
+        const pHeaders = prodData[0].map(h => String(h || '').trim());
+        const colSpId = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.ID);
+        const colFilm = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.FILM);
+        const colMoldPrice = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.MOLD_PRICE);
+        const colUnit = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.UNIT);
+
+        if (colSpId !== -1) {
+          let prodChanged = false;
+          for (let rp = 1; rp < prodData.length; rp++) {
+            const pId = String(prodData[rp][colSpId] || '').trim();
+            if (affectedProductsMap[pId]) {
+              const spUpdates = affectedProductsMap[pId];
+              if (spUpdates.mang !== undefined && colFilm !== -1) {
+                prodData[rp][colFilm] = String(spUpdates.mang).trim();
+                prodChanged = true;
+              }
+              if (spUpdates.giaKhuon !== undefined && colMoldPrice !== -1) {
+                prodData[rp][colMoldPrice] = Number(spUpdates.giaKhuon) || 0;
+                prodChanged = true;
+              }
+              if (spUpdates.donvi !== undefined && colUnit !== -1) {
+                prodData[rp][colUnit] = String(spUpdates.donvi).trim();
+                prodChanged = true;
+              }
+            }
+          }
+          if (prodChanged) {
+            prodSheet.getRange(1, 1, prodData.length, prodData[0].length).setValues(prodData);
+          }
+        }
+      }
+
+      SpreadsheetApp.flush();
+      return {
+        success: true,
+        updatedCount: updatedCount,
+        message: 'Đã lưu thành công thông tin cho ' + updatedCount + ' dòng mặt hàng!'
+      };
+
+    } catch (err) {
+      console.error('[OrderService.updateOrderLineItemsBulk] Lỗi:', err);
+      return {
+        success: false,
+        message: 'Lỗi máy chủ trong quá trình cập nhật: ' + (err.message || String(err))
+      };
+    } finally {
+      lock.releaseLock();
+    }
+  },
+
+  /**
+   * [MỚI - VẤN ĐỀ 1] Chuẩn hóa ánh xạ mã nhân viên (NV-KDxx / NVxxxx) sang Họ tên đầy đủ
+   * @private
+   */
+  resolveStaffName_: function(rawStaff, employeeByIdMap, allEmployeesList) {
+    if (!rawStaff) return '---';
+    const s = String(rawStaff).trim();
+    if (!s) return '---';
+
+    // 1. Nếu chuỗi đã chứa sẵn tên dạng "NV-KD01 - Hoàng Thành"
+    if (s.indexOf(' - ') !== -1) {
+      const parts = s.split(' - ');
+      if (parts[1] && parts[1].trim()) return parts[1].trim();
+    }
+
+    // 2. Khớp trực tiếp mã trong employeeByIdMap
+    if (employeeByIdMap && employeeByIdMap[s]) {
+      return employeeByIdMap[s].hoTen;
+    }
+
+    // 3. Chuẩn hóa quy tắc NV-KD01 -> NV0001
+    const matchNum = s.match(/\d+/);
+    if (matchNum && allEmployeesList && Array.isArray(allEmployeesList)) {
+      const numVal = parseInt(matchNum[0], 10);
+      const targetStaffId = 'NV' + String(numVal).padStart(4, '0');
+      if (employeeByIdMap && employeeByIdMap[targetStaffId]) {
+        return employeeByIdMap[targetStaffId].hoTen;
+      }
+      // Tìm tương đối trong mảng
+      const found = allEmployeesList.find(e => e.maNV === targetStaffId || e.maNV.endsWith(String(numVal)));
+      if (found && found.hoTen) return found.hoTen;
+    }
+
+    return s;
   },
 }

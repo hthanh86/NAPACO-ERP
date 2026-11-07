@@ -11,6 +11,300 @@
       font-family: 'Segoe UI', Roboto, -apple-system, Arial, sans-serif;
     }
 
+    /* [MỚI - VẤN ĐỀ 4 & 5] CSS CAROUSEL CHỈNH SỬA TỪNG SẢN PHẨM & CHIPS */
+    .product-carousel-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 12px;
+    }
+    .carousel-step-badge {
+      font-weight: 700;
+      color: #1e40af;
+      font-size: 13px;
+    }
+    .carousel-product-header {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid #2563eb;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 14px;
+    }
+    .carousel-product-header .po-chip {
+      background: #dbeafe;
+      color: #1e40af;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-right: 6px;
+    }
+    .carousel-product-header .prod-title {
+      font-weight: 800;
+      font-size: 14px;
+      color: #0f172a;
+      display: inline;
+    }
+
+    /* [MỚI - VẤN ĐỀ 6] TOAST NOTIFICATION CHUYÊN NGHIỆP */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast-box {
+      pointer-events: auto;
+      min-width: 320px;
+      max-width: 450px;
+      background: #ffffff;
+      color: #1e293b;
+      padding: 12px 18px;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .toast-success { border-left: 5px solid #10b981; }
+    .toast-error { border-left: 5px solid #ef4444; }
+    .toast-info { border-left: 5px solid #3b82f6; }
+    .toast-icon { font-size: 18px; line-height: 1.2; }
+    .toast-content { flex: 1; }
+    .toast-title { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+    .toast-msg { font-size: 12px; color: #475569; line-height: 1.4; }
+    .toast-close { cursor: pointer; color: #94a3b8; font-weight: 700; border: none; background: none; }
+    .toast-close:hover { color: #0f172a; }
+    .toast-progress {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 3px;
+      width: 100%;
+      background: #e2e8f0;
+    }
+    .toast-progress-bar {
+      height: 100%;
+      width: 100%;
+      background: #10b981;
+      animation: toastProgress 3.5s linear forwards;
+    }
+    .toast-error .toast-progress-bar { background: #ef4444; }
+    @keyframes toastSlideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes toastProgress {
+      from { width: 100%; }
+      to { width: 0%; }
+    }
+
+    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] CSS BỔ SUNG CHO LINE-ITEM & BULK EDIT */
+    .link-po {
+      color: #2563eb;
+      font-weight: 700;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .link-po:hover {
+      text-decoration: underline;
+      color: #1d4ed8;
+    }
+    .thumb-preview-box {
+      position: relative;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .thumb-img {
+      width: 32px;
+      height: 32px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+      cursor: pointer;
+    }
+    .thumb-hover-zoom {
+      display: none;
+      position: absolute;
+      left: 38px;
+      top: -20px;
+      z-index: 100;
+      background: #fff;
+      padding: 4px;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      border: 1px solid #cbd5e1;
+    }
+    .thumb-hover-zoom img {
+      width: 140px;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+    .thumb-preview-box:hover .thumb-hover-zoom {
+      display: block;
+    }
+
+    /* Floating Action Bottom Bar */
+    .floating-bulk-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 30px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+      display: none;
+      align-items: center;
+      gap: 16px;
+      z-index: 999;
+      font-size: 13.5px;
+    }
+    .btn-bulk-action {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-bulk-action:hover {
+      background: #1d4ed8;
+    }
+    .btn-bulk-clear {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid #475569;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-bulk-clear:hover {
+      color: #fff;
+      border-color: #cbd5e1;
+    }
+
+    /* Modal Bulk Edit Dialog */
+    .custom-modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.65);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      backdrop-filter: blur(2px);
+    }
+    .custom-modal-content {
+      background: #fff;
+      border-radius: 12px;
+      width: 520px;
+      max-width: 95vw;
+      padding: 20px 24px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+    }
+    .modal-title-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+      font-weight: 800;
+      font-size: 15px;
+      color: #1e3a8a;
+    }
+    .bulk-form-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .bulk-form-group label {
+      width: 140px;
+      font-weight: 600;
+      font-size: 12px;
+      color: #334155;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .bulk-form-group input[type="text"],
+    .bulk-form-group input[type="number"],
+    .bulk-form-group input[type="date"] {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      outline: none;
+      font-size: 12.5px;
+    }
+    .bulk-form-group input:disabled {
+      background: #f1f5f9;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    /* Lightbox Album */
+    .lightbox-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+    .lightbox-content {
+      position: relative;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .lightbox-content img {
+      max-width: 80vw;
+      max-height: 75vh;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .lightbox-nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: none;
+      font-size: 26px;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    .lightbox-nav-btn:hover { background: rgba(255,255,255,0.4); }
+    .lightbox-prev { left: -50px; }
+    .lightbox-next { right: -50px; }
+
     body {
       margin: 0;
       padding: 16px;
@@ -326,12 +620,13 @@
         <div class="brand-sub">Chuyển đổi linh hoạt giữa góc nhìn Quản lý PO (Header) và Chi Tiết Đơn Hàng (Line-Item)
         </div>
       </div>
+      <!-- [MỚI - VẤN ĐỀ 3] ĐỔI MẶC ĐỊNH SANG CHI TIẾT MẶT HÀNG (LINE-ITEM) -->
       <div class="view-switcher">
-        <button type="button" id="btnViewHeader" class="view-btn active" onclick="switchViewMode('HEADER')">
-          (•) Xem theo Đơn Hàng (PO Header)
+        <button type="button" id="btnViewHeader" class="view-btn" onclick="switchViewMode('HEADER')">
+          ( ) Xem theo Đơn Hàng (PO Header)
         </button>
-        <button type="button" id="btnViewLineItem" class="view-btn" onclick="switchViewMode('LINE_ITEM')">
-          ( ) Xem theo Chi Tiết Mặt Hàng (Line-Item)
+        <button type="button" id="btnViewLineItem" class="view-btn active" onclick="switchViewMode('LINE_ITEM')">
+          (•) Xem theo Chi Tiết Mặt Hàng (Line-Item)
         </button>
       </div>
     </div>
@@ -410,11 +705,106 @@
         </table>
       </div>
     </div>
+
+    <!-- [MỚI - SPEC-OMS-LINEITEM-202611-01] FLOATING ACTION BAR -->
+    <div id="floatingBulkBar" class="floating-bulk-bar">
+      <span>Đã chọn <strong id="selectedLinesCount" style="color:#60a5fa;">0</strong> dòng</span>
+      <button type="button" class="btn-bulk-clear" onclick="clearSelectedLines()">Bỏ chọn</button>
+      <button type="button" class="btn-bulk-action" onclick="openBulkEditModal()">✏️ Chỉnh sửa hàng loạt</button>
+    </div>
+
+    <!-- [MỚI - SPEC-OMS-LINEITEM-202611-01] MODAL CHỈNH SỬA HÀNG LOẠT -->
+    <!-- [MỚI - VẤN ĐỀ 4 & 5] MODAL CHỈNH SỬA TỪNG SẢN PHẨM ĐÃ CHỌN (CAROUSEL STEPPER) -->
+    <div id="bulkEditModal" class="custom-modal-overlay">
+      <div class="custom-modal-content" style="width: 580px;">
+        <div class="modal-title-bar">
+          <span>✏️ Chỉnh Sửa Chi Tiết Từng Mặt Hàng Đã Chọn</span>
+          <span style="cursor:pointer;" onclick="closeBulkEditModal()">✕</span>
+        </div>
+
+        <!-- Thanh điều hướng lướt qua từng sản phẩm -->
+        <div class="product-carousel-nav">
+          <button type="button" class="btn-reset" style="height:28px;padding:2px 10px;font-size:11.5px;" onclick="prevCarouselItem()">❮ Trước</button>
+          <span id="carouselStepIndicator" class="carousel-step-badge">Sản phẩm 1 / 1</span>
+          <button type="button" class="btn-reset" style="height:28px;padding:2px 10px;font-size:11.5px;" onclick="nextCarouselItem()">Tiếp theo ❯</button>
+        </div>
+
+        <!-- Tiêu đề thẻ sản phẩm hiện tại (PO, Tên SP, SKU, ĐVT) -->
+        <div class="carousel-product-header">
+          <div>
+            <span id="curItemPO" class="po-chip">PO: ---</span>
+            <span id="curItemName" class="prod-title">Tên sản phẩm</span>
+          </div>
+          <div style="font-size:11.5px;color:#475569;margin-top:4px;">
+            Mã CTĐH: <strong id="curItemId" style="color:#0f172a;">---</strong> | SKU: <strong id="curItemSku">---</strong>
+          </div>
+        </div>
+
+        <!-- Các trường chỉnh sửa cho sản phẩm đang xem -->
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_dvt" onchange="toggleBulkField('dvt')"> Đơn vị tính (ĐVT):</label>
+          <select id="val_dvt" class="filter-control" style="flex:1;" disabled>
+            <option value="Cái">Cái</option>
+            <option value="Tấm">Tấm</option>
+            <option value="Mét">Mét</option>
+            <option value="Hộp">Hộp</option>
+            <option value="Bộ">Bộ</option>
+            <option value="Khay">Khay</option>
+          </select>
+        </div>
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_soLuongDat" onchange="toggleBulkField('soLuongDat')"> Số lượng đặt:</label>
+          <input type="number" id="val_soLuongDat" placeholder="VD: 5000" disabled>
+        </div>
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_donGia" onchange="toggleBulkField('donGia')"> Đơn giá (₫):</label>
+          <input type="number" id="val_donGia" placeholder="VD: 1500" disabled>
+        </div>
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_mang" onchange="toggleBulkField('mang')"> Màng nhựa:</label>
+          <input type="text" id="val_mang" placeholder="VD: PET 0.5" disabled>
+        </div>
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_giaKhuon" onchange="toggleBulkField('giaKhuon')"> Giá khuôn (₫):</label>
+          <input type="number" id="val_giaKhuon" placeholder="VD: 5000000" disabled>
+        </div>
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_ngayGiao" onchange="toggleBulkField('ngayGiao')"> Ngày giao hàng:</label>
+          <input type="date" id="val_ngayGiao" disabled>
+        </div>
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_ngayDat" onchange="toggleBulkField('ngayDat')"> Ngày đặt (PO):</label>
+          <input type="date" id="val_ngayDat" disabled>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
+          <span style="font-size:11.5px;color:#64748b;">Dữ liệu đã sửa sẽ tự động lưu tạm khi chuyển sản phẩm.</span>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn-reset" onclick="closeBulkEditModal()">Hủy</button>
+            <button type="button" class="btn-search" style="background:#16a34a;" onclick="submitAllEditedItems()">💾 Lưu tất cả thay đổi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- [MỚI - VẤN ĐỀ 6] CONTAINER CHỨA TOAST NOTIFICATION -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- [MỚI - SPEC-OMS-LINEITEM-202611-01] LIGHTBOX ALBUM ẢNH -->
+    <div id="lightboxOverlay" class="lightbox-overlay" onclick="closeLightbox(event)">
+      <div class="lightbox-content">
+        <button type="button" class="lightbox-nav-btn lightbox-prev" onclick="prevLightboxImage(event)">❮</button>
+        <img id="lightboxImg" src="" alt="Sản phẩm">
+        <div id="lightboxCounter" style="color:#fff; margin-top:8px; font-weight:700;"></div>
+        <button type="button" class="lightbox-nav-btn lightbox-next" onclick="nextLightboxImage(event)">❯</button>
+      </div>
+    </div>
   </div>
 
   <script>
+    /* [MỚI - VẤN ĐỀ 3] Khởi tạo mặc định xem Chi Tiết Mặt Hàng */
     const listState = {
-      viewMode: 'HEADER', // 'HEADER' | 'LINE_ITEM'
+      viewMode: 'LINE_ITEM', // 'LINE_ITEM' | 'HEADER'
       rawRecords: [],
       customersPopulated: false
     };
@@ -637,57 +1027,94 @@
         tbody.innerHTML = html;
 
       } else {
-        // CHẾ ĐỘ 2: LINE-ITEM VIEW (BẢNG PHẲNG CHI TIẾT MẶT HÀNG)
+        // [SPEC-OMS-LINEITEM-202611-01] CHẾ ĐỘ 2: LINE-ITEM VIEW CẬP NHẬT MỚI
         thead.innerHTML =
           '<tr>' +
-          '<th style="width:125px;">Mã CTĐH</th>' +
-          '<th style="width:125px;">Mã Đơn Hàng</th>' +
+          '<th style="width:36px;text-align:center;"><input type="checkbox" id="chkSelectAllLines" onchange="toggleSelectAllLines(this)"></th>' +
+          '<th style="width:110px;">Mã CTĐH</th>' +
+          '<th style="width:130px;">Mã ĐH / Số PO</th>' +
           '<th>Khách Hàng</th>' +
           '<th>Sản Phẩm</th>' +
+          '<th>Màng & Khuôn</th>' +
           '<th style="text-align:right;">SL Đặt</th>' +
           '<th style="text-align:right;">Đơn Giá</th>' +
           '<th style="text-align:right;">Đã Giao</th>' +
-          '<th style="text-align:right;">Còn Lại (Nợ)</th>' +
-          '<th style="width:100px;">Ngày Giao</th>' +
+          '<th style="text-align:right;">Còn Lại</th>' +
+          '<th style="width:95px;">Ngày Giao</th>' +
           '<th>Sales</th>' +
           '<th>Trạng Thái</th>' +
           '</tr>';
 
         if (records.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:#64748b;">Không tìm thấy dòng chi tiết mặt hàng nào khớp điều kiện lọc.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:#64748b;">Không tìm thấy dòng chi tiết mặt hàng nào khớp điều kiện lọc.</td></tr>';
+          updateFloatingBar();
           return;
         }
 
         let html = '';
         records.forEach(function (it) {
           const debtClass = Number(it.conLai) > 0 ? 'debt-warning' : 'debt-clear';
-          const codeBadge = it.codeSP ? ' <span style="color:#0369a1;font-weight:700;">[' + escapeHtml(it.codeSP) + ']</span>' : '';
+          const isChecked = selectedLineItemIds.has(it.idChiTiet) ? 'checked' : '';
+
+          // 1. Cột Mã ĐH / PO link
+          let poDisplayHtml = escapeHtml(it.soPO);
+          if (it.filePO && String(it.filePO).startsWith('http')) {
+            poDisplayHtml = '<a href="' + escapeHtml(it.filePO) + '" target="_blank" class="link-po">' + escapeHtml(it.soPO) + ' ↗</a>';
+          }
+
+          // 2. Cột Ảnh sản phẩm (hover popup + click lightbox) - VẤN ĐỀ 2
+          let imgHtml = '';
+          const rawImgs = (it.imageURL || '').split(',').map(s => s.trim()).filter(Boolean);
+          const imgUrls = rawImgs.map(u => normalizeGoogleDriveImageUrl(u));
+
+          if (imgUrls.length > 0 && imgUrls[0]) {
+            const firstImg = imgUrls[0];
+            const jsonUrls = escapeHtml(JSON.stringify(imgUrls));
+            imgHtml = 
+              '<div class="thumb-preview-box">' +
+                '<img src="' + escapeHtml(firstImg) + '" class="thumb-img" referrerpolicy="no-referrer" onclick="openLightbox(' + jsonUrls + ')" alt="Thumb">' +
+                '<div class="thumb-hover-zoom"><img src="' + escapeHtml(firstImg) + '" referrerpolicy="no-referrer"></div>' +
+              '</div>';
+          }
+
+          // 3. Cột Màng & Khuôn
+          const mangVal = it.mang || '---';
+          const khuonVal = it.maKhuon || '---';
 
           html +=
             '<tr class="data-row">' +
+            '<td style="text-align:center;"><input type="checkbox" class="chk-line-item" value="' + escapeHtml(it.idChiTiet) + '" ' + isChecked + ' onchange="toggleSelectLine(\'' + escapeHtml(it.idChiTiet) + '\', this.checked)"></td>' +
             '<td style="font-weight:800;color:#0f172a;">' + escapeHtml(it.idChiTiet) + '</td>' +
             '<td>' +
-            '<span class="link-btn" onclick="filterByOrderCode(\'' + escapeHtml(it.maDH) + '\')" title="Bấm để lọc toàn bộ mặt hàng của đơn này">' +
-            escapeHtml(it.maDH) +
-            '</span>' +
-            '<div style="font-size:11px;color:#64748b;">' + escapeHtml(it.soPO) + '</div>' +
+              '<div style="font-weight:700;color:#1e40af;">' + escapeHtml(it.maDH) + '</div>' +
+              '<div style="font-size:11.5px;">' + poDisplayHtml + '</div>' +
             '</td>' +
             '<td style="font-weight:600;">' + escapeHtml(it.khachHang) + '</td>' +
             '<td>' +
-            '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + codeBadge + '</div>' +
-            '<div style="font-size:11px;color:#64748b;">SKU: ' + escapeHtml(it.maSP) + (it.ghiChu ? ' | Ghi chú: ' + escapeHtml(it.ghiChu) : '') + '</div>' +
+              '<div style="display:flex;align-items:center;">' +
+                imgHtml +
+                '<div>' +
+                  '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + (it.codeSP ? ' <span style="color:#0369a1;">[' + escapeHtml(it.codeSP) + ']</span>' : '') + '</div>' +
+                  '<div style="font-size:11px;color:#64748b;">SKU: ' + escapeHtml(it.maSP) + (it.ghiChu ? ' | ' + escapeHtml(it.ghiChu) : '') + '</div>' +
+                '</div>' +
+              '</div>' +
+            '</td>' +
+            '<td>' +
+              '<div style="font-weight:600;color:#047857;">' + escapeHtml(mangVal) + '</div>' +
+              '<div style="font-size:11px;color:#b45309;">Khuôn: ' + escapeHtml(khuonVal) + '</div>' +
             '</td>' +
             '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + ' ' + escapeHtml(it.dvt) + '</td>' +
             '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
             '<td style="text-align:right;font-weight:600;">' + formatNumber(it.daGiao) + '</td>' +
             '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
             '<td style="font-weight:600;">' + escapeHtml(it.ngayGiao) + '</td>' +
-            '<td>' + escapeHtml(it.tenNV) + '</td>' +
+            '<td>' + escapeHtml(it.tenNV || '---') + '</td>' +
             '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
             '</tr>';
         });
 
         tbody.innerHTML = html;
+        updateFloatingBar();
       }
     }
 
@@ -763,6 +1190,382 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+    }
+
+    /* ==========================================================================
+       [SPEC-OMS-LINEITEM-202611-01] CÁC HÀM XỬ LÝ CHECKBOX & BULK EDIT
+       ========================================================================== */
+    const selectedLineItemIds = new Set();
+
+    function toggleSelectLine(id, checked) {
+      if (checked) {
+        selectedLineItemIds.add(id);
+      } else {
+        selectedLineItemIds.delete(id);
+      }
+      updateFloatingBar();
+    }
+
+    function toggleSelectAllLines(masterChk) {
+      const chks = document.querySelectorAll('.chk-line-item');
+      chks.forEach(function (c) {
+        c.checked = masterChk.checked;
+        if (masterChk.checked) {
+          selectedLineItemIds.add(c.value);
+        } else {
+          selectedLineItemIds.delete(c.value);
+        }
+      });
+      updateFloatingBar();
+    }
+
+    function clearSelectedLines() {
+      selectedLineItemIds.clear();
+      const chks = document.querySelectorAll('.chk-line-item');
+      chks.forEach(c => c.checked = false);
+      const masterChk = document.getElementById('chkSelectAllLines');
+      if (masterChk) masterChk.checked = false;
+      updateFloatingBar();
+    }
+
+    function updateFloatingBar() {
+      const bar = document.getElementById('floatingBulkBar');
+      const countEl = document.getElementById('selectedLinesCount');
+      if (!bar) return;
+      if (listState.viewMode === 'MS-LINEITEM' || listState.viewMode === 'LINE_ITEM') {
+        if (selectedLineItemIds.size > 0) {
+          countEl.textContent = selectedLineItemIds.size;
+          bar.style.display = 'flex';
+        } else {
+          bar.style.display = 'none';
+        }
+      } else {
+        bar.style.display = 'none';
+      }
+    }
+
+    function openBulkEditModal() {
+      if (selectedLineItemIds.size === 0) {
+        alert('Vui lòng chọn ít nhất 1 dòng mặt hàng để chỉnh sửa hàng loạt.');
+        return;
+      }
+      document.getElementById('bulkEditModal').style.display = 'flex';
+    }
+
+    function closeBulkEditModal() {
+      document.getElementById('bulkEditModal').style.display = 'none';
+    }
+
+    function toggleBulkField(field) {
+      const chk = document.getElementById('chk_' + field);
+      const val = document.getElementById('val_' + field);
+      if (chk && val) {
+        val.disabled = !chk.checked;
+        if (chk.checked) val.focus();
+      }
+    }
+
+    function submitBulkEdit() {
+      const fieldsToUpdate = {};
+      const fieldList = ['mang', 'soLuongDat', 'donGia', 'giaKhuon', 'ngayDat', 'ngayGiao'];
+      let hasChecked = false;
+
+      fieldList.forEach(function (f) {
+        const chk = document.getElementById('chk_' + f);
+        const val = document.getElementById('val_' + f);
+        if (chk && chk.checked) {
+          hasChecked = true;
+          fieldsToUpdate[f] = val.value;
+        }
+      });
+
+      if (!hasChecked) {
+        alert('Vui lòng đánh dấu chọn ít nhất một trường để ghi đè dữ liệu.');
+        return;
+      }
+
+      const count = selectedLineItemIds.size;
+      const confirmMsg = 'Bạn có chắc chắn muốn ghi đè ' + Object.keys(fieldsToUpdate).length + ' trường đã chọn cho ' + count + ' dòng mặt hàng? Thao tác này không thể hoàn tác!';
+      if (!confirm(confirmMsg)) return;
+
+      const payload = {
+        targetIds: Array.from(selectedLineItemIds),
+        fieldsToUpdate: fieldsToUpdate
+      };
+
+      // Loading indicator
+      const modal = document.getElementById('bulkEditModal');
+      modal.style.display = 'none';
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:#2563eb;font-weight:700;">⏳ Đang thực hiện ghi đè hàng loạt ' + count + ' dòng mặt hàng...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.success) {
+            alert(res.message || 'Cập nhật thành công!');
+            clearSelectedLines();
+            fetchOrderData();
+          } else {
+            alert('Lỗi cập nhật: ' + (res && res.message ? res.message : 'Không xác định'));
+            fetchOrderData();
+          }
+        })
+        .withFailureHandler(function (err) {
+          alert('Lỗi kết nối máy chủ: ' + err.message);
+          fetchOrderData();
+        })
+        .updateOrderLineItemsBulk(payload);
+    }
+
+    /* ==========================================================================
+       [SPEC-OMS-LINEITEM-202611-01] XỬ LÝ LIGHTBOX ALBUM ẢNH SẢN PHẨM
+       ========================================================================== */
+    let currentAlbum = [];
+    let currentAlbumIndex = 0;
+
+    function openLightbox(urls) {
+      if (!urls || urls.length === 0) return;
+      currentAlbum = urls;
+      currentAlbumIndex = 0;
+      updateLightboxDisplay();
+      document.getElementById('lightboxOverlay').style.display = 'flex';
+    }
+
+    function closeLightbox(e) {
+      if (e.target.id === 'lightboxOverlay') {
+        document.getElementById('lightboxOverlay').style.display = 'none';
+      }
+    }
+
+    function prevLightboxImage(e) {
+      e.stopPropagation();
+      if (currentAlbumIndex > 0) {
+        currentAlbumIndex--;
+        updateLightboxDisplay();
+      }
+    }
+
+    function nextLightboxImage(e) {
+      e.stopPropagation();
+      if (currentAlbumIndex < currentAlbum.length - 1) {
+        currentAlbumIndex++;
+        updateLightboxDisplay();
+      }
+    }
+
+    function updateLightboxDisplay() {
+      const img = document.getElementById('lightboxImg');
+      const counter = document.getElementById('lightboxCounter');
+      img.src = currentAlbum[currentAlbumIndex];
+      counter.textContent = (currentAlbumIndex + 1) + ' / ' + currentAlbum.length;
+    }
+
+    /**
+     * [MỚI - VẤN ĐỀ 2] Chuẩn hóa link Google Drive thành Direct Thumbnail Stream có thể hiển thị trong thẻ <img>
+     */
+    function normalizeGoogleDriveImageUrl(rawUrl) {
+      if (!rawUrl) return '';
+      const str = String(rawUrl).trim();
+      if (!str) return '';
+
+      // Trường hợp là file ID thuần hoặc link Drive
+      let fileId = '';
+      if (str.indexOf('drive.google.com') !== -1) {
+        const idMatch = str.match(/\/d\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/);
+        if (idMatch) fileId = idMatch[1];
+      } else if (!str.startsWith('http://') && !str.startsWith('https://') && str.length > 20 && str.indexOf('.') === -1) {
+        fileId = str;
+      }
+
+      if (fileId) {
+        // Link stream thumbnail trực tiếp được Google cho phép nhúng thẻ <img>
+        return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+      }
+
+      return str;
+    }
+
+    /* ==========================================================================
+       [MỚI - VẤN ĐỀ 6] HỆ THỐNG TOAST NOTIFICATION CHUYÊN NGHIỆP
+       ========================================================================== */
+    function showAppToast(type, title, message) {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      const isSuccess = type === 'success';
+      toast.className = 'toast-box ' + (isSuccess ? 'toast-success' : 'toast-error');
+
+      const icon = isSuccess ? '✅' : '⚠️';
+      toast.innerHTML = 
+        '<div class="toast-icon">' + icon + '</div>' +
+        '<div class="toast-content">' +
+          '<div class="toast-title">' + escapeHtml(title) + '</div>' +
+          '<div class="toast-msg">' + escapeHtml(message) + '</div>' +
+        '</div>' +
+        '<button class="toast-close" onclick="this.parentElement.remove()">✕</button>' +
+        '<div class="toast-progress"><div class="toast-progress-bar"></div></div>';
+
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentElement) toast.remove();
+      }, 3500);
+    }
+
+    /* ==========================================================================
+       [MỚI - VẤN ĐỀ 4 & 5] CAROUSEL STEPPER CHỈNH SỬA TỪNG SẢN PHẨM & LƯU HÀNG LOẠT
+       ========================================================================== */
+    let carouselItems = []; // Danh sách đối tượng đầy đủ các dòng được tick chọn
+    let carouselIndex = 0;  // Chỉ số đang xem (0..N-1)
+    let carouselDrafts = {}; // idChiTiet -> { fields: { ... }, checked: { ... } }
+
+    function openBulkEditModal() {
+      if (selectedLineItemIds.size === 0) {
+        showAppToast('error', 'Chưa chọn dòng', 'Vui lòng tick chọn ít nhất 1 dòng mặt hàng để chỉnh sửa.');
+        return;
+      }
+
+      // Lấy toàn bộ record tương ứng với selectedLineItemIds
+      carouselItems = listState.rawRecords.filter(r => selectedLineItemIds.has(r.idChiTiet));
+      if (carouselItems.length === 0) return;
+
+      carouselIndex = 0;
+      carouselDrafts = {};
+
+      // Khởi tạo draft ban đầu từ dữ liệu hiện có của từng dòng
+      carouselItems.forEach(item => {
+        carouselDrafts[item.idChiTiet] = {
+          fields: {
+            dvt: item.dvt || 'Cái',
+            soLuongDat: item.slDat || 0,
+            donGia: item.donGia || 0,
+            mang: (item.mang !== '---') ? item.mang : '',
+            giaKhuon: item.giaKhuon || 0,
+            ngayGiao: item.ngayGiao || '',
+            ngayDat: item.ngayDat || ''
+          },
+          checked: {
+            dvt: false, soLuongDat: false, donGia: false,
+            mang: false, giaKhuon: false, ngayGiao: false, ngayDat: false
+          }
+        };
+      });
+
+      renderCurrentCarouselItem();
+      document.getElementById('bulkEditModal').style.display = 'flex';
+    }
+
+    function renderCurrentCarouselItem() {
+      if (!carouselItems[carouselIndex]) return;
+      const curItem = carouselItems[carouselIndex];
+      const draft = carouselDrafts[curItem.idChiTiet];
+
+      // Cập nhật thanh tiêu đề & Stepper (VẤN ĐỀ 4)
+      document.getElementById('carouselStepIndicator').textContent = 'Sản phẩm ' + (carouselIndex + 1) + ' / ' + carouselItems.length;
+      document.getElementById('curItemPO').textContent = 'PO: ' + (curItem.soPO || '---');
+      document.getElementById('curItemName').textContent = curItem.sanPham;
+      document.getElementById('curItemId').textContent = curItem.idChiTiet;
+      document.getElementById('curItemSku').textContent = curItem.maSP + (curItem.codeSP ? ' [' + curItem.codeSP + ']' : '');
+
+      // Điền giá trị & trạng thái checkbox cho từng trường
+      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat'];
+      fieldList.forEach(f => {
+        const chk = document.getElementById('chk_' + f);
+        const val = document.getElementById('val_' + f);
+        const isChecked = draft.checked[f];
+        chk.checked = isChecked;
+        val.disabled = !isChecked;
+        val.value = (draft.fields[f] !== undefined) ? draft.fields[f] : '';
+      });
+    }
+
+    function saveCurrentDraftFromInputs() {
+      if (!carouselItems[carouselIndex]) return;
+      const curItem = carouselItems[carouselIndex];
+      const draft = carouselDrafts[curItem.idChiTiet];
+
+      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat'];
+      fieldList.forEach(f => {
+        const chk = document.getElementById('chk_' + f);
+        const val = document.getElementById('val_' + f);
+        draft.checked[f] = chk.checked;
+        draft.fields[f] = val.value;
+      });
+    }
+
+    function prevCarouselItem() {
+      saveCurrentDraftFromInputs();
+      if (carouselIndex > 0) {
+        carouselIndex--;
+        renderCurrentCarouselItem();
+      }
+    }
+
+    function nextCarouselItem() {
+      saveCurrentDraftFromInputs();
+      if (carouselIndex < carouselItems.length - 1) {
+        carouselIndex++;
+        renderCurrentCarouselItem();
+      }
+    }
+
+    function submitAllEditedItems() {
+      // Lưu sản phẩm hiện tại trước khi submit
+      saveCurrentDraftFromInputs();
+
+      // Gom toàn bộ thay đổi thành danh sách itemsToUpdate (VẤN ĐỀ 5)
+      const itemsToUpdate = [];
+      carouselItems.forEach(item => {
+        const draft = carouselDrafts[item.idChiTiet];
+        const fields = {};
+        let hasAnyField = false;
+
+        Object.keys(draft.checked).forEach(f => {
+          if (draft.checked[f]) {
+            fields[f] = draft.fields[f];
+            hasAnyField = true;
+          }
+        });
+
+        if (hasAnyField) {
+          itemsToUpdate.push({
+            idChiTiet: item.idChiTiet,
+            fields: fields
+          });
+        }
+      });
+
+      if (itemsToUpdate.length === 0) {
+        showAppToast('error', 'Chưa có thay đổi', 'Bạn chưa tick chọn thay đổi trường dữ liệu nào cho các sản phẩm đã chọn.');
+        return;
+      }
+
+      const confirmMsg = 'Xác nhận cập nhật dữ liệu cho ' + itemsToUpdate.length + ' mặt hàng đã được chỉnh sửa?';
+      if (!confirm(confirmMsg)) return;
+
+      const payload = { itemsToUpdate: itemsToUpdate };
+
+      // Đóng modal & hiển thị tiến trình
+      closeBulkEditModal();
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:#2563eb;font-weight:700;">⏳ Đang lưu dữ liệu theo lô cho ' + itemsToUpdate.length + ' sản phẩm...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.success) {
+            showAppToast('success', 'Thành công!', res.message || 'Cập nhật thành công!');
+            clearSelectedLines();
+            fetchOrderData();
+          } else {
+            showAppToast('error', 'Lỗi cập nhật', res && res.message ? res.message : 'Có lỗi xảy ra.');
+            fetchOrderData();
+          }
+        })
+        .withFailureHandler(function (err) {
+          showAppToast('error', 'Lỗi Server', err.message);
+          fetchOrderData();
+        })
+        .updateOrderLineItemsBulk(payload);
     }
   </script>
 </body>

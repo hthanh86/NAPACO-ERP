@@ -33,7 +33,9 @@ var CONFIG = {
     ORDERS: '01.DonHang',
     ORDER_DETAILS: '02.ChiTietDH',
     ORDER_WORKSPACE: 'TAO DON',
-    CACHE_CATALOG: '_CACHE_DANH_MUC'
+    CACHE_CATALOG: '_CACHE_DANH_MUC',
+    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Khai báo sheet Công cụ / Khuôn */
+    TOOLS: '05.Cong_Cu'
   },
 
   // BỔ SUNG KHỐI TRẠNG THÁI VÒNG ĐỜI (Khắc phục dứt điểm lỗi reading 'NEW')
@@ -134,9 +136,21 @@ var CONFIG = {
       NOTE: 'Ghi_Chu',
       DELIVERY_DATE: 'Ngay_Giao',
       STAFF_ID: 'Ma_NV',
-      STATUS: 'Trang_Thai'
+      STATUS: 'Trang_Thai',
+      /* [MỚI - VẤN ĐỀ 4] Bổ sung ánh xạ cột đơn vị tính nếu bảng chi tiết có lưu hoặc đồng bộ Master */
+      UNIT: 'dvt'
+    },
+
+    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Định nghĩa cột bảng Công cụ / Khuôn và danh sách quyền */
+    TOOLS: {
+      SP_ID: 'MaSP',
+      TOOL_TYPE: 'LoaiCC',
+      MOLD_CODE: 'Ma_Khuon'
     }
   },
+
+  /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Vai trò được phép Bulk Edit */
+  ALLOWED_ROLES_BULK_EDIT: ['Kinh doanh', 'QLSX', 'QC', 'Kho'],
 
   DEFAULT_DELIVERY_DAYS: 10,
   DEFAULT_STATUS_DETAIL: 'Chờ sản xuất',

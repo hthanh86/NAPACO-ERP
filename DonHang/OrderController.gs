@@ -160,6 +160,19 @@ const OrderController = {
     }
   },
 
+  /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Controller tiếp nhận lệnh Bulk Edit */
+  updateOrderLineItemsBulk: function(payload) {
+    try {
+      return OrderService.updateOrderLineItemsBulk(payload);
+    } catch (err) {
+      console.error('[OrderController.updateOrderLineItemsBulk] Error:', err);
+      return {
+        success: false,
+        message: err.message || 'Lỗi xử lý chỉnh sửa hàng loạt.'
+      };
+    }
+  },
+
   /**
    * 5. Hàm phục vụ hiển thị nhanh trên Sheet (nếu gọi từ ClientLauncher)
    */
@@ -232,6 +245,13 @@ function submitOrderTransaction(payload) {
  */
 function queryOrdersAndLineItems(searchParams) {
   return OrderController.queryOrdersAndLineItems(searchParams);
+}
+
+/**
+ * [MỚI - SPEC-OMS-LINEITEM-202611-01] Global RPC gọi Chỉnh sửa hàng loạt dòng mặt hàng
+ */
+function updateOrderLineItemsBulk(payload) {
+  return OrderController.updateOrderLineItemsBulk(payload);
 }
 
 /**
