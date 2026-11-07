@@ -1,13 +1,31 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <base target="_top">
   <meta charset="utf-8">
   <title>NAPACO OMS - Tra Cứu Đơn Hàng & Chi Tiết Mặt Hàng (Dual-View)</title>
   <style>
-    * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, -apple-system, Arial, sans-serif; }
-    body { margin: 0; padding: 16px; background: #f1f5f9; color: #1e293b; font-size: 13px; }
-    .app-wrapper { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Roboto, -apple-system, Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #f1f5f9;
+      color: #1e293b;
+      font-size: 13px;
+    }
+
+    .app-wrapper {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
 
     /* Top Header & Dual-View Switcher */
     .top-bar {
@@ -20,18 +38,29 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 12px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.12);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
     }
-    .brand-title { font-size: 17px; font-weight: 800; letter-spacing: 0.4px; }
-    .brand-sub { font-size: 12px; color: #93c5fd; margin-top: 2px; }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: #93c5fd;
+      margin-top: 2px;
+    }
 
     .view-switcher {
       display: inline-flex;
-      background: rgba(255,255,255,0.12);
+      background: rgba(255, 255, 255, 0.12);
       padding: 4px;
       border-radius: 8px;
       gap: 4px;
     }
+
     .view-btn {
       border: none;
       background: transparent;
@@ -43,14 +72,20 @@
       cursor: pointer;
       transition: all 0.2s;
     }
+
     .view-btn.active {
       background: #ffffff;
       color: #1e3a8a;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
 
     /* KPI Summary Cards */
-    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
     .kpi-card {
       background: #ffffff;
       border: 1px solid #cbd5e1;
@@ -60,10 +95,27 @@
       flex-direction: column;
       gap: 4px;
     }
-    .kpi-label { font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase; }
-    .kpi-value { font-size: 18px; font-weight: 800; color: #0f172a; }
-    .kpi-value.highlight-green { color: #16a34a; }
-    .kpi-value.highlight-red { color: #dc2626; }
+
+    .kpi-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+
+    .kpi-value {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .kpi-value.highlight-green {
+      color: #16a34a;
+    }
+
+    .kpi-value.highlight-red {
+      color: #dc2626;
+    }
 
     /* Filter Bar */
     .filter-card {
@@ -76,8 +128,19 @@
       gap: 10px;
       align-items: end;
     }
-    .filter-group { display: flex; flex-direction: column; gap: 4px; }
-    .filter-group label { font-size: 11.5px; font-weight: 700; color: #334155; }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .filter-group label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #334155;
+    }
+
     .filter-control {
       padding: 7px 10px;
       border: 1px solid #cbd5e1;
@@ -85,7 +148,12 @@
       font-size: 12.5px;
       outline: none;
     }
-    .filter-control:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+
+    .filter-control:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
     .btn-search {
       background: #2563eb;
       color: #fff;
@@ -96,7 +164,11 @@
       cursor: pointer;
       height: 34px;
     }
-    .btn-search:hover { background: #1d4ed8; }
+
+    .btn-search:hover {
+      background: #1d4ed8;
+    }
+
     .btn-reset {
       background: #e2e8f0;
       color: #334155;
@@ -114,8 +186,9 @@
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
+
     .table-header-bar {
       padding: 10px 16px;
       background: #f8fafc;
@@ -126,8 +199,19 @@
       font-weight: 700;
       color: #1e293b;
     }
-    .table-scroll { overflow-x: auto; max-height: 62vh; overflow-y: auto; }
-    table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+
+    .table-scroll {
+      overflow-x: auto;
+      max-height: 62vh;
+      overflow-y: auto;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
     table.data-table th {
       position: sticky;
       top: 0;
@@ -139,22 +223,59 @@
       white-space: nowrap;
       z-index: 1;
     }
+
     table.data-table td {
       padding: 8px 10px;
       border-bottom: 1px solid #e2e8f0;
       vertical-align: middle;
     }
-    table.data-table tr.data-row:hover { background: #f8fafc; }
+
+    table.data-table tr.data-row:hover {
+      background: #f8fafc;
+    }
 
     /* Badges & Status */
-    .badge { padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px; display: inline-block; white-space: nowrap; }
-    .st-new { background: #fef3c7; color: #b45309; }
-    .st-prod { background: #dbeafe; color: #1d4ed8; }
-    .st-done { background: #dcfce7; color: #15803d; }
-    .st-cancel { background: #fee2e2; color: #b91c1c; }
+    .badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 11px;
+      display: inline-block;
+      white-space: nowrap;
+    }
 
-    .debt-warning { color: #dc2626; font-weight: 800; background: #fef2f2; padding: 2px 6px; border-radius: 4px; }
-    .debt-clear { color: #16a34a; font-weight: 700; }
+    .st-new {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    .st-prod {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .st-done {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .st-cancel {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .debt-warning {
+      color: #dc2626;
+      font-weight: 800;
+      background: #fef2f2;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .debt-clear {
+      color: #16a34a;
+      font-weight: 700;
+    }
 
     .link-btn {
       color: #2563eb;
@@ -162,25 +283,48 @@
       text-decoration: none;
       cursor: pointer;
     }
-    .link-btn:hover { text-decoration: underline; }
+
+    .link-btn:hover {
+      text-decoration: underline;
+    }
 
     .sub-items-box {
       background: #f8fafc;
       padding: 10px 16px;
       border-left: 4px solid #3b82f6;
     }
-    .sub-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border: 1px solid #cbd5e1; }
-    .sub-table th { background: #eff6ff; color: #1e40af; padding: 6px 8px; border-bottom: 1px solid #bfdbfe; position: static; }
-    .sub-table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+
+    .sub-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+    }
+
+    .sub-table th {
+      background: #eff6ff;
+      color: #1e40af;
+      padding: 6px 8px;
+      border-bottom: 1px solid #bfdbfe;
+      position: static;
+    }
+
+    .sub-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
   </style>
 </head>
+
 <body>
   <div class="app-wrapper">
     <!-- HEADER & CHUYỂN ĐỔI CHẾ ĐỘ XEM KÉP (DUAL-VIEW SWITCHER) -->
     <div class="top-bar">
       <div>
         <div class="brand-title">📦 NAPACO ERP — TRUNG TÂM TRA CỨU ĐƠN HÀNG</div>
-        <div class="brand-sub">Chuyển đổi linh hoạt giữa góc nhìn Quản lý PO (Header) và Chi Tiết Đơn Hàng (Line-Item)</div>
+        <div class="brand-sub">Chuyển đổi linh hoạt giữa góc nhìn Quản lý PO (Header) và Chi Tiết Đơn Hàng (Line-Item)
+        </div>
       </div>
       <div class="view-switcher">
         <button type="button" id="btnViewHeader" class="view-btn active" onclick="switchViewMode('HEADER')">
@@ -215,18 +359,20 @@
     <!-- BỘ LỌC TÌM KIẾM ĐA NĂNG -->
     <div class="filter-card">
       <div class="filter-group">
-        <label>Từ khóa tìm kiếm nhanh (Mã ĐH, Số PO, Tên SP, Code SP, Mã CTĐH...)</label>
-        <input type="text" id="keywordInput" class="filter-control" placeholder="Gõ tên sản phẩm, khách hàng, mã PO..." oninput="handleInstantFilter()">
+        <label>Từ khóa tìm kiếm nhanh</label>
+        <input type="text" id="keywordInput" class="filter-control" placeholder="Gõ tên sản phẩm, mã đơn..."
+          oninput="handleInstantFilter()">
       </div>
       <div class="filter-group">
         <label>Khách hàng</label>
-        <select id="customerFilter" class="filter-control" onchange="fetchOrderData()">
-          <option value="ALL">-- Tất cả khách hàng --</option>
-        </select>
+        <!-- THAY BẰNG INPUT CÓ DATALIST ĐỂ VỪA GÕ VỪA GỢI Ý -->
+        <input type="text" id="customerFilterInput" list="customerFilterDatalist" class="filter-control"
+          placeholder="Tất cả hoặc gõ tên KH..." oninput="handleInstantFilter()">
+        <datalist id="customerFilterDatalist"></datalist>
       </div>
       <div class="filter-group">
         <label>Trạng thái</label>
-        <select id="statusFilter" class="filter-control" onchange="fetchOrderData()">
+        <select id="statusFilter" class="filter-control" onchange="handleInstantFilter()">
           <option value="ALL">-- Tất cả --</option>
           <option value="Chờ sản xuất">Chờ sản xuất</option>
           <option value="Đang sản xuất">Đang sản xuất</option>
@@ -235,14 +381,14 @@
       </div>
       <div class="filter-group">
         <label>Từ ngày đặt</label>
-        <input type="date" id="fromDateFilter" class="filter-control" onchange="fetchOrderData()">
+        <input type="date" id="fromDateFilter" class="filter-control" onchange="handleInstantFilter()">
       </div>
       <div class="filter-group">
         <label>Đến ngày đặt</label>
-        <input type="date" id="toDateFilter" class="filter-control" onchange="fetchOrderData()">
+        <input type="date" id="toDateFilter" class="filter-control" onchange="handleInstantFilter()">
       </div>
       <div style="display:flex;gap:6px;">
-        <button type="button" class="btn-search" onclick="fetchOrderData()">🔍 Lọc</button>
+        <button type="button" class="btn-search" onclick="fetchOrderData()">🔍 Lọc (DB)</button>
         <button type="button" class="btn-reset" onclick="resetFilters()">↺ Đặt lại</button>
       </div>
     </div>
@@ -257,7 +403,9 @@
         <table class="data-table">
           <thead id="tableHead"></thead>
           <tbody id="tableBody">
-            <tr><td colspan="10" style="text-align:center;padding:24px;color:#64748b;">⏳ Đang tải dữ liệu đơn hàng...</td></tr>
+            <tr>
+              <td colspan="10" style="text-align:center;padding:24px;color:#64748b;">⏳ Đang tải dữ liệu đơn hàng...</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -271,7 +419,7 @@
       customersPopulated: false
     };
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       fetchOrderData();
     });
 
@@ -309,10 +457,11 @@
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:#0284c7;font-weight:600;">⏳ Đang đồng bộ dữ liệu từ Database...</td></tr>';
 
+      const custTarget = document.getElementById('customerFilterInput') || document.getElementById('customerFilter');
       const searchParams = {
         viewMode: listState.viewMode,
         keyword: document.getElementById('keywordInput').value.trim(),
-        maKH: document.getElementById('customerFilter').value,
+        maKH: custTarget ? custTarget.value.trim() : 'ALL',
         status: document.getElementById('statusFilter').value,
         fromDate: document.getElementById('fromDateFilter').value,
         toDate: document.getElementById('toDateFilter').value,
@@ -321,7 +470,7 @@
       };
 
       google.script.run
-        .withSuccessHandler(function(res) {
+        .withSuccessHandler(function (res) {
           if (!res || !res.success) {
             tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi tải dữ liệu: ' +
               escapeHtml(res && res.error ? res.error.message : 'Không xác định') + '</td></tr>';
@@ -337,7 +486,7 @@
           updateSummaryKPIs(res.summary);
           renderTableData(listState.rawRecords);
         })
-        .withFailureHandler(function(err) {
+        .withFailureHandler(function (err) {
           tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi kết nối Server: ' +
             escapeHtml(err.message) + '</td></tr>';
         })
@@ -347,27 +496,50 @@
     /**
      * Lọc tức thì phía Client khi người dùng gõ vào ô tìm kiếm (Real-time Instant Search)
      */
+    /**
+   * Lọc tức thì trên client-side đối với dữ liệu đang hiển thị trong bộ nhớ
+   */
     function handleInstantFilter() {
       const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
-      if (!kw) {
-        renderTableData(listState.rawRecords);
-        return;
-      }
+      const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
+      const status = document.getElementById('statusFilter').value;
+      const fromDate = document.getElementById('fromDateFilter').value;
+      const toDate = document.getElementById('toDateFilter').value;
 
-      const filtered = listState.rawRecords.filter(function(item) {
-        if (listState.viewMode === 'HEADER') {
-          const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
-          const subMatch = (item.items || []).some(function(sub) {
-            return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
-          });
-          return hText.indexOf(kw) !== -1 || subMatch;
-        } else {
-          const lText = [
-            item.idChiTiet, item.maDH, item.soPO, item.khachHang,
-            item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV
-          ].join(' ').toLowerCase();
-          return lText.indexOf(kw) !== -1;
+      const filtered = listState.rawRecords.filter(function (item) {
+        // 1. Lọc theo từ khóa chung
+        if (kw) {
+          if (listState.viewMode === 'HEADER') {
+            const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
+            const subMatch = (item.items || []).some(function (sub) {
+              return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
+            });
+            if (hText.indexOf(kw) === -1 && !subMatch) return false;
+          } else {
+            const lText = [item.idChiTiet, item.maDH, item.soPO, item.khachHang, item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV].join(' ').toLowerCase();
+            if (lText.indexOf(kw) === -1) return false;
+          }
         }
+
+        // 2. Lọc theo Khách hàng (gõ tay hoặc gợi ý)
+        if (custKw && custKw !== 'all') {
+          const cName = (item.khachHang || item.customerName || '').toLowerCase();
+          const cId = (item.maKH || '').toLowerCase();
+          if (cName.indexOf(custKw) === -1 && cId.indexOf(custKw) === -1) return false;
+        }
+
+        // 3. Lọc theo Trạng thái
+        if (status && status !== 'ALL') {
+          const itemStatus = item.trangThai || item.status || '';
+          if (itemStatus.indexOf(status) === -1) return false;
+        }
+
+        // 4. Lọc theo Khoảng ngày đặt
+        const orderDate = item.ngayDat || item.orderDate || '';
+        if (fromDate && orderDate && orderDate < fromDate) return false;
+        if (toDate && orderDate && orderDate > toDate) return false;
+
+        return true;
       });
 
       renderTableData(filtered);
@@ -385,17 +557,17 @@
       if (listState.viewMode === 'HEADER') {
         thead.innerHTML =
           '<tr>' +
-            '<th style="width:130px;">Mã Đơn Hàng</th>' +
-            '<th>Khách Hàng</th>' +
-            '<th>Số PO</th>' +
-            '<th style="width:100px;">Ngày Đặt</th>' +
-            '<th style="width:100px;">Ngày Giao DK</th>' +
-            '<th style="text-align:right;">Tổng Giá Trị</th>' +
-            '<th style="text-align:center;">Số Mặt Hàng</th>' +
-            '<th>Tiến Độ Giao</th>' +
-            '<th>Trạng Thái</th>' +
-            '<th style="text-align:center;">File PO</th>' +
-            '<th style="text-align:center;">Chi Tiết</th>' +
+          '<th style="width:130px;">Mã Đơn Hàng</th>' +
+          '<th>Khách Hàng</th>' +
+          '<th>Số PO</th>' +
+          '<th style="width:100px;">Ngày Đặt</th>' +
+          '<th style="width:100px;">Ngày Giao DK</th>' +
+          '<th style="text-align:right;">Tổng Giá Trị</th>' +
+          '<th style="text-align:center;">Số Mặt Hàng</th>' +
+          '<th>Tiến Độ Giao</th>' +
+          '<th>Trạng Thái</th>' +
+          '<th style="text-align:center;">File PO</th>' +
+          '<th style="text-align:center;">Chi Tiết</th>' +
           '</tr>';
 
         if (records.length === 0) {
@@ -404,61 +576,61 @@
         }
 
         let html = '';
-        records.forEach(function(ord, idx) {
+        records.forEach(function (ord, idx) {
           const fileLinkHtml = ord.filePO
             ? '<a href="' + escapeHtml(ord.filePO) + '" target="_blank" class="link-btn">📎 Xem PO</a>'
             : '<span style="color:#94a3b8;">-</span>';
 
           let subRowsHtml = '';
-          (ord.items || []).forEach(function(it, sIdx) {
+          (ord.items || []).forEach(function (it, sIdx) {
             const debtClass = Number(it.conLai) > 0 ? 'debt-warning' : 'debt-clear';
             subRowsHtml +=
               '<tr>' +
-                '<td>' + (sIdx + 1) + '</td>' +
-                '<td style="font-weight:700;">' + escapeHtml(it.idChiTiet) + '</td>' +
-                '<td>' + escapeHtml(it.sanPham) + (it.codeSP ? ' <span style="color:#64748b;">(' + escapeHtml(it.codeSP) + ')</span>' : '') + '</td>' +
-                '<td style="text-align:center;">' + escapeHtml(it.dvt) + '</td>' +
-                '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + '</td>' +
-                '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
-                '<td style="text-align:right;">' + formatNumber(it.daGiao) + '</td>' +
-                '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
-                '<td>' + escapeHtml(it.ngayGiao) + '</td>' +
-                '<td>' + escapeHtml(it.tenNV) + '</td>' +
-                '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
+              '<td>' + (sIdx + 1) + '</td>' +
+              '<td style="font-weight:700;">' + escapeHtml(it.idChiTiet) + '</td>' +
+              '<td>' + escapeHtml(it.sanPham) + (it.codeSP ? ' <span style="color:#64748b;">(' + escapeHtml(it.codeSP) + ')</span>' : '') + '</td>' +
+              '<td style="text-align:center;">' + escapeHtml(it.dvt) + '</td>' +
+              '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + '</td>' +
+              '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
+              '<td style="text-align:right;">' + formatNumber(it.daGiao) + '</td>' +
+              '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
+              '<td>' + escapeHtml(it.ngayGiao) + '</td>' +
+              '<td>' + escapeHtml(it.tenNV) + '</td>' +
+              '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
               '</tr>';
           });
 
           html +=
             '<tr class="data-row">' +
-              '<td style="font-weight:800;color:#1e40af;">' + escapeHtml(ord.maDH) + '</td>' +
-              '<td style="font-weight:700;">' + escapeHtml(ord.khachHang) + ' <span style="color:#64748b;font-size:11px;">(' + escapeHtml(ord.maKH) + ')</span></td>' +
-              '<td style="font-weight:700;color:#0f172a;">' + escapeHtml(ord.soPO) + '</td>' +
-              '<td>' + escapeHtml(ord.ngayDat) + '</td>' +
-              '<td>' + escapeHtml(ord.ngayGiaoDK) + '</td>' +
-              '<td style="text-align:right;font-weight:800;color:#0f172a;">' + formatVND(ord.tongGiaTri) + '</td>' +
-              '<td style="text-align:center;font-weight:700;">' + ord.itemCount + ' SP</td>' +
-              '<td>' + escapeHtml(ord.tienDo) + '</td>' +
-              '<td>' + renderStatusBadge(ord.trangThai) + '</td>' +
-              '<td style="text-align:center;">' + fileLinkHtml + '</td>' +
-              '<td style="text-align:center;">' +
-                '<button type="button" class="btn-reset" style="padding:4px 10px;height:auto;font-size:11.5px;" onclick="toggleOrderSubItems(' + idx + ')">▼ Xem SP</button>' +
-              '</td>' +
+            '<td style="font-weight:800;color:#1e40af;">' + escapeHtml(ord.maDH) + '</td>' +
+            '<td style="font-weight:700;">' + escapeHtml(ord.khachHang) + ' <span style="color:#64748b;font-size:11px;">(' + escapeHtml(ord.maKH) + ')</span></td>' +
+            '<td style="font-weight:700;color:#0f172a;">' + escapeHtml(ord.soPO) + '</td>' +
+            '<td>' + escapeHtml(ord.ngayDat) + '</td>' +
+            '<td>' + escapeHtml(ord.ngayGiaoDK) + '</td>' +
+            '<td style="text-align:right;font-weight:800;color:#0f172a;">' + formatVND(ord.tongGiaTri) + '</td>' +
+            '<td style="text-align:center;font-weight:700;">' + ord.itemCount + ' SP</td>' +
+            '<td>' + escapeHtml(ord.tienDo) + '</td>' +
+            '<td>' + renderStatusBadge(ord.trangThai) + '</td>' +
+            '<td style="text-align:center;">' + fileLinkHtml + '</td>' +
+            '<td style="text-align:center;">' +
+            '<button type="button" class="btn-reset" style="padding:4px 10px;height:auto;font-size:11.5px;" onclick="toggleOrderSubItems(' + idx + ')">▼ Xem SP</button>' +
+            '</td>' +
             '</tr>' +
             '<tr id="orderSubRow_' + idx + '" style="display:none;">' +
-              '<td colspan="11" class="sub-items-box">' +
-                '<div style="font-weight:700;margin-bottom:6px;color:#1e3a8a;">Danh sách mặt hàng thuộc đơn ' + escapeHtml(ord.maDH) + ' (Số PO: ' + escapeHtml(ord.soPO) + '):</div>' +
-                '<table class="sub-table">' +
-                  '<thead>' +
-                    '<tr>' +
-                      '<th>#</th><th>Mã CTĐH</th><th>Sản Phẩm (Code SP)</th><th>ĐVT</th>' +
-                      '<th style="text-align:right;">SL Đặt</th><th style="text-align:right;">Đơn Giá</th>' +
-                      '<th style="text-align:right;">Đã Giao</th><th style="text-align:right;">Còn Lại</th>' +
-                      '<th>Ngày Giao</th><th>Sales</th><th>Trạng Thái</th>' +
-                    '</tr>' +
-                  '</thead>' +
-                  '<tbody>' + subRowsHtml + '</tbody>' +
-                '</table>' +
-              '</td>' +
+            '<td colspan="11" class="sub-items-box">' +
+            '<div style="font-weight:700;margin-bottom:6px;color:#1e3a8a;">Danh sách mặt hàng thuộc đơn ' + escapeHtml(ord.maDH) + ' (Số PO: ' + escapeHtml(ord.soPO) + '):</div>' +
+            '<table class="sub-table">' +
+            '<thead>' +
+            '<tr>' +
+            '<th>#</th><th>Mã CTĐH</th><th>Sản Phẩm (Code SP)</th><th>ĐVT</th>' +
+            '<th style="text-align:right;">SL Đặt</th><th style="text-align:right;">Đơn Giá</th>' +
+            '<th style="text-align:right;">Đã Giao</th><th style="text-align:right;">Còn Lại</th>' +
+            '<th>Ngày Giao</th><th>Sales</th><th>Trạng Thái</th>' +
+            '</tr>' +
+            '</thead>' +
+            '<tbody>' + subRowsHtml + '</tbody>' +
+            '</table>' +
+            '</td>' +
             '</tr>';
         });
 
@@ -468,17 +640,17 @@
         // CHẾ ĐỘ 2: LINE-ITEM VIEW (BẢNG PHẲNG CHI TIẾT MẶT HÀNG)
         thead.innerHTML =
           '<tr>' +
-            '<th style="width:125px;">Mã CTĐH</th>' +
-            '<th style="width:125px;">Mã Đơn Hàng</th>' +
-            '<th>Khách Hàng</th>' +
-            '<th>Sản Phẩm</th>' +
-            '<th style="text-align:right;">SL Đặt</th>' +
-            '<th style="text-align:right;">Đơn Giá</th>' +
-            '<th style="text-align:right;">Đã Giao</th>' +
-            '<th style="text-align:right;">Còn Lại (Nợ)</th>' +
-            '<th style="width:100px;">Ngày Giao</th>' +
-            '<th>Sales</th>' +
-            '<th>Trạng Thái</th>' +
+          '<th style="width:125px;">Mã CTĐH</th>' +
+          '<th style="width:125px;">Mã Đơn Hàng</th>' +
+          '<th>Khách Hàng</th>' +
+          '<th>Sản Phẩm</th>' +
+          '<th style="text-align:right;">SL Đặt</th>' +
+          '<th style="text-align:right;">Đơn Giá</th>' +
+          '<th style="text-align:right;">Đã Giao</th>' +
+          '<th style="text-align:right;">Còn Lại (Nợ)</th>' +
+          '<th style="width:100px;">Ngày Giao</th>' +
+          '<th>Sales</th>' +
+          '<th>Trạng Thái</th>' +
           '</tr>';
 
         if (records.length === 0) {
@@ -487,31 +659,31 @@
         }
 
         let html = '';
-        records.forEach(function(it) {
+        records.forEach(function (it) {
           const debtClass = Number(it.conLai) > 0 ? 'debt-warning' : 'debt-clear';
           const codeBadge = it.codeSP ? ' <span style="color:#0369a1;font-weight:700;">[' + escapeHtml(it.codeSP) + ']</span>' : '';
 
           html +=
             '<tr class="data-row">' +
-              '<td style="font-weight:800;color:#0f172a;">' + escapeHtml(it.idChiTiet) + '</td>' +
-              '<td>' +
-                '<span class="link-btn" onclick="filterByOrderCode(\'' + escapeHtml(it.maDH) + '\')" title="Bấm để lọc toàn bộ mặt hàng của đơn này">' +
-                  escapeHtml(it.maDH) +
-                '</span>' +
-                '<div style="font-size:11px;color:#64748b;">' + escapeHtml(it.soPO) + '</div>' +
-              '</td>' +
-              '<td style="font-weight:600;">' + escapeHtml(it.khachHang) + '</td>' +
-              '<td>' +
-                '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + codeBadge + '</div>' +
-                '<div style="font-size:11px;color:#64748b;">SKU: ' + escapeHtml(it.maSP) + (it.ghiChu ? ' | Ghi chú: ' + escapeHtml(it.ghiChu) : '') + '</div>' +
-              '</td>' +
-              '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + ' ' + escapeHtml(it.dvt) + '</td>' +
-              '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
-              '<td style="text-align:right;font-weight:600;">' + formatNumber(it.daGiao) + '</td>' +
-              '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
-              '<td style="font-weight:600;">' + escapeHtml(it.ngayGiao) + '</td>' +
-              '<td>' + escapeHtml(it.tenNV) + '</td>' +
-              '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
+            '<td style="font-weight:800;color:#0f172a;">' + escapeHtml(it.idChiTiet) + '</td>' +
+            '<td>' +
+            '<span class="link-btn" onclick="filterByOrderCode(\'' + escapeHtml(it.maDH) + '\')" title="Bấm để lọc toàn bộ mặt hàng của đơn này">' +
+            escapeHtml(it.maDH) +
+            '</span>' +
+            '<div style="font-size:11px;color:#64748b;">' + escapeHtml(it.soPO) + '</div>' +
+            '</td>' +
+            '<td style="font-weight:600;">' + escapeHtml(it.khachHang) + '</td>' +
+            '<td>' +
+            '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + codeBadge + '</div>' +
+            '<div style="font-size:11px;color:#64748b;">SKU: ' + escapeHtml(it.maSP) + (it.ghiChu ? ' | Ghi chú: ' + escapeHtml(it.ghiChu) : '') + '</div>' +
+            '</td>' +
+            '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + ' ' + escapeHtml(it.dvt) + '</td>' +
+            '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
+            '<td style="text-align:right;font-weight:600;">' + formatNumber(it.daGiao) + '</td>' +
+            '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
+            '<td style="font-weight:600;">' + escapeHtml(it.ngayGiao) + '</td>' +
+            '<td>' + escapeHtml(it.tenNV) + '</td>' +
+            '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
             '</tr>';
         });
 
@@ -532,12 +704,15 @@
     }
 
     function populateCustomerFilter(customers) {
-      const sel = document.getElementById('customerFilter');
-      let html = '<option value="ALL">-- Tất cả khách hàng --</option>';
-      customers.forEach(function(c) {
-        html += '<option value="' + escapeHtml(c.maKH) + '">' + escapeHtml(c.maKH + ' - ' + c.name) + '</option>';
+      const datalistEl = document.getElementById('customerFilterDatalist');
+      const selectEl = document.getElementById('customerFilter');
+      let html = '';
+      if (selectEl) html += '<option value="ALL">-- Tất cả khách hàng --</option>';
+      (customers || []).forEach(function (c) {
+        html += '<option value="' + escapeHtml(c.maKH) + '">' + escapeHtml(c.name) + '</option>';
       });
-      sel.innerHTML = html;
+      if (datalistEl) datalistEl.innerHTML = html;
+      if (selectEl) selectEl.innerHTML = html;
     }
 
     function updateSummaryKPIs(summary) {
@@ -550,7 +725,10 @@
 
     function resetFilters() {
       document.getElementById('keywordInput').value = '';
-      document.getElementById('customerFilter').value = 'ALL';
+      const cInput = document.getElementById('customerFilterInput');
+      if (cInput) cInput.value = '';
+      const cSelect = document.getElementById('customerFilter');
+      if (cSelect) cSelect.value = 'ALL';
       document.getElementById('statusFilter').value = 'ALL';
       document.getElementById('fromDateFilter').value = '';
       document.getElementById('toDateFilter').value = '';
@@ -588,4 +766,5 @@
     }
   </script>
 </body>
+
 </html>

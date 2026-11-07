@@ -484,7 +484,7 @@ const OrderService = {
       const prodData = prodSheet.getDataRange().getValues();
       const prodMap = {}; // Tên SP + Mã KH -> SP_ID
       let maxSpSeq = 0;
-
+      const prodRowIndexMap = {};
       for (let j = 1; j < prodData.length; j++) {
         const spId = String(prodData[j][0] || '').trim();
         const cusId = String(prodData[j][1] || '').trim();
@@ -492,6 +492,7 @@ const OrderService = {
         if (spId && spName) {
           prodMap[spName + '__' + cusId] = spId;
           if (!prodMap[spName]) prodMap[spName] = spId;
+          prodRowIndexMap[spId] = j + 1; // j bắt đầu từ 1 (hàng 2 trên Sheet), nên dòng thực tế là j + 1
         }
 
         // Trích xuất số lớn nhất từ các mã SP (VD: SP2174 -> 2174)
@@ -630,6 +631,19 @@ const OrderService = {
               item.giaKhuon || 0,
               item.price || 0
             ]);
+          } else {
+            // Sản phẩm đã tồn tại -> Cập nhật lại thông số mới nhất vào bảng 02_SAN_PHAM
+            const spRowIdx = prodRowIndexMap[targetSpId];
+            if (spRowIdx) {
+              // Cột 3 (mang), Cột 4 (type), Cột 5 (Code_Sanpham), Cột 9 (donvi), Cột 14 (donggoi), Cột 15 (Gia Khuon), Cột 16 (dongia)
+              if (item.mang) prodSheet.getRange(spRowIdx, 3).setValue(item.mang);
+              if (item.type) prodSheet.getRange(spRowIdx, 4).setValue(item.type);
+              if (item.codeSP) prodSheet.getRange(spRowIdx, 5).setValue(item.codeSP);
+              if (item.unit) prodSheet.getRange(spRowIdx, 9).setValue(item.unit);
+              if (item.donggoi) prodSheet.getRange(spRowIdx, 14).setValue(item.donggoi);
+              if (Number(item.giaKhuon) > 0) prodSheet.getRange(spRowIdx, 15).setValue(Number(item.giaKhuon));
+              if (Number(item.price) > 0) prodSheet.getRange(spRowIdx, 16).setValue(Number(item.price));
+            }
           }
 
           // Sinh mã chi tiết: CT_yymmdd_xx
