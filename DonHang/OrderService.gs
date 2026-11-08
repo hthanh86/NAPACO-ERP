@@ -89,42 +89,69 @@ const OrderService = {
       customerByIdMap[maKH] = cusObj;
     }
 
-    // 2. Đọc bảng 02_SAN_PHAM (16 cột):
-    // [SP_ID, customer_id, mang, type, Code_Sanpham, name_napaco, cavity, tonkho, donvi, dai, rong, cao, imageURL, donggoi, Gia Khuon, dongia]
+    // 2. [ĐÃ SỬA] Đọc bảng Sản Phẩm tìm header động theo CONFIG.COLUMNS.PRODUCTS
     const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
     if (!prodSheet) throw new Error('Không tìm thấy bảng ' + CONFIG.SHEET_NAMES.PRODUCTS);
     const prodValues = prodSheet.getDataRange().getValues();
     const products = [];
     const productByIdMap = {};
 
-    for (let j = 1; j < prodValues.length; j++) {
-      const spId = String(prodValues[j][0] || '').trim();
-      const nameNapaco = String(prodValues[j][5] || '').trim();
+    // Tìm dòng header thực tế chứa SP_ID
+    let prodHdrIdx = -1;
+    for (let r = 0; r < Math.min(prodValues.length, 5); r++) {
+      const rowStr = prodValues[r].map(c => String(c || '').trim().toLowerCase());
+      if (rowStr.indexOf(CONFIG.COLUMNS.PRODUCTS.ID.toLowerCase()) !== -1) {
+        prodHdrIdx = r;
+        break;
+      }
+    }
+    if (prodHdrIdx === -1) prodHdrIdx = 0;
+
+    const pHdrs = prodValues[prodHdrIdx].map(h => String(h || '').trim().toLowerCase());
+    const cSpId = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.ID.toLowerCase());
+    const cCusId = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.CUSTOMER_ID.toLowerCase());
+    const cFilm = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.FILM.toLowerCase());
+    const cType = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.TYPE.toLowerCase());
+    const cCodeCust = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.CODE_CUST.toLowerCase());
+    const cName = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.NAME.toLowerCase());
+    const cCavity = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.CAVITY.toLowerCase());
+    const cStock = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.STOCK.toLowerCase());
+    const cUnit = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.UNIT.toLowerCase());
+    const cImage = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.IMAGE.toLowerCase());
+    const cPacking = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.PACKING.toLowerCase());
+    const cMoldPrice = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.MOLD_PRICE.toLowerCase());
+    const cPrice = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.PRICE.toLowerCase());
+
+    console.log('[DEBUG_LOG_SANPHAM] Header row index:', prodHdrIdx, '| Cột SP_ID:', cSpId, '| Cột FILM (Màng):', cFilm);
+
+    for (let j = prodHdrIdx + 1; j < prodValues.length; j++) {
+      const row = prodValues[j];
+      const spId = cSpId !== -1 ? String(row[cSpId] || '').trim() : '';
+      const nameNapaco = cName !== -1 ? String(row[cName] || '').trim() : '';
       if (!spId || !nameNapaco) continue;
+
+      const mangVal = cFilm !== -1 ? String(row[cFilm] || '').trim() : '';
       const prodObj = {
         spId: spId,
-        customerId: String(prodValues[j][1] || '').trim(),
-        mang: String(prodValues[j][2] || '').trim(),
-        type: String(prodValues[j][3] || '').trim(),
-        codeSP: String(prodValues[j][4] || '').trim(),
+        customerId: cCusId !== -1 ? String(row[cCusId] || '').trim() : '',
+        mang: mangVal,
+        type: cType !== -1 ? String(row[cType] || '').trim() : '',
+        codeSP: cCodeCust !== -1 ? String(row[cCodeCust] || '').trim() : '',
         prodName: nameNapaco,
-        cavity: Number(prodValues[j][6]) || 0,
-        tonkho: Number(prodValues[j][7]) || 0,
-        unit: String(prodValues[j][8] || 'Cái').trim() || 'Cái',
-        dai: prodValues[j][9] || '',
-        rong: prodValues[j][10] || '',
-        cao: prodValues[j][11] || '',
-        imageURL: String(prodValues[j][12] || '').trim(),
-        donggoi: String(prodValues[j][13] || '').trim(),
-        giaKhuon: Number(prodValues[j][14]) || 0,
-        price: Number(prodValues[j][15]) || 0
+        cavity: cCavity !== -1 ? (Number(row[cCavity]) || 0) : 0,
+        tonkho: cStock !== -1 ? (Number(row[cStock]) || 0) : 0,
+        unit: cUnit !== -1 ? (String(row[cUnit] || 'Cái').trim() || 'Cái') : 'Cái',
+        imageURL: cImage !== -1 ? String(row[cImage] || '').trim() : '',
+        donggoi: cPacking !== -1 ? String(row[cPacking] || '').trim() : '',
+        giaKhuon: cMoldPrice !== -1 ? (Number(row[cMoldPrice]) || 0) : 0,
+        price: cPrice !== -1 ? (Number(row[cPrice]) || 0) : 0
       };
       products.push(prodObj);
       productByIdMap[spId] = prodObj;
+      productByIdMap[spId.toUpperCase()] = prodObj;
     }
 
-    // 3. Đọc bảng 07.NhanVien & Xác thực người dùng kép (Hybrid Authentication)
-    // Cột: [Ma_NV, name, phong_ban, role, email, sdt, quyen_truy_cap, ngay_tao, trang_thai]
+    // 3. [ĐÃ SỬA] Đọc bảng Nhân Viên tìm header động theo CONFIG.COLUMNS.EMPLOYEES
     const empSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.EMPLOYEES);
     if (!empSheet) throw new Error('Không tìm thấy bảng ' + CONFIG.SHEET_NAMES.EMPLOYEES);
     const empValues = empSheet.getDataRange().getValues();
@@ -141,18 +168,40 @@ const OrderService = {
     const employeeByIdMap = {};
     let matchedEmployee = null;
 
-    for (let k = 1; k < empValues.length; k++) {
-      const maNV = String(empValues[k][0] || '').trim();
-      const empName = String(empValues[k][1] || '').trim();
-      // Bỏ qua các dòng thống kê cuối bảng (VD: 'Tổng số nhân sự')
+    let empHdrIdx = -1;
+    for (let r = 0; r < Math.min(empValues.length, 6); r++) {
+      const rowStr = empValues[r].map(c => String(c || '').trim().toLowerCase());
+      if (rowStr.indexOf(CONFIG.COLUMNS.EMPLOYEES.ID.toLowerCase()) !== -1) {
+        empHdrIdx = r;
+        break;
+      }
+    }
+    if (empHdrIdx === -1) empHdrIdx = 0;
+
+    const eHdrs = empValues[empHdrIdx].map(h => String(h || '').trim().toLowerCase());
+    const cEmpId = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.ID.toLowerCase());
+    const cEmpName = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.NAME.toLowerCase());
+    const cEmpDept = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.DEPARTMENT.toLowerCase());
+    const cEmpRole = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.ROLE.toLowerCase());
+    const cEmpEmail = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.EMAIL.toLowerCase());
+    const cEmpPhone = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.PHONE.toLowerCase());
+    const cEmpAccess = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.ACCESS.toLowerCase());
+    const cEmpStatus = eHdrs.indexOf(CONFIG.COLUMNS.EMPLOYEES.STATUS.toLowerCase());
+
+    console.log('[DEBUG_LOG_NHANVIEN] Header row index:', empHdrIdx, '| Cột Ma_NV:', cEmpId, '| Cột Name:', cEmpName);
+
+    for (let k = empHdrIdx + 1; k < empValues.length; k++) {
+      const row = empValues[k];
+      const maNV = cEmpId !== -1 ? String(row[cEmpId] || '').trim() : '';
+      const empName = cEmpName !== -1 ? String(row[cEmpName] || '').trim() : '';
       if (!maNV || !/^NV/i.test(maNV) || !empName) continue;
 
-      const phongBan = String(empValues[k][2] || '').trim();
-      const role = String(empValues[k][3] || '').trim();
-      const email = String(empValues[k][4] || '').trim().toLowerCase();
-      const sdt = String(empValues[k][5] || '').trim();
-      const quyenTruyCap = String(empValues[k][6] || '').trim();
-      const trangThai = String(empValues[k][8] || '').trim();
+      const phongBan = cEmpDept !== -1 ? String(row[cEmpDept] || '').trim() : '';
+      const role = cEmpRole !== -1 ? String(row[cEmpRole] || '').trim() : '';
+      const email = cEmpEmail !== -1 ? String(row[cEmpEmail] || '').trim().toLowerCase() : '';
+      const sdt = cEmpPhone !== -1 ? String(row[cEmpPhone] || '').trim() : '';
+      const quyenTruyCap = cEmpAccess !== -1 ? String(row[cEmpAccess] || '').trim() : '';
+      const trangThai = cEmpStatus !== -1 ? String(row[cEmpStatus] || '').trim() : '';
 
       const empObj = {
         maNV: maNV,
@@ -166,11 +215,24 @@ const OrderService = {
         display: maNV + ' - ' + empName
       };
 
+      // Ánh xạ đa quy tắc: hỗ trợ NV0001, NV-KD01, NV-KD1...
       employeeByIdMap[maNV] = empObj;
+      employeeByIdMap[maNV.toUpperCase()] = empObj;
+      const numMatch = maNV.match(/\d+/);
+      if (numMatch) {
+        const num = parseInt(numMatch[0], 10);
+        employeeByIdMap['NV-KD' + String(num).padStart(2, '0')] = empObj;
+        employeeByIdMap['NV-KD' + num] = empObj;
+        employeeByIdMap['NV' + String(num).padStart(4, '0')] = empObj;
+      }
 
-      if (trangThai === 'Đang hoạt động') {
+      // [LOẠI BỎ HARDCODE] Dùng CONFIG.EMPLOYEE_STATUS.ACTIVE & CONFIG.DEPARTMENTS.SALES
+      const isActive = trangThai.toLowerCase().includes(CONFIG.EMPLOYEE_STATUS.ACTIVE.toLowerCase()) || trangThai.toLowerCase().includes('hoạt động');
+      if (isActive) {
         allActiveStaffList.push(empObj);
-        if (phongBan.toLowerCase().indexOf('kinh doanh') !== -1 || quyenTruyCap.indexOf('Admin') !== -1 || quyenTruyCap.indexOf('Manager') !== -1) {
+        const isSales = phongBan.toLowerCase().includes(CONFIG.DEPARTMENTS.SALES.toLowerCase());
+        const isManager = quyenTruyCap.includes('Admin') || quyenTruyCap.includes('Manager');
+        if (isSales || isManager) {
           salesStaffList.push(empObj);
         }
         if (sessionEmail && email && sessionEmail === email) {
@@ -178,6 +240,7 @@ const OrderService = {
         }
       }
     }
+    console.log('[DEBUG_LOG_NHANVIEN] Số nhân viên KD tải được:', salesStaffList.length, '| Danh sách:', salesStaffList.map(s => s.display));
 
     const finalSalesDropdown = salesStaffList.length > 0 ? salesStaffList : allActiveStaffList;
 
@@ -732,7 +795,8 @@ const OrderService = {
     const viewMode = String(params.viewMode || 'HEADER').toUpperCase() === 'LINE_ITEM' ? 'LINE_ITEM' : 'HEADER';
     const keyword = String(params.keyword || '').trim().toLowerCase();
     const maKHFilter = String(params.maKH || 'ALL').trim();
-    const statusFilter = String(params.status || 'ALL').trim().toLowerCase();
+    /* [SỬA LỖI] Bỏ toLowerCase() để giữ nguyên hằng số nhóm ACTIVE_ALL / DONE_ALL */
+    const statusFilter = String(params.status || 'ALL').trim();
     const fromDate = String(params.fromDate || '').trim();
     const toDate = String(params.toDate || '').trim();
     const page = Math.max(1, parseInt(params.page, 10) || 1);
@@ -743,6 +807,19 @@ const OrderService = {
     const orderSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDERS);
     const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
 
+        // =========================================================================
+// [DEBUG SERVER - BƯỚC 1]: ĐẶT TẠI ĐẦU HÀM queryOrdersAndLineItems
+// =========================================================================
+console.log("=== [DEBUG SERVER] BẮT ĐẦU TRUY VẤN ĐƠN HÀNG ===");
+console.log("1. Tham số nhận từ Client:", JSON.stringify({
+  viewMode: viewMode,
+  keyword: keyword,
+  maKHFilter: maKHFilter,
+  statusFilter: statusFilter,
+  fromDate: fromDate,
+  toDate: toDate
+}));
+
     if (!orderSheet || !detailSheet) {
       throw new Error('Không tìm thấy bảng 01.DonHang hoặc 02.ChiTietDH!');
     }
@@ -750,21 +827,32 @@ const OrderService = {
     const orderRows = orderSheet.getDataRange().getValues();
     const detailRows = detailSheet.getDataRange().getValues();
 
-    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Đọc map khuôn định hình */
     const moldMap = this.getMoldsMap_();
 
-    // 1. Ánh xạ toàn bộ Header Đơn hàng (01.DonHang)
+    // =========================================================================
+    // 1. [ĐƯA LÊN TRƯỚC] ÁNH XẠ HEADER ĐƠN HÀNG (01.DonHang) TẠO orderMap TRƯỚC
+    // =========================================================================
+    const oHdrs = orderRows[0].map(h => String(h || '').trim().toLowerCase());
+    const colOMaDH = oHdrs.indexOf(CONFIG.COLUMNS.ORDERS.ID.toLowerCase());
+    const colOMaKH = oHdrs.indexOf(CONFIG.COLUMNS.ORDERS.CUSTOMER_ID.toLowerCase());
+    const colONgayDat = oHdrs.indexOf(CONFIG.COLUMNS.ORDERS.ORDER_DATE.toLowerCase());
+    const colONgayGiao = oHdrs.indexOf(CONFIG.COLUMNS.ORDERS.DELIVERY_DATE.toLowerCase());
+    const colOSoPO = oHdrs.indexOf(CONFIG.COLUMNS.ORDERS.PO_NUMBER.toLowerCase());
+    const colOFilePO = oHdrs.indexOf(CONFIG.COLUMNS.ORDERS.FILE_URL.toLowerCase());
+
     const orderMap = {};
     const orderHeadersList = [];
 
     for (let i = 1; i < orderRows.length; i++) {
-      const maDH = String(orderRows[i][0] || '').trim();
+      const oRow = orderRows[i];
+      const maDH = colOMaDH !== -1 ? String(oRow[colOMaDH] || '').trim() : '';
       if (!maDH) continue;
-      const maKH = String(orderRows[i][1] || '').trim();
-      const ngayDat = this.formatSheetDate_(orderRows[i][2]);
-      const ngayGiaoDK = this.formatSheetDate_(orderRows[i][3]);
-      const soPO = String(orderRows[i][4] || '').trim();
-      const filePO = String(orderRows[i][5] || '').trim();
+
+      const maKH = colOMaKH !== -1 ? String(oRow[colOMaKH] || '').trim() : '';
+      const ngayDat = colONgayDat !== -1 ? this.formatSheetDate_(oRow[colONgayDat]) : '';
+      const ngayGiaoDK = colONgayGiao !== -1 ? this.formatSheetDate_(oRow[colONgayGiao]) : '';
+      const soPO = colOSoPO !== -1 ? String(oRow[colOSoPO] || '').trim() : '';
+      const filePO = colOFilePO !== -1 ? String(oRow[colOFilePO] || '').trim() : '';
 
       const cusObj = catalog.customerByIdMap[maKH];
       const khachHangName = cusObj ? cusObj.name : maKH;
@@ -786,46 +874,68 @@ const OrderService = {
         trangThai: CONFIG.ORDER_STATUS.NEW,
         items: []
       };
+
       orderMap[maDH] = headerObj;
       orderHeadersList.push(headerObj);
     }
 
-    // 2. Ánh xạ toàn bộ Dòng chi tiết mặt hàng (02.ChiTietDH)
+    // =========================================================================
+    // 2. ÁNH XẠ DÒNG CHI TIẾT MẶT HÀNG (02.ChiTietDH) - DÙNG orderMap AN TOÀN
+    // =========================================================================
+    const dHdrs = detailRows[0].map(h => String(h || '').trim().toLowerCase());
+    const colDId = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.ID.toLowerCase());
+    const colDOrderId = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.ORDER_ID.toLowerCase());
+    const colDSpId = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRODUCT_ID.toLowerCase());
+    const colDQty = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_ORDER.toLowerCase());
+    const colDPrice = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRICE.toLowerCase());
+    const colDQtyRun = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_RUN.toLowerCase());
+    const colDQtyDel = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_DELIVERED.toLowerCase());
+    const colDQtyRem = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_REMAINING.toLowerCase());
+    const colDNote = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.NOTE.toLowerCase());
+    const colDDate = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.DELIVERY_DATE.toLowerCase());
+    const colDStaff = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.STAFF_ID.toLowerCase());
+    const colDStatus = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.STATUS.toLowerCase());
+
     const allLineItems = [];
     for (let j = 1; j < detailRows.length; j++) {
-      const idChiTiet = String(detailRows[j][0] || '').trim();
-      const idDonHang = String(detailRows[j][1] || '').trim();
+      const row = detailRows[j];
+
+      // =========================================================================
+// [DEBUG SERVER - BƯỚC 2]: ĐẶT NGAY TRƯỚC VÀ SAU VÙNG LỌC BẢNG ĐƠN HÀNG (orderRows / detailRows)
+// =========================================================================
+console.log("2. Tổng số dòng đọc được từ Sheet:", {
+  tongDonHangSheet: orderRows.length - 1,
+  tongChiTietSheet: detailRows.length - 1
+});
+
+
+      const idChiTiet = colDId !== -1 ? String(row[colDId] || '').trim() : '';
+      const idDonHang = colDOrderId !== -1 ? String(row[colDOrderId] || '').trim() : '';
       if (!idChiTiet || !idDonHang) continue;
 
-      const maSP = String(detailRows[j][2] || '').trim();
-      const slDat = Number(detailRows[j][3]) || 0;
-      const donGia = Number(detailRows[j][4]) || 0;
-      const slDaChay = Number(detailRows[j][5]) || 0;
-      const slDaGiao = Number(detailRows[j][6]) || 0;
-      const slConLaiRaw = detailRows[j][7];
+      const maSP = colDSpId !== -1 ? String(row[colDSpId] || '').trim() : '';
+      const slDat = colDQty !== -1 ? (Number(row[colDQty]) || 0) : 0;
+      const donGia = colDPrice !== -1 ? (Number(row[colDPrice]) || 0) : 0;
+      const slDaChay = colDQtyRun !== -1 ? (Number(row[colDQtyRun]) || 0) : 0;
+      const slDaGiao = colDQtyDel !== -1 ? (Number(row[colDQtyDel]) || 0) : 0;
+      const slConLaiRaw = colDQtyRem !== -1 ? row[colDQtyRem] : '';
       const slConLai = (slConLaiRaw !== '' && slConLaiRaw !== null && slConLaiRaw !== undefined)
         ? Number(slConLaiRaw)
         : Math.max(0, slDat - slDaGiao);
-      const ghiChu = String(detailRows[j][8] || '').trim();
-      const ngayGiao = this.formatSheetDate_(detailRows[j][9]);
-      const maNV = String(detailRows[j][10] || '').trim();
-      const trangThaiRaw = String(detailRows[j][11] || CONFIG.LINE_STATUS.NEW).trim();
+      const ghiChu = colDNote !== -1 ? String(row[colDNote] || '').trim() : '';
+      const ngayGiao = colDDate !== -1 ? this.formatSheetDate_(row[colDDate]) : '';
+      const maNV = colDStaff !== -1 ? String(row[colDStaff] || '').trim() : '';
+      const trangThaiRaw = colDStatus !== -1 ? String(row[colDStatus] || CONFIG.LINE_STATUS.NEW).trim() : CONFIG.LINE_STATUS.NEW;
 
       const parentOrder = orderMap[idDonHang];
-      const prodObj = catalog.productByIdMap[maSP];
-      const empObj = catalog.employeeByIdMap[maNV];
+      const prodObj = catalog.productByIdMap[maSP] || catalog.productByIdMap[maSP.toUpperCase()];
+      const tenSalesVal = this.resolveStaffName_(maNV, catalog.employeeByIdMap, catalog.salesStaffList);
 
       const sanPhamName = prodObj ? prodObj.prodName : maSP;
       const codeSP = prodObj ? prodObj.codeSP : '';
       const dvt = prodObj ? prodObj.unit : 'Cái';
-      const thanhTien = slDat * donGia;
-
-      /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Bổ sung Màng, Khuôn, Tên NV fallback ---, ImageURL, GiaKhuon */
       const mangVal = prodObj && prodObj.mang ? prodObj.mang : '---';
-      const maKhuonVal = moldMap[maSP] || '---';
-      const tenSalesVal = (empObj && empObj.hoTen) ? empObj.hoTen : '---';
-      const imageURL = prodObj && prodObj.imageURL ? prodObj.imageURL : '';
-      const giaKhuon = prodObj && prodObj.giaKhuon ? prodObj.giaKhuon : 0;
+      const moldInfo = moldMap[maSP] || { dinhHinh: [], dao: [] };
 
       const lineObj = {
         idChiTiet: idChiTiet,
@@ -841,21 +951,19 @@ const OrderService = {
         dvt: dvt,
         slDat: slDat,
         donGia: donGia,
-        thanhTien: thanhTien,
+        thanhTien: slDat * donGia,
         daChay: slDaChay,
         daGiao: slDaGiao,
         conLai: slConLai,
         ghiChu: ghiChu,
         ngayGiao: ngayGiao || (parentOrder ? parentOrder.ngayGiaoDK : ''),
         maNV: maNV,
-        /* [MỚI] Gán tên hiển thị chuẩn xác */
         tenNV: tenSalesVal,
         trangThai: trangThaiRaw,
-        /* [MỚI] Trường dữ liệu theo đặc tả */
         mang: mangVal,
-        maKhuon: maKhuonVal,
-        imageURL: imageURL,
-        giaKhuon: giaKhuon
+        moldInfo: moldInfo,
+        imageURL: prodObj ? prodObj.imageURL : '',
+        giaKhuon: prodObj ? prodObj.giaKhuon : 0
       };
 
       allLineItems.push(lineObj);
@@ -866,12 +974,17 @@ const OrderService = {
         parentOrder.tongSLDat += slDat;
         parentOrder.tongDaGiao += slDaGiao;
         parentOrder.tongConLai += slConLai;
-        parentOrder.tongGiaTri += thanhTien;
-        if (!parentOrder.salesPerson && lineObj.tenNV) {
+        parentOrder.tongGiaTri += (slDat * donGia);
+        if (!parentOrder.salesPerson && lineObj.tenNV && lineObj.tenNV !== '---') {
           parentOrder.salesPerson = lineObj.tenNV;
         }
       }
     }
+
+    // Giả sử mảng kết quả sau khi duyệt và lọc là: orderHeadersList (hoặc lineItemsList)
+console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả về Client:", {
+  soLuongKetQua: (viewMode === 'HEADER' ? orderHeadersList.length : (typeof lineItemsList !== 'undefined' ? lineItemsList.length : 0))
+});
 
     // 3. Tính toán Tiến độ & Trạng thái tổng hợp cho từng PO Header
     for (let h = 0; h < orderHeadersList.length; h++) {
@@ -889,14 +1002,58 @@ const OrderService = {
       }
     }
 
+    /* [MỚI - Ý 5 & RÀ SOÁT HARDCODE] Hàm helper kiểm tra khớp trạng thái theo phân nhóm CONFIG */
+    /* [SỬA LỖI] Hàm helper kiểm tra khớp trạng thái bao quát case-sensitive */
+    const isStatusMatch = function(itemStatus, filterVal) {
+      const fValUpper = String(filterVal).trim().toUpperCase();
+      if (!filterVal || fValUpper === 'ALL') return true;
+      
+      const sLow = String(itemStatus || '').toLowerCase().trim();
+
+      // Nhóm 1: Tất cả đơn đang chạy (Loại trừ các trạng thái đã đóng/hủy)
+      if (fValUpper === CONFIG.FILTER_STATUS_GROUPS.ACTIVE_ALL) {
+        const isDone = sLow.includes(CONFIG.LINE_STATUS.COMPLETED.toLowerCase()) || 
+                       sLow.includes(CONFIG.LINE_STATUS.CLOSED.toLowerCase()) ||
+                       sLow.includes(CONFIG.ORDER_STATUS.CANCELLED.toLowerCase()) ||
+                       sLow.includes('hoàn tất');
+        return !isDone;
+      }
+      
+      // Nhóm 2: Tất cả đơn đã xong/kết thúc
+      if (fValUpper === CONFIG.FILTER_STATUS_GROUPS.DONE_ALL) {
+        return sLow.includes(CONFIG.LINE_STATUS.COMPLETED.toLowerCase()) || 
+               sLow.includes(CONFIG.LINE_STATUS.CLOSED.toLowerCase()) ||
+               sLow.includes('hoàn tất');
+      }
+      
+      // Trạng thái cụ thể: ép về lowercase để tìm kiếm tương đối (ví dụ tìm: "chờ sản xuất")
+      return sLow.includes(String(filterVal).trim().toLowerCase());
+    };
+
     // 4. Lọc theo chế độ xem (HEADER hoặc LINE_ITEM)
     if (viewMode === 'LINE_ITEM') {
       const filteredLines = allLineItems.filter(function(item) {
         if (maKHFilter && maKHFilter !== 'ALL' && item.maKH !== maKHFilter && item.khachHang !== maKHFilter) {
           return false;
         }
-        if (statusFilter && statusFilter !== 'all') {
-          if (item.trangThai.toLowerCase().indexOf(statusFilter) === -1) return false;
+        /* [MỚI - Ý 5] Lọc trạng thái theo điều kiện HOẶC chuẩn xác */
+        if (statusFilter && statusFilter !== 'ALL' && statusFilter !== 'all') {
+          const sLow = item.trangThai.toLowerCase().trim();
+          if (statusFilter === CONFIG.FILTER_STATUS_GROUPS.ACTIVE_ALL) {
+            // Điều kiện HOẶC: Chờ sản xuất HOẶC Đang làm khuôn HOẶC Đang sản xuất
+            const isChoSX = sLow.includes(CONFIG.LINE_STATUS.NEW.toLowerCase());
+            const isKhuon = sLow.includes(CONFIG.LINE_STATUS.MOLDING.toLowerCase()) || sLow.includes('khuôn');
+            const isDangSX = sLow.includes(CONFIG.LINE_STATUS.IN_PRODUCTION.toLowerCase()) && !sLow.includes('chờ');
+            if (!isChoSX && !isKhuon && !isDangSX) return false;
+          } else if (statusFilter === CONFIG.FILTER_STATUS_GROUPS.DONE_ALL) {
+            // Điều kiện HOẶC: Xong HOẶC Kết thúc HOẶC Hoàn tất
+            const isXong = sLow.includes(CONFIG.LINE_STATUS.COMPLETED.toLowerCase());
+            const isKetThuc = sLow.includes(CONFIG.LINE_STATUS.CLOSED.toLowerCase());
+            const isHoanTat = sLow.includes(CONFIG.ORDER_STATUS.COMPLETED.toLowerCase());
+            if (!isXong && !isKetThuc && !isHoanTat) return false;
+          } else {
+            if (sLow.indexOf(statusFilter.toLowerCase()) === -1) return false;
+          }
         }
         if (fromDate && item.ngayDat && item.ngayDat < fromDate) return false;
         if (toDate && item.ngayDat && item.ngayDat > toDate) return false;
@@ -910,10 +1067,21 @@ const OrderService = {
         return true;
       });
 
-      // Sắp xếp mới nhất lên đầu
       filteredLines.reverse();
-
       const total = filteredLines.length;
+
+      /* [MỚI - Ý 5] Kiểm tra giới hạn bản ghi tối đa theo CONFIG */
+      const maxLimit = CONFIG.MAX_DISPLAY_RECORDS || 100;
+      if (total > maxLimit) {
+        return {
+          success: false,
+          exceededLimit: true,
+          total: total,
+          maxLimit: maxLimit,
+          message: 'Dữ liệu tìm kiếm vượt quá số lượng cho phép (' + total + ' / ' + maxLimit + ' dòng). Vui lòng nhập thêm từ khóa hoặc điều kiện lọc để thu hẹp phạm vi tìm kiếm!'
+        };
+      }
+
       const startIndex = (page - 1) * pageSize;
       const pagedData = filteredLines.slice(startIndex, startIndex + pageSize);
 
@@ -923,6 +1091,7 @@ const OrderService = {
         total: total,
         summary: this.computeQueryMetrics_(orderHeadersList, filteredLines),
         customers: catalog.customers,
+        salesStaffList: catalog.salesStaffList,
         data: pagedData
       };
     } else {
@@ -930,8 +1099,9 @@ const OrderService = {
         if (maKHFilter && maKHFilter !== 'ALL' && ord.maKH !== maKHFilter && ord.khachHang !== maKHFilter) {
           return false;
         }
-        if (statusFilter && statusFilter !== 'all') {
-          if (ord.trangThai.toLowerCase().indexOf(statusFilter) === -1) return false;
+        /* [MỚI - Ý 5] Lọc trạng thái theo phân nhóm cho Header */
+        if (!isStatusMatch(ord.trangThai, statusFilter)) {
+          return false;
         }
         if (fromDate && ord.ngayDat && ord.ngayDat < fromDate) return false;
         if (toDate && ord.ngayDat && ord.ngayDat > toDate) return false;
@@ -946,8 +1116,20 @@ const OrderService = {
       });
 
       filteredHeaders.reverse();
-
       const total = filteredHeaders.length;
+
+      /* [MỚI - Ý 5] Kiểm tra giới hạn bản ghi tối đa theo CONFIG cho Header */
+      const maxLimit = CONFIG.MAX_DISPLAY_RECORDS || 100;
+      if (total > maxLimit) {
+        return {
+          success: false,
+          exceededLimit: true,
+          total: total,
+          maxLimit: maxLimit,
+          message: 'Dữ liệu tìm kiếm vượt quá số lượng cho phép (' + total + ' / ' + maxLimit + ' đơn). Vui lòng nhập thêm từ khóa hoặc điều kiện lọc để thu hẹp phạm vi tìm kiếm!'
+        };
+      }
+
       const startIndex = (page - 1) * pageSize;
       const pagedData = filteredHeaders.slice(startIndex, startIndex + pageSize);
 
@@ -957,6 +1139,7 @@ const OrderService = {
         total: total,
         summary: this.computeQueryMetrics_(filteredHeaders, allLineItems),
         customers: catalog.customers,
+        salesStaffList: catalog.salesStaffList,
         data: pagedData
       };
     }
@@ -1068,7 +1251,7 @@ const OrderService = {
       const maNV = String(rows[i][0] || '').trim();
       const rowEmail = String(rows[i][4] || '').trim().toLowerCase();
       const trangThai = String(rows[i][8] || '').trim();
-      if (maNV && /^NV/i.test(maNV) && rowEmail === email && trangThai === 'Đang hoạt động') {
+      if (maNV && /^NV/i.test(maNV) && rowEmail === email && trangThai.toLowerCase().includes(CONFIG.EMPLOYEE_STATUS.ACTIVE.toLowerCase())) {
         return maNV;
       }
     }
@@ -1377,7 +1560,12 @@ const OrderService = {
         const pb = colPhongBan !== -1 ? String(row[colPhongBan] || '').trim().toLowerCase() : '';
         const tt = colTrangThai !== -1 ? String(row[colTrangThai] || '').trim().toLowerCase() : '';
 
-        if (maNV.toUpperCase().startsWith('NV') && tt.includes('hoạt động') && pb.includes('kinh doanh')) {
+        // Thay thế đoạn:
+        // if (maNV.toUpperCase().startsWith('NV') && tt.includes('hoạt động') && pb.includes('kinh doanh'))
+        // Thành:
+        const isAct = tt.includes(CONFIG.EMPLOYEE_STATUS.ACTIVE.toLowerCase());
+        const isSal = pb.includes(CONFIG.DEPARTMENTS.SALES.toLowerCase());
+        if (maNV.toUpperCase().startsWith('NV') && isAct && isSal) {
           salesStaffRows.push([`${maNV} - ${tenNV}`]);
         }
       }
@@ -1486,10 +1674,11 @@ const OrderService = {
       const data = toolSheet.getDataRange().getValues();
       if (data.length <= 1) return {};
 
-      const headers = data[0].map(h => String(h || '').trim());
-      const colSpId = headers.indexOf(CONFIG.COLUMNS.TOOLS.SP_ID);
-      const colType = headers.indexOf(CONFIG.COLUMNS.TOOLS.TOOL_TYPE);
-      const colMold = headers.indexOf(CONFIG.COLUMNS.TOOLS.MOLD_CODE);
+      const headers = data[0].map(h => String(h || '').trim().toLowerCase());
+      const colSpId = headers.indexOf(CONFIG.COLUMNS.TOOLS.SP_ID.toLowerCase());
+      const colType = headers.indexOf(CONFIG.COLUMNS.TOOLS.TOOL_TYPE.toLowerCase());
+      const colMold = headers.indexOf(CONFIG.COLUMNS.TOOLS.MOLD_CODE.toLowerCase());
+      const colStatus = headers.indexOf(CONFIG.COLUMNS.TOOLS.STATUS.toLowerCase());
 
       if (colSpId === -1 || colMold === -1) return {};
 
@@ -1497,12 +1686,23 @@ const OrderService = {
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         const spId = String(row[colSpId] || '').trim();
-        const type = colType !== -1 ? String(row[colType] || '').trim() : '';
+        const typeRaw = colType !== -1 ? String(row[colType] || '').trim().toLowerCase() : '';
         const moldCode = String(row[colMold] || '').trim();
+        const statusRaw = colStatus !== -1 ? String(row[colStatus] || '').trim() : '';
 
-        // Điều kiện: LoaiCC == "KhuonDinhHinh" và có MaSP hợp lệ
-        if (spId && (!type || type.toLowerCase() === 'khuondinhhinh') && moldCode) {
-          moldMap[spId] = moldCode;
+        if (!spId || !moldCode) continue;
+        if (!moldMap[spId]) {
+          moldMap[spId] = { dinhHinh: [], dao: [] };
+        }
+
+        // [LOẠI BỎ HARDCODE] Phân loại khuôn định hình và khuôn dao qua CONFIG.MOLD_TYPES
+        const isForming = typeRaw.includes(CONFIG.MOLD_TYPES.FORMING.toLowerCase()) || typeRaw.includes('dinhhinh') || typeRaw.includes('định hình') || !typeRaw;
+        const isCutting = typeRaw.includes(CONFIG.MOLD_TYPES.CUTTING.toLowerCase()) || typeRaw.includes('dao');
+
+        if (isForming) {
+          moldMap[spId].dinhHinh.push({ code: moldCode, status: statusRaw });
+        } else if (isCutting) {
+          moldMap[spId].dao.push({ code: moldCode, status: statusRaw });
         }
       }
       return moldMap;
@@ -1628,6 +1828,10 @@ const OrderService = {
             if (fields.mang !== undefined && fields.mang !== '') affectedProductsMap[currentSP].mang = fields.mang;
             if (fields.giaKhuon !== undefined && fields.giaKhuon !== '') affectedProductsMap[currentSP].giaKhuon = fields.giaKhuon;
             if (fields.dvt !== undefined && fields.dvt !== '') affectedProductsMap[currentSP].donvi = fields.dvt;
+            /* [MỚI - Ý 1] Cập nhật luôn Đơn giá mới vào Master 01_02_SAN_PHAM */
+            if (fields.donGia !== undefined && fields.donGia !== null && fields.donGia !== '') {
+              affectedProductsMap[currentSP].dongia = Number(fields.donGia) || 0;
+            }
           }
 
           // Cập nhật Số lượng đặt & Tính lại SL_Con_Lai
@@ -1646,6 +1850,18 @@ const OrderService = {
           // Cập nhật Ngày giao
           if (fields.ngayGiao !== undefined && fields.ngayGiao !== null && fields.ngayGiao !== '') {
             detailData[r][colNgayGiao] = this.formatSheetDate_(fields.ngayGiao);
+          }
+
+          /* [MỚI - Ý 3] Cập nhật Sales (Mã NV) */
+          const colStaff = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.STAFF_ID);
+          if (colStaff !== -1 && fields.maNV !== undefined && fields.maNV !== null && fields.maNV !== '') {
+            detailData[r][colStaff] = String(fields.maNV).trim();
+          }
+
+          /* [MỚI - Ý 3] Cập nhật Trạng Thái dòng mặt hàng */
+          const colStatus = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.STATUS);
+          if (colStatus !== -1 && fields.trangThai !== undefined && fields.trangThai !== null && fields.trangThai !== '') {
+            detailData[r][colStatus] = String(fields.trangThai).trim();
           }
         }
       }
@@ -1687,6 +1903,8 @@ const OrderService = {
         const colFilm = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.FILM);
         const colMoldPrice = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.MOLD_PRICE);
         const colUnit = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.UNIT);
+        /* [MỚI - Ý 1] Tìm cột đơn giá trong Master Sản Phẩm */
+        const colPrice = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.PRICE || 'dongia');
 
         if (colSpId !== -1) {
           let prodChanged = false;
@@ -1704,6 +1922,11 @@ const OrderService = {
               }
               if (spUpdates.donvi !== undefined && colUnit !== -1) {
                 prodData[rp][colUnit] = String(spUpdates.donvi).trim();
+                prodChanged = true;
+              }
+              /* [MỚI - Ý 1] Ghi đè đơn giá mới vào bảng 01_02_SAN_PHAM */
+              if (spUpdates.dongia !== undefined && colPrice !== -1) {
+                prodData[rp][colPrice] = Number(spUpdates.dongia) || 0;
                 prodChanged = true;
               }
             }
@@ -1732,37 +1955,50 @@ const OrderService = {
     }
   },
 
-  /**
-   * [MỚI - VẤN ĐỀ 1] Chuẩn hóa ánh xạ mã nhân viên (NV-KDxx / NVxxxx) sang Họ tên đầy đủ
-   * @private
-   */
+  /* [MỚI - Ý 2] Chuẩn hóa triệt để tra cứu tên nhân viên */
   resolveStaffName_: function(rawStaff, employeeByIdMap, allEmployeesList) {
     if (!rawStaff) return '---';
     const s = String(rawStaff).trim();
-    if (!s) return '---';
+    if (!s || s === '---') return '---';
 
-    // 1. Nếu chuỗi đã chứa sẵn tên dạng "NV-KD01 - Hoàng Thành"
+    // 1. Nếu chuỗi đã có sẵn tên dạng "NV0001 - Hoàng Thành" hoặc "NV-KD01 - Hoàng Thành"
     if (s.indexOf(' - ') !== -1) {
       const parts = s.split(' - ');
       if (parts[1] && parts[1].trim()) return parts[1].trim();
     }
 
-    // 2. Khớp trực tiếp mã trong employeeByIdMap
-    if (employeeByIdMap && employeeByIdMap[s]) {
-      return employeeByIdMap[s].hoTen;
+    const sClean = s.toUpperCase().replace(/\s+/g, '');
+
+    // 2. Tìm trực tiếp trong employeeByIdMap (case-insensitive & whitespace-stripped)
+    if (employeeByIdMap) {
+      if (employeeByIdMap[s]) return employeeByIdMap[s].hoTen;
+      if (employeeByIdMap[sClean]) return employeeByIdMap[sClean].hoTen;
+
+      // Quét toàn bộ keys của map để tránh lệch định dạng
+      const mapKeys = Object.keys(employeeByIdMap);
+      for (let k = 0; k < mapKeys.length; k++) {
+        const key = mapKeys[k];
+        if (key.toUpperCase().replace(/\s+/g, '') === sClean) {
+          return employeeByIdMap[key].hoTen;
+        }
+      }
     }
 
-    // 3. Chuẩn hóa quy tắc NV-KD01 -> NV0001
+    // 3. Chuẩn hóa mã số (ví dụ: NV-KD01 -> 1 -> NV0001)
     const matchNum = s.match(/\d+/);
-    if (matchNum && allEmployeesList && Array.isArray(allEmployeesList)) {
+    if (matchNum) {
       const numVal = parseInt(matchNum[0], 10);
       const targetStaffId = 'NV' + String(numVal).padStart(4, '0');
       if (employeeByIdMap && employeeByIdMap[targetStaffId]) {
         return employeeByIdMap[targetStaffId].hoTen;
       }
-      // Tìm tương đối trong mảng
-      const found = allEmployeesList.find(e => e.maNV === targetStaffId || e.maNV.endsWith(String(numVal)));
-      if (found && found.hoTen) return found.hoTen;
+      if (allEmployeesList && Array.isArray(allEmployeesList)) {
+        const found = allEmployeesList.find(e => {
+          const eClean = String(e.maNV || '').toUpperCase().replace(/\s+/g, '');
+          return eClean === targetStaffId || eClean.endsWith(String(numVal));
+        });
+        if (found && found.hoTen) return found.hoTen;
+      }
     }
 
     return s;

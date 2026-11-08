@@ -90,17 +90,24 @@ const OrderController = {
    * 2. Lấy dữ liệu danh mục Master + thông tin xác thực nhân sự cho Web App độc lập
    */
   getOrderFormData: function() {
-    try {
-      const data = OrderService.getCatalogAndAuthData();
-      return {
-        success: true,
-        customers: data.customers,
-        products: data.products,
-        salesStaffList: data.salesStaffList,
-        currentUser: data.currentUser,
-        serverDate: data.serverDate,
-        defaultDeliveryDate: data.defaultDeliveryDate
-      };
+    try {  
+        const data = OrderService.getCatalogAndAuthData();  
+        return {  
+          success: true,  
+          customers: data.customers,  
+          products: data.products,  
+          salesStaffList: data.salesStaffList,  
+          currentUser: data.currentUser,  
+          serverDate: data.serverDate,  
+          defaultDeliveryDate: data.defaultDeliveryDate,
+          systemConfig: {
+            filterGroups: CONFIG.FILTER_STATUS_GROUPS,
+            statusGroupsList: CONFIG.FILTER_STATUS_GROUPS_LIST || {
+              ACTIVE_ALL: [CONFIG.LINE_STATUS.NEW, CONFIG.LINE_STATUS.MOLDING, CONFIG.LINE_STATUS.IN_PRODUCTION],
+              DONE_ALL: [CONFIG.LINE_STATUS.COMPLETED, CONFIG.LINE_STATUS.CLOSED, CONFIG.ORDER_STATUS.CANCELLED]
+            }
+          }
+        };
     } catch (err) {
       console.error('[OrderController.getOrderFormData] Error:', err);
       return {

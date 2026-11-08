@@ -54,6 +54,38 @@ var CONFIG = {
     CLOSED: 'Kết thúc'
   },
 
+  /* [MỚI - RÀ SOÁT HARDCODE] Định nghĩa tập trung Phòng ban, Trạng thái nhân sự, Trạng thái khuôn & Phân nhóm */
+  DEPARTMENTS: {
+    SALES: 'Kinh doanh',
+    PLANNING: 'Kế hoạch',
+    ACCOUNTING: 'Kế toán',
+    TECHNICAL: 'Kỹ thuật'
+  },
+
+  EMPLOYEE_STATUS: {
+    ACTIVE: 'Đang hoạt động',
+    LOCKED: 'Tạm khóa'
+  },
+
+  MOLD_STATUS: {
+    BROKEN: 'Hong',
+    NORMAL: 'Bình thường'
+  },
+
+  MOLD_TYPES: {
+    FORMING: 'KhuonDinhHinh',
+    CUTTING: 'KhuonDao'
+  },
+
+  FILTER_STATUS_GROUPS: {  
+    ACTIVE_ALL: 'ACTIVE_ALL', // Nhóm Đang chạy (Chờ sản xuất + Đang sản xuất + Đang làm khuôn)  
+    DONE_ALL: 'DONE_ALL', // Nhóm Đã xong (Xong + Kết thúc)  
+    ALL: 'ALL' // Tất cả mọi trạng thái  
+  },
+
+  /* [MỚI - Ý 5] Cấu hình số lượng bản ghi hiển thị tối đa */
+  MAX_DISPLAY_RECORDS: 100,
+
   // 3. ĐỊNH NGHĨA TẬP TRUNG TÊN CỘT GIAO DIỆN 'TAO DON' (DÒNG 7)
   FORM_COLUMNS: {
     HEADER_ROW: 7,
@@ -145,7 +177,9 @@ var CONFIG = {
     TOOLS: {
       SP_ID: 'MaSP',
       TOOL_TYPE: 'LoaiCC',
-      MOLD_CODE: 'Ma_Khuon'
+      MOLD_CODE: 'Ma_Khuon',
+      /* [MỚI - Ý 4] Bổ sung ánh xạ cột trạng thái khuôn */
+      STATUS: 'Trang_Thai'
     }
   },
 
@@ -155,6 +189,23 @@ var CONFIG = {
   DEFAULT_DELIVERY_DAYS: 10,
   DEFAULT_STATUS_DETAIL: 'Chờ sản xuất',
   ORDER_CODE_PREFIX: 'PO-'
+};
+
+// ========================================================
+// ĐỊNH NGHĨA DANH SÁCH TRẠNG THÁI THEO NHÓM BỘ LỌC (SINGLE SOURCE OF TRUTH)
+// Tham chiếu trực tiếp từ CONFIG.LINE_STATUS & CONFIG.ORDER_STATUS - Không hardcode chuỗi rời rạc
+// ========================================================
+CONFIG.FILTER_STATUS_GROUPS_LIST = {
+  ACTIVE_ALL: [
+    CONFIG.LINE_STATUS.NEW,           // 'Chờ sản xuất'
+    CONFIG.LINE_STATUS.MOLDING,       // 'Đang làm khuôn'
+    CONFIG.LINE_STATUS.IN_PRODUCTION  // 'Đang sản xuất'
+  ],
+  DONE_ALL: [
+    CONFIG.LINE_STATUS.COMPLETED,     // 'Xong'
+    CONFIG.LINE_STATUS.CLOSED,        // 'Kết thúc'
+    CONFIG.ORDER_STATUS.CANCELLED     // 'Hủy'
+  ]
 };
 
 function setupSystemProperties() {

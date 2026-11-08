@@ -11,6 +11,21 @@
       font-family: 'Segoe UI', Roboto, -apple-system, Arial, sans-serif;
     }
 
+    /* [MỚI - Ý 4] CSS khuôn hỏng chữ đỏ và gạch ngang */
+    .mold-broken {
+      color: #dc2626 !important;
+      text-decoration: line-through !important;
+      font-weight: 700;
+    }
+    .mold-normal {
+      color: #b45309;
+      font-size: 11px;
+    }
+    .mold-knife-box {
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
     /* [MỚI - VẤN ĐỀ 4 & 5] CSS CAROUSEL CHỈNH SỬA TỪNG SẢN PHẨM & CHIPS */
     .product-carousel-nav {
       display: flex;
@@ -665,13 +680,25 @@
           placeholder="Tất cả hoặc gõ tên KH..." oninput="handleInstantFilter()">
         <datalist id="customerFilterDatalist"></datalist>
       </div>
+      <!-- [MỚI - Ý 5] PHÂN NHÓM TRẠNG THÁI VÀ MẶC ĐỊNH SEARCH THEO NHÓM ĐANG CHẠY -->
       <div class="filter-group">
-        <label>Trạng thái</label>
+        <label>Trạng thái đơn hàng</label>
         <select id="statusFilter" class="filter-control" onchange="handleInstantFilter()">
-          <option value="ALL">-- Tất cả --</option>
-          <option value="Chờ sản xuất">Chờ sản xuất</option>
-          <option value="Đang sản xuất">Đang sản xuất</option>
-          <option value="Hoàn tất">Hoàn tất / Xong</option>
+          <optgroup label="⚡ Đơn đang thực hiện">
+            <option value="ACTIVE_ALL" selected>Tất cả</option>
+            <option value="Đang làm khuôn">Đang làm khuôn</option>
+            <option value="Chờ sản xuất">Chờ sản xuất</option>
+            <option value="Đang sản xuất">Đang sản xuất</option>
+          </optgroup>
+          <option disabled>──────────</option>
+          <optgroup label="✅ Đã hoàn tất / Đóng">
+            <option value="DONE_ALL">Tất cả</option>
+            <option value="Xong">Xong</option>
+            <option value="Kết thúc">Kết thúc</option>
+            <option value="Hủy">Đã hủy</option>
+          </optgroup>
+          <option disabled>──────────</option>
+          <option value="ALL">Tất cả mọi trạng thái</option>
         </select>
       </div>
       <div class="filter-group">
@@ -776,6 +803,25 @@
           <label><input type="checkbox" id="chk_ngayDat" onchange="toggleBulkField('ngayDat')"> Ngày đặt (PO):</label>
           <input type="date" id="val_ngayDat" disabled>
         </div>
+        <!-- [MỚI - Ý 3] Bổ sung chọn Sales phụ trách -->
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_maNV" onchange="toggleBulkField('maNV')"> Sales phụ trách:</label>
+          <select id="val_maNV" class="filter-control" style="flex:1;" disabled>
+            <option value="">-- Chọn nhân viên --</option>
+          </select>
+        </div>
+
+        <!-- [MỚI - Ý 3] Bổ sung chọn Trạng thái dòng -->
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_trangThai" onchange="toggleBulkField('trangThai')"> Trạng thái:</label>
+          <select id="val_trangThai" class="filter-control" style="flex:1;" disabled>
+            <option value="Chờ sản xuất">Chờ sản xuất</option>
+            <option value="Đang làm khuôn">Đang làm khuôn</option>
+            <option value="Đang sản xuất">Đang sản xuất</option>
+            <option value="Xong">Xong</option>
+            <option value="Kết thúc">Kết thúc</option>
+          </select>
+        </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
           <span style="font-size:11.5px;color:#64748b;">Dữ liệu đã sửa sẽ tự động lưu tạm khi chuyển sản phẩm.</span>
@@ -802,11 +848,13 @@
   </div>
 
   <script>
-    /* [MỚI - VẤN ĐỀ 3] Khởi tạo mặc định xem Chi Tiết Mặt Hàng */
-    const listState = {
-      viewMode: 'LINE_ITEM', // 'LINE_ITEM' | 'HEADER'
-      rawRecords: [],
-      customersPopulated: false
+    const listState = {  
+    viewMode: 'LINE_ITEM', // 'LINE_ITEM' | 'HEADER'  
+    rawRecords: [],  
+    customersPopulated: false,  
+    /* [MỚI] Lưu danh sách nhân viên Sales */  
+    salesStaffList: [],
+    config: null
     };
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -861,16 +909,31 @@
 
       google.script.run
         .withSuccessHandler(function (res) {
+          /* [MỚI - Ý 5] Xử lý cảnh báo khi vượt quá số lượng bản ghi tối đa */
+          if (res && res.exceededLimit) {
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:#dc2626;font-size:13.5px;font-weight:700;">' +
+              '⚠️ ' + escapeHtml(res.message) + '</td></tr>';
+            showAppToast('error', 'Vượt giới hạn kết quả', res.message);
+            updateSummaryKPIs({ totalOrders: 0, totalLineItems: 0, totalRevenue: 0, totalRemainingQty: 0 });
+            return;
+          }
+
           if (!res || !res.success) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi tải dữ liệu: ' +
-              escapeHtml(res && res.error ? res.error.message : 'Không xác định') + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:20px;color:#dc2626;">✕ Lỗi tải dữ liệu: ' +
+              escapeHtml(res && (res.message || (res.error && res.error.message)) ? (res.message || res.error.message) : 'Không xác định') + '</td></tr>';
             return;
           }
 
           listState.rawRecords = res.data || [];
+          listState.config = res.systemConfig;
           if (!listState.customersPopulated && res.customers) {
             populateCustomerFilter(res.customers);
             listState.customersPopulated = true;
+          }
+
+          /* [MỚI] Lưu danh sách Sales trả về từ server */
+          if (res.salesStaffList) {
+            listState.salesStaffList = res.salesStaffList;
           }
 
           updateSummaryKPIs(res.summary);
@@ -883,57 +946,88 @@
         .queryOrdersAndLineItems(searchParams);
     }
 
-    /**
-     * Lọc tức thì phía Client khi người dùng gõ vào ô tìm kiếm (Real-time Instant Search)
-     */
-    /**
-   * Lọc tức thì trên client-side đối với dữ liệu đang hiển thị trong bộ nhớ
-   */
-    function handleInstantFilter() {
-      const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
-      const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
-      const status = document.getElementById('statusFilter').value;
-      const fromDate = document.getElementById('fromDateFilter').value;
-      const toDate = document.getElementById('toDateFilter').value;
+    // File: OrderList_View.html > function handleInstantFilter()
+function handleInstantFilter() {
+  const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
+  const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+  const fromDate = document.getElementById('fromDateFilter').value;
+  const toDate = document.getElementById('toDateFilter').value;
 
-      const filtered = listState.rawRecords.filter(function (item) {
-        // 1. Lọc theo từ khóa chung
-        if (kw) {
-          if (listState.viewMode === 'HEADER') {
-            const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
-            const subMatch = (item.items || []).some(function (sub) {
-              return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
-            });
-            if (hText.indexOf(kw) === -1 && !subMatch) return false;
-          } else {
-            const lText = [item.idChiTiet, item.maDH, item.soPO, item.khachHang, item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV].join(' ').toLowerCase();
-            if (lText.indexOf(kw) === -1) return false;
-          }
-        }
+  // =========================================================================
+  // [DEBUG CLIENT - BƯỚC 1]: ĐẶT TRƯỚC KHI FILTER
+  // =========================================================================
+  console.group("=== [DEBUG CLIENT] BỘ LỌC TỨC THÌ ===");
+  console.log("Từ khóa tìm kiếm (kw):", kw);
+  console.log("Khách hàng tìm kiếm (custKw):", custKw);
+  console.log("Chế độ xem hiện tại:", listState.viewMode);
+  console.log("Tổng số dữ liệu gốc trong bộ nhớ (rawRecords):", listState.rawRecords.length);
+  if (listState.rawRecords.length > 0) {
+    console.log("Mẫu 1 bản ghi gốc:", listState.rawRecords[0]);
+  }
 
-        // 2. Lọc theo Khách hàng (gõ tay hoặc gợi ý)
-        if (custKw && custKw !== 'all') {
-          const cName = (item.khachHang || item.customerName || '').toLowerCase();
-          const cId = (item.maKH || '').toLowerCase();
-          if (cName.indexOf(custKw) === -1 && cId.indexOf(custKw) === -1) return false;
-        }
-
-        // 3. Lọc theo Trạng thái
-        if (status && status !== 'ALL') {
-          const itemStatus = item.trangThai || item.status || '';
-          if (itemStatus.indexOf(status) === -1) return false;
-        }
-
-        // 4. Lọc theo Khoảng ngày đặt
-        const orderDate = item.ngayDat || item.orderDate || '';
-        if (fromDate && orderDate && orderDate < fromDate) return false;
-        if (toDate && orderDate && orderDate > toDate) return false;
-
-        return true;
-      });
-
-      renderTableData(filtered);
+  const filtered = listState.rawRecords.filter(function (item) {
+    // 1. Lọc theo từ khóa chung
+    if (kw) {
+      if (listState.viewMode === 'HEADER') {
+        const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
+        const subMatch = (item.items || []).some(function (sub) {
+          return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
+        });
+        if (hText.indexOf(kw) === -1 && !subMatch) return false;
+      } else {
+        const lText = [item.idChiTiet, item.maDH, item.soPO, item.khachHang, item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV].join(' ').toLowerCase();
+        if (lText.indexOf(kw) === -1) return false;
+      }
     }
+
+    // 2. Lọc theo Khách hàng (gõ tay hoặc gợi ý)
+    if (custKw && custKw !== 'all') {
+      const cName = (item.khachHang || item.customerName || '').toLowerCase();
+      const cId = (item.maKH || '').toLowerCase();
+      
+      // LOG KIỂM TRA ĐIỀU KIỆN KHÁCH HÀNG
+      const isMatchCust = (cName.indexOf(custKw) !== -1 || cId.indexOf(custKw) !== -1);
+      if (!isMatchCust) return false;
+    }
+
+    // 3. Lọc theo Trạng thái
+    if (status && status !== 'ALL') {
+    const itemStatus = (item.trangThai || item.status || '').trim();
+    const statusGroups = (listState.config && listState.config.statusGroupsList) ? listState.config.statusGroupsList : {
+      'ACTIVE_ALL': ['Chờ sản xuất', 'Đang làm khuôn', 'Đang sản xuất'],
+      'DONE_ALL': ['Xong', 'Kết thúc', 'Hủy']
+    };
+
+    if (statusGroups[status]) {
+      // Trường hợp chọn theo nhóm trạng thái (ACTIVE_ALL hoặc DONE_ALL)
+      const allowedStatuses = statusGroups[status];
+      const isMatchedGroup = allowedStatuses.some(function(targetSt) {
+        return itemStatus.toLowerCase() === targetSt.toLowerCase() || itemStatus.indexOf(targetSt) !== -1;
+      });
+      if (!isMatchedGroup) return false;
+    } else {
+      // Trường hợp chọn 1 trạng thái cụ thể
+      if (itemStatus.toLowerCase().indexOf(status.toLowerCase()) === -1) return false;
+    }
+  }
+
+    // 4. Lọc theo Khoảng ngày đặt
+    const orderDate = item.ngayDat || item.orderDate || '';
+    if (fromDate && orderDate && orderDate < fromDate) return false;
+    if (toDate && orderDate && orderDate > toDate) return false;
+
+    return true;
+  });
+
+  // =========================================================================
+  // [DEBUG CLIENT - BƯỚC 2]: ĐẶT SAU KHI FILTER
+  // =========================================================================
+  console.log("Số bản ghi còn lại sau khi lọc:", filtered.length);
+  console.groupEnd();
+
+  renderTableData(filtered);
+}
 
     /**
      * Render bảng dữ liệu theo chế độ HEADER hoặc LINE_ITEM
@@ -1069,24 +1163,50 @@
 
           if (imgUrls.length > 0 && imgUrls[0]) {
             const firstImg = imgUrls[0];
-            const jsonUrls = escapeHtml(JSON.stringify(imgUrls));
+            /* [MỚI] Encode Base64 hoặc URI để không bao giờ bị vỡ nháy đơn/ngoặc kép */
+            const safeImgAttr = encodeURIComponent(JSON.stringify(imgUrls));
             imgHtml = 
               '<div class="thumb-preview-box">' +
-                '<img src="' + escapeHtml(firstImg) + '" class="thumb-img" referrerpolicy="no-referrer" onclick="openLightbox(' + jsonUrls + ')" alt="Thumb">' +
+                '<img src="' + escapeHtml(firstImg) + '" class="thumb-img" referrerpolicy="no-referrer" data-images="' + safeImgAttr + '" onclick="handleLightboxClick(this)" alt="Thumb">' +
                 '<div class="thumb-hover-zoom"><img src="' + escapeHtml(firstImg) + '" referrerpolicy="no-referrer"></div>' +
               '</div>';
           }
 
-          // 3. Cột Màng & Khuôn
+          /* [MỚI - Ý 3] Hiển thị danh sách nhiều khuôn định hình và khuôn dao hỏng */
           const mangVal = it.mang || '---';
-          const khuonVal = it.maKhuon || '---';
+          const mInfo = it.moldInfo || { dinhHinh: [], dao: [] };
+          let moldHtml = '';
+
+          const formingList = Array.isArray(mInfo.dinhHinh) ? mInfo.dinhHinh : [];
+          const cuttingList = Array.isArray(mInfo.dao) ? mInfo.dao : [];
+
+          if (formingList.length > 0) {
+            formingList.forEach(function(m) {
+              const st = String(m.status || '').toLowerCase();
+              const isBroken = st.includes('hong') || st.includes('hỏng');
+              const cls = isBroken ? 'mold-broken' : 'mold-normal';
+              moldHtml += '<div class="' + cls + '">Khuôn ĐH: ' + escapeHtml(m.code) + (isBroken ? ' (Hỏng)' : '') + '</div>';
+            });
+          } else {
+            moldHtml += '<div class="mold-normal">Khuôn ĐH: ---</div>';
+          }
+
+          // Khuôn dao: chỉ hiển thị nếu có khuôn dao bị HỎNG
+          cuttingList.forEach(function(d) {
+            const stDao = String(d.status || '').toLowerCase();
+            const isDaoBroken = stDao.includes('hong') || stDao.includes('hỏng');
+            if (isDaoBroken) {
+              moldHtml += '<div class="mold-knife-box mold-broken">Khuôn dao: ' + escapeHtml(d.code) + ' (Hỏng)</div>';
+            }
+          });
 
           html +=
             '<tr class="data-row">' +
-            '<td style="text-align:center;"><input type="checkbox" class="chk-line-item" value="' + escapeHtml(it.idChiTiet) + '" ' + isChecked + ' onchange="toggleSelectLine(\'' + escapeHtml(it.idChiTiet) + '\', this.checked)"></td>' +
+            /* [MỚI] Truyền this vào sự kiện onchange, loại bỏ hoàn toàn việc ghép chuỗi lồng \' */
+            '<td style="text-align:center;"><input type="checkbox" class="chk-line-item" value="' + escapeHtml(it.idChiTiet) + '" ' + isChecked + ' onchange="handleSelectLine(this)"></td>' +
             '<td style="font-weight:800;color:#0f172a;">' + escapeHtml(it.idChiTiet) + '</td>' +
             '<td>' +
-              '<div style="font-weight:700;color:#1e40af;">' + escapeHtml(it.maDH) + '</div>' +
+              '<div style="font-weight:700;color:#1e40af;cursor:pointer;" data-madh="' + escapeHtml(it.maDH) + '" onclick="handleFilterOrderCode(this)" title="Bấm để lọc đơn này">' + escapeHtml(it.maDH) + '</div>' +
               '<div style="font-size:11.5px;">' + poDisplayHtml + '</div>' +
             '</td>' +
             '<td style="font-weight:600;">' + escapeHtml(it.khachHang) + '</td>' +
@@ -1101,9 +1221,13 @@
             '</td>' +
             '<td>' +
               '<div style="font-weight:600;color:#047857;">' + escapeHtml(mangVal) + '</div>' +
-              '<div style="font-size:11px;color:#b45309;">Khuôn: ' + escapeHtml(khuonVal) + '</div>' +
+              moldHtml +
             '</td>' +
-            '<td style="text-align:right;font-weight:700;">' + formatNumber(it.slDat) + ' ' + escapeHtml(it.dvt) + '</td>' +
+            /* [MỚI - Ý 5] Số lượng đặt ở dòng trên, Đơn vị tính ở dòng dưới, đều căn phải */
+            '<td style="text-align:right;">' +
+              '<div style="font-weight:700;color:#0f172a;">' + formatNumber(it.slDat) + '</div>' +
+              '<div style="font-size:11.5px;color:#64748b;margin-top:2px;">' + escapeHtml(it.dvt || 'Cái') + '</div>' +
+            '</td>' +
             '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
             '<td style="text-align:right;font-weight:600;">' + formatNumber(it.daGiao) + '</td>' +
             '<td style="text-align:right;"><span class="' + debtClass + '">' + formatNumber(it.conLai) + '</span></td>' +
@@ -1111,8 +1235,7 @@
             '<td>' + escapeHtml(it.tenNV || '---') + '</td>' +
             '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
             '</tr>';
-        });
-
+          });
         tbody.innerHTML = html;
         updateFloatingBar();
       }
@@ -1156,7 +1279,8 @@
       if (cInput) cInput.value = '';
       const cSelect = document.getElementById('customerFilter');
       if (cSelect) cSelect.value = 'ALL';
-      document.getElementById('statusFilter').value = 'ALL';
+      /* [MỚI - Ý 5] Mặc định đặt lại là tìm theo nhóm Tất cả đang chạy */
+      document.getElementById('statusFilter').value = 'ACTIVE_ALL';
       document.getElementById('fromDateFilter').value = '';
       document.getElementById('toDateFilter').value = '';
       fetchOrderData();
@@ -1246,9 +1370,16 @@
 
     function openBulkEditModal() {
       if (selectedLineItemIds.size === 0) {
-        alert('Vui lòng chọn ít nhất 1 dòng mặt hàng để chỉnh sửa hàng loạt.');
+        showAppToast('error', 'Chưa chọn dòng', 'Vui lòng tick chọn ít nhất 1 dòng mặt hàng để chỉnh sửa.');
         return;
       }
+
+      /* [MỚI - Ý 4] Đổ danh sách nhân viên vào dropdown trước khi hiển thị form */
+      populateSalesStaffDropdown(listState.salesStaffList);
+
+      carouselItems = listState.rawRecords.filter(r => selectedLineItemIds.has(r.idChiTiet));
+      if (carouselItems.length === 0) return;
+
       document.getElementById('bulkEditModal').style.display = 'flex';
     }
 
@@ -1267,7 +1398,8 @@
 
     function submitBulkEdit() {
       const fieldsToUpdate = {};
-      const fieldList = ['mang', 'soLuongDat', 'donGia', 'giaKhuon', 'ngayDat', 'ngayGiao'];
+      // Thay mảng:
+      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
       let hasChecked = false;
 
       fieldList.forEach(function (f) {
@@ -1425,6 +1557,9 @@
         return;
       }
 
+      /* [MỚI] Nạp danh sách Sales vào dropdown khi mở modal */
+      populateSalesStaffDropdown(listState.salesStaffList);
+
       // Lấy toàn bộ record tương ứng với selectedLineItemIds
       carouselItems = listState.rawRecords.filter(r => selectedLineItemIds.has(r.idChiTiet));
       if (carouselItems.length === 0) return;
@@ -1432,7 +1567,7 @@
       carouselIndex = 0;
       carouselDrafts = {};
 
-      // Khởi tạo draft ban đầu từ dữ liệu hiện có của từng dòng
+      /* [MỚI - Ý 3] Bổ sung maNV và trangThai vào danh sách draft */
       carouselItems.forEach(item => {
         carouselDrafts[item.idChiTiet] = {
           fields: {
@@ -1442,11 +1577,14 @@
             mang: (item.mang !== '---') ? item.mang : '',
             giaKhuon: item.giaKhuon || 0,
             ngayGiao: item.ngayGiao || '',
-            ngayDat: item.ngayDat || ''
+            ngayDat: item.ngayDat || '',
+            maNV: item.maNV || '',
+            trangThai: item.trangThai || 'Chờ sản xuất'
           },
           checked: {
             dvt: false, soLuongDat: false, donGia: false,
-            mang: false, giaKhuon: false, ngayGiao: false, ngayDat: false
+            mang: false, giaKhuon: false, ngayGiao: false, ngayDat: false,
+            maNV: false, trangThai: false
           }
         };
       });
@@ -1467,15 +1605,17 @@
       document.getElementById('curItemId').textContent = curItem.idChiTiet;
       document.getElementById('curItemSku').textContent = curItem.maSP + (curItem.codeSP ? ' [' + curItem.codeSP + ']' : '');
 
-      // Điền giá trị & trạng thái checkbox cho từng trường
-      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat'];
+      /* [MỚI - Ý 4] Bao gồm maNV và trangThai vào danh sách trường hiển thị */
+      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
       fieldList.forEach(f => {
         const chk = document.getElementById('chk_' + f);
         const val = document.getElementById('val_' + f);
-        const isChecked = draft.checked[f];
-        chk.checked = isChecked;
-        val.disabled = !isChecked;
-        val.value = (draft.fields[f] !== undefined) ? draft.fields[f] : '';
+        if (chk && val) {
+          const isChecked = draft.checked[f];
+          chk.checked = isChecked;
+          val.disabled = !isChecked;
+          val.value = (draft.fields[f] !== undefined) ? draft.fields[f] : '';
+        }
       });
     }
 
@@ -1484,7 +1624,8 @@
       const curItem = carouselItems[carouselIndex];
       const draft = carouselDrafts[curItem.idChiTiet];
 
-      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat'];
+      // Thay mảng:
+      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
       fieldList.forEach(f => {
         const chk = document.getElementById('chk_' + f);
         const val = document.getElementById('val_' + f);
@@ -1566,6 +1707,55 @@
           fetchOrderData();
         })
         .updateOrderLineItemsBulk(payload);
+    }
+
+    function populateSalesStaffDropdown(staffList) {
+      const selectEl = document.getElementById('val_maNV');
+      if (!selectEl) return;
+      let html = '<option value="">-- Chọn nhân viên --</option>';
+      (staffList || []).forEach(st => {
+        html += '<option value="' + escapeHtml(st.maNV) + '">' + escapeHtml(st.hoTen || st.display) + '</option>';
+      });
+      selectEl.innerHTML = html;
+    }
+
+    /**
+     * [MỚI] Xử lý click mở Lightbox an toàn từ thuộc tính data-images
+     */
+    function handleLightboxClick(imgEl) {
+      try {
+        const rawAttr = imgEl.getAttribute('data-images') || '';
+        const decodedJson = decodeURIComponent(rawAttr);
+        const urls = JSON.parse(decodedJson);
+        openLightbox(urls);
+      } catch (err) {
+        console.error('Lỗi phân tích album ảnh:', err);
+      }
+    }
+
+    /**
+     * [MỚI] Xử lý chọn checkbox dòng an toàn từ phần tử input
+     */
+    function handleSelectLine(inputEl) {
+      const id = inputEl.value;
+      const checked = inputEl.checked;
+      if (checked) {
+        selectedLineItemIds.add(id);
+      } else {
+        selectedLineItemIds.delete(id);
+      }
+      updateFloatingBar();
+    }
+
+    /**
+     * [MỚI] Xử lý lọc mã đơn an toàn từ thuộc tính data-madh
+     */
+    function handleFilterOrderCode(el) {
+      const maDH = el.getAttribute('data-madh');
+      if (maDH) {
+        document.getElementById('keywordInput').value = maDH;
+        handleInstantFilter();
+      }
     }
   </script>
 </body>
