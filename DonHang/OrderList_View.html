@@ -1137,59 +1137,48 @@
 
   <script>
     const listState = {
-      viewMode: 'LINE_ITEM', // 'LINE_ITEM' | 'HEADER'  
+      viewMode: 'LINE_ITEM',
       rawRecords: [],
+      views: null,
+      requestId: 0,
+      loading: false,
+      savingKanban: false,
+      savingBulk: false,
+      instantFilterActive: false,
       customersPopulated: false,
-      /* [MỚI] Lưu danh sách nhân viên Sales */
       salesStaffList: [],
       config: null
     };
 
     document.addEventListener('DOMContentLoaded', function () {
+      switchViewMode(listState.viewMode);
       fetchOrderData();
     });
 
-    /**
-     * Chuyển đổi tức thì giữa View 1 (PO Header) và View 2 (Line-Item)
-     */
     function switchViewMode(mode) {
-      //listState.viewMode = (mode === 'LINE_ITEM') ? 'LINE_ITEM' : 'HEADER';
       listState.viewMode = mode;
+      const isHeader = mode === 'HEADER';
+      const isLine = mode === 'LINE_ITEM';
+      const isKanban = mode === 'KANBAN_LINE';
       const btnHeader = document.getElementById('btnViewHeader');
       const btnLine = document.getElementById('btnViewLineItem');
-      const titleEl = document.getElementById('currentViewTitle');
-
-            
       const btnKanban = document.getElementById('btnViewKanban');
-      const tableCard = document.querySelector('.table-card');
-      const kanbanContainer = document.getElementById('kanbanContainer');
-      [btnHeader, btnLine, btnKanban].forEach(b => { if(b) b.classList.remove('active'); });
 
-      if (mode === 'KANBAN_LINE') {
-        btnKanban.classList.add('active');
-        tableCard.style.display = 'none';
-        kanbanContainer.style.display = 'flex';
-        fetchKanbanData();
-        return;
-      }
-      tableCard.style.display = 'block';
-      kanbanContainer.style.display = 'none';
+      btnHeader.classList.toggle('active', isHeader);
+      btnLine.classList.toggle('active', isLine);
+      btnKanban.classList.toggle('active', isKanban);
+      btnHeader.textContent = (isHeader ? '(•)' : '( )') + ' Xem theo Đơn Hàng (PO Header)';
+      btnLine.textContent = (isLine ? '(•)' : '( )') + ' Xem theo Chi Tiết Mặt Hàng (Line-Item)';
+      btnKanban.textContent = (isKanban ? '(•)' : '( )') + ' Điều Phối Xưởng (Kanban)';
 
-      if (listState.viewMode === 'HEADER') {
-        btnHeader.classList.add('active');
-        btnHeader.textContent = '(•) Xem theo Đơn Hàng (PO Header)';
-        btnLine.classList.remove('active');
-        btnLine.textContent = '( ) Xem theo Chi Tiết Mặt Hàng (Line-Item)';
-        titleEl.textContent = 'DANH SÁCH ĐƠN HÀNG GOM NHÓM THEO PO (HEADER VIEW)';
-      } else {
-        btnLine.classList.add('active');
-        btnLine.textContent = '(•) Xem theo Chi Tiết Mặt Hàng (Line-Item)';
-        btnHeader.classList.remove('active');
-        btnHeader.textContent = '( ) Xem theo Đơn Hàng (PO Header)';
-        titleEl.textContent = 'DANH SÁCH PHẲNG CHI TIẾT MẶT HÀNG SẢN XUẤT (LINE-ITEM VIEW)';
-      }
+      document.querySelector('.table-card').style.display = isKanban ? 'none' : 'block';
+      document.getElementById('kanbanContainer').style.display = isKanban ? 'flex' : 'none';
+      document.getElementById('currentViewTitle').textContent = isHeader
+        ? 'DANH SÁCH ĐƠN HÀNG GOM NHÓM THEO PO (HEADER VIEW)'
+        : 'DANH SÁCH PHẲNG CHI TIẾT MẶT HÀNG SẢN XUẤT (LINE-ITEM VIEW)';
 
-      fetchOrderData();
+      updateFloatingBar();
+      renderCurrentView();
     }
 
         /* [MỚI - SPEC-LINE-DND-01] CÁC HÀM XỬ LÝ KANBAN KÉO - THẢ */
@@ -1200,28 +1189,45 @@
       if (el) el.style.display = (el.style.display === 'none') ? 'flex' : 'none';
     }
 
-    function fetchKanbanData() {
-      const badge = document.getElementById('kanbanSyncBadge');
-      badge.className = 'sync-status-badge sync-saving';
-      badge.textContent = '⏳ Đang tải...';
+    function renderCurrentView() {
+      const mode = listState.viewMode;
+      const view = listState.views && listState.views[mode];
+      const message = listState.loading ? 'Đang tải dữ liệu từ Database…'
+        : listState.savingBulk ? 'Đang lưu dữ liệu…'
+        : !view ? 'Bấm Lọc (DB) hoặc Đặt lại để tải dữ liệu.'
+        : view.exceededLimit ? view.message : '';
 
-      google.script.run
-        .withSuccessHandler(function(res) {
-          if (res && res.success) {
-            renderKanbanBoards(res.data);
-            badge.className = 'sync-status-badge sync-saved';
-            badge.textContent = '✓ Đã đồng bộ';
-          } else {
-            showAppToast('error', 'Lỗi tải Kanban', res ? res.message : '');
-          }
-        })
-        .withFailureHandler(function(err) {
-          showAppToast('error', 'Lỗi Server', err.message);
-        })
-        .apiGetLineKanbanData();
+      if (mode === 'KANBAN_LINE') {
+        const badge = document.getElementById('kanbanSyncBadge');
+        if (listState.savingKanban) return;
+        badge.className = 'sync-status-badge ' +
+          (listState.loading ? 'sync-saving' : 'sync-saved');
+        badge.textContent = message || '✓ Đã tải dữ liệu';
+        if (!view || !view.success) {
+          renderKanbanBoards({}, false);
+        } else {
+          renderKanbanBoards(view.data, !listState.loading && !listState.savingBulk);
+        }
+        return;
+      }
+
+      listState.rawRecords = view && view.success ? view.data : [];
+      if (message) {
+        renderTableData([]);
+        updateSummaryKPIs({});
+        const colspan = mode === 'HEADER' ? 11 : 13;
+        document.getElementById('tableBody').innerHTML =
+          '<tr><td colspan="' + colspan + '" style="text-align:center;padding:24px;">' +
+          escapeHtml(message) + '</td></tr>';
+      } else if (listState.instantFilterActive) {
+        handleInstantFilter();
+      } else {
+        updateSummaryKPIs(view.summary);
+        renderTableData(listState.rawRecords);
+      }
     }
 
-    function renderKanbanBoards(data) {
+    function renderKanbanBoards(data, canDrag) {
       const zones = ['DANG_SAN_XUAT', 'UU_TIEN', 'CHO_SAN_XUAT'];
       kanbanSortables.forEach(s => s.destroy());
       kanbanSortables = [];
@@ -1235,9 +1241,9 @@
         let html = '';
         items.forEach(it => {
           html += `
-            <div class="kanban-item-card" data-id="${escapeHtml(it.idChiTiet)}">
+            <div class="kanban-item-card${it.readOnly ? '' : ' kanban-draggable'}" data-id="${escapeHtml(it.idChiTiet)}">
               <div class="kanban-item-left">
-                <span class="drag-handle">:::</span>
+                ${it.readOnly ? '' : '<span class="drag-handle">:::</span>'}
                 <div>
                   <div>
                     <strong style="color:#1e40af;">[${escapeHtml(it.idChiTiet)}]</strong>
@@ -1259,8 +1265,10 @@
         container.innerHTML = html;
 
         const sortable = new Sortable(container, {
+          disabled: !canDrag,
           group: 'LINE_KANBAN_SHARED',
           animation: 150,
+          draggable: '.kanban-draggable',
           handle: '.drag-handle',
           ghostClass: 'sortable-ghost',
           chosenClass: 'sortable-chosen',
@@ -1291,7 +1299,7 @@
       const updates = [];
       ['DANG_SAN_XUAT', 'UU_TIEN', 'CHO_SAN_XUAT'].forEach(zoneKey => {
         const container = document.getElementById('zone_' + zoneKey);
-        const cards = container.querySelectorAll('.kanban-item-card');
+        const cards = container.querySelectorAll('.kanban-draggable');
         cards.forEach((card, idx) => {
           const id = card.getAttribute('data-id');
           if (id) {
@@ -1303,39 +1311,65 @@
           }
         });
       });
+      if (updates.length === 0) return;
 
-      // Optimistic UI Feedback
+      listState.savingKanban = true;
+      kanbanSortables.forEach(s => s.option('disabled', true));
       const badge = document.getElementById('kanbanSyncBadge');
       badge.className = 'sync-status-badge sync-saving';
       badge.textContent = '⏳ Đang lưu vị trí...';
 
+      const board = listState.views.KANBAN_LINE;
+      const cardsById = new Map();
+      Object.values(board.data).forEach(items => {
+        items.forEach(item => cardsById.set(String(item.idChiTiet), item));
+      });
+      const nextData = { DANG_SAN_XUAT: [], UU_TIEN: [], CHO_SAN_XUAT: [] };
+      updates.forEach(update => {
+        nextData[update.vungHienThi].push(Object.assign(
+          {}, cardsById.get(update.idChiTiet), { thuTu: update.thuTu }
+        ));
+      });
+
+      Object.keys(nextData).forEach(zone => {
+        nextData[zone].push(...board.data[zone].filter(card => card.readOnly));
+      });
+
+      function finishSave(saved, message) {
+        listState.savingKanban = false;
+        if (saved) board.data = nextData;
+        renderCurrentView();
+        if (listState.viewMode === 'KANBAN_LINE') {
+          badge.textContent = saved ? '✓ Đã lưu vị trí' : '⚠ Đã khôi phục vị trí cũ';
+        }
+        if (!saved) showAppToast('error', 'Lưu vị trí thất bại', message);
+      }
+
       google.script.run
-        .withSuccessHandler(function(res) {
-          if (res && res.success) {
-            badge.className = 'sync-status-badge sync-saved';
-            badge.textContent = '✓ Đã lưu vị trí';
-          } else {
-            showAppToast('error', 'Lưu thất bại', res ? res.message : '');
-            fetchKanbanData(); // Rollback trạng thái giao diện
-          }
+        .withSuccessHandler(function (res) {
+          const saved = !!(res && res.success && res.updatedCount === updates.length);
+          finishSave(saved, res && !res.success ? res.message :
+            'Không xác nhận được toàn bộ thay đổi. Bấm Lọc (DB) để kiểm tra lại.');
         })
-        .withFailureHandler(function(err) {
-          showAppToast('error', 'Lỗi kết nối', 'Không thể lưu vị trí, kiểm tra kết nối mạng!');
-          fetchKanbanData(); // Rollback trạng thái giao diện
+        .withFailureHandler(function (err) {
+          finishSave(false, err.message);
         })
-        .apiUpdateLineKanbanPositions({ updates: updates });
+        .apiUpdateLineKanbanPositions({ updates: updates, filteredBoard: true });
     }
 
-    /**
-     * Gọi RPC queryOrdersAndLineItems lấy dữ liệu theo bộ lọc
-     */
     function fetchOrderData() {
-      const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:#0284c7;font-weight:600;">⏳ Đang đồng bộ dữ liệu từ Database...</td></tr>';
+      if (listState.savingKanban || listState.savingBulk) {
+        showAppToast('error', 'Đang lưu', 'Vui lòng đợi lưu xong rồi tải lại dữ liệu.');
+        return;
+      }
+
+      const requestId = ++listState.requestId;
+      listState.loading = true;
+      renderCurrentView();
 
       const custTarget = document.getElementById('customerFilterInput') || document.getElementById('customerFilter');
       const searchParams = {
-        viewMode: listState.viewMode,
+        viewMode: 'ALL_VIEWS',
         keyword: document.getElementById('keywordInput').value.trim(),
         maKH: custTarget ? custTarget.value.trim() : 'ALL',
         status: document.getElementById('statusFilter').value,
@@ -1345,41 +1379,37 @@
         pageSize: 500
       };
 
+      function finishWithError(message) {
+        listState.loading = false;
+        renderCurrentView();
+        showAppToast('error', 'Lỗi tải dữ liệu', message || 'Không xác định');
+      }
+
       google.script.run
         .withSuccessHandler(function (res) {
-          /* [MỚI - Ý 5] Xử lý cảnh báo khi vượt quá số lượng bản ghi tối đa */
-          if (res && res.exceededLimit) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:#dc2626;font-size:13.5px;font-weight:700;">' +
-              '⚠️ ' + escapeHtml(res.message) + '</td></tr>';
-            showAppToast('error', 'Vượt giới hạn kết quả', res.message);
-            updateSummaryKPIs({ totalOrders: 0, totalLineItems: 0, totalRevenue: 0, totalRemainingQty: 0 });
+          if (requestId !== listState.requestId) return;
+          if (!res || !res.success || !res.views) {
+            finishWithError(res && (res.message || (res.error && res.error.message)));
             return;
           }
 
-          if (!res || !res.success) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:20px;color:#dc2626;">✕ Lỗi tải dữ liệu: ' +
-              escapeHtml(res && (res.message || (res.error && res.error.message)) ? (res.message || res.error.message) : 'Không xác định') + '</td></tr>';
-            return;
-          }
-
-          listState.rawRecords = res.data || [];
+          listState.views = res.views;
           listState.config = res.systemConfig;
+          listState.loading = false;
+          listState.instantFilterActive = false;
+
           if (!listState.customersPopulated && res.customers) {
             populateCustomerFilter(res.customers);
             listState.customersPopulated = true;
           }
+          if (res.salesStaffList) listState.salesStaffList = res.salesStaffList;
 
-          /* [MỚI] Lưu danh sách Sales trả về từ server */
-          if (res.salesStaffList) {
-            listState.salesStaffList = res.salesStaffList;
-          }
-
-          updateSummaryKPIs(res.summary);
-          renderTableData(listState.rawRecords);
+          clearSelectedLines();
+          renderCurrentView();
         })
         .withFailureHandler(function (err) {
-          tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi kết nối Server: ' +
-            escapeHtml(err.message) + '</td></tr>';
+          if (requestId !== listState.requestId) return;
+          finishWithError(err.message);
         })
         .queryOrdersAndLineItems(searchParams);
     }
@@ -1423,6 +1453,9 @@
     }
     // File: OrderList_View.html > function handleInstantFilter()
     function handleInstantFilter() {
+      if (!listState.views || listState.loading || listState.savingBulk ||
+          listState.viewMode === 'KANBAN_LINE' || !listState.views[listState.viewMode].success) return;
+      listState.instantFilterActive = true;
       const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
       const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
       const status = document.getElementById('statusFilter').value;
@@ -2121,6 +2154,83 @@
       }
     }
 
+    function applySavedOrderChanges(changes) {
+      const views = listState.views;
+      if (!views || !changes) return;
+      const lineChanges = new Map(changes.lines.map(item => [item.idChiTiet, item]));
+      const productChanges = new Map(changes.products.map(item => [item.maSP, item]));
+      const orderChanges = new Map(changes.orders.map(item => [item.maDH, item]));
+
+      function updateLine(item) {
+        const line = lineChanges.get(item.idChiTiet);
+        const product = productChanges.get(item.maSP);
+        const order = orderChanges.get(item.maDH);
+        if (line) {
+          ['slDat', 'conLai', 'donGia', 'ngayGiao', 'maNV', 'tenNV', 'trangThai'].forEach(key => {
+            if (Object.prototype.hasOwnProperty.call(line, key)) item[key] = line[key];
+          });
+          item.thanhTien = (Number(item.slDat) || 0) * (Number(item.donGia) || 0);
+        }
+        if (product) Object.assign(item, product);
+        if (order && order.ngayDat !== undefined) item.ngayDat = order.ngayDat;
+      }
+
+      function summarize(lines) {
+        return {
+          totalOrders: new Set(lines.map(item => item.maDH).filter(Boolean)).size,
+          totalLineItems: lines.length,
+          totalRevenue: lines.reduce((sum, item) => sum + (Number(item.slDat) || 0) * (Number(item.donGia) || 0), 0),
+          totalRemainingQty: lines.reduce((sum, item) => sum + (Number(item.conLai) || 0), 0)
+        };
+      }
+
+      if (views.LINE_ITEM.success) {
+        views.LINE_ITEM.data.forEach(updateLine);
+        views.LINE_ITEM.summary = summarize(views.LINE_ITEM.data);
+      }
+      if (views.HEADER.success) {
+        views.HEADER.data.forEach(order => {
+          const change = orderChanges.get(order.maDH);
+          if (change) Object.assign(order, change);
+          order.items.forEach(updateLine);
+          order.tongSLDat = order.items.reduce((sum, item) => sum + (Number(item.slDat) || 0), 0);
+          order.tongDaGiao = order.items.reduce((sum, item) => sum + (Number(item.daGiao) || 0), 0);
+          const totals = summarize(order.items);
+          order.tongConLai = totals.totalRemainingQty;
+          order.tongGiaTri = totals.totalRevenue;
+        });
+        views.HEADER.summary = views.LINE_ITEM.success
+          ? views.LINE_ITEM.summary
+          : summarize(views.HEADER.data.flatMap(order => order.items));
+      }
+
+      if (views.KANBAN_LINE.success) {
+        const board = views.KANBAN_LINE.data;
+        const next = { DANG_SAN_XUAT: [], UU_TIEN: [], CHO_SAN_XUAT: [] };
+        Object.keys(next).forEach(zone => {
+          board[zone].forEach(card => {
+            const change = lineChanges.get(card.idChiTiet);
+            let destination = zone;
+            if (change) {
+              if (change.slDat !== undefined) card.soLuongDat = change.slDat;
+              if (change.ngayGiao !== undefined) card.ngayGiao = change.ngayGiao;
+              if (change.trangThai !== undefined) {
+                card.trangThai = change.trangThai;
+                card.readOnly = change.kanbanReadOnly;
+                card.thuTu = change.kanbanPriority;
+                destination = Object.prototype.hasOwnProperty.call(next, change.kanbanZone)
+                  ? change.kanbanZone : 'CHO_SAN_XUAT';
+              }
+            }
+            next[destination].push(card);
+          });
+        });
+        Object.values(next).forEach(cards => cards.sort((a, b) =>
+          Number(!!a.readOnly) - Number(!!b.readOnly) || a.thuTu - b.thuTu));
+        views.KANBAN_LINE.data = next;
+      }
+    }
+
     function submitAllEditedItems() {
       // Lưu sản phẩm hiện tại trước khi submit
       saveCurrentDraftFromInputs();
@@ -2163,27 +2273,38 @@
 
 
       showAppConfirm('Xác nhận lưu thay đổi hàng loạt', confirmMsg, function () {
+        if (listState.loading || listState.savingBulk || listState.savingKanban) {
+          showAppToast('error', 'Đang xử lý', 'Vui lòng chờ thao tác hiện tại hoàn tất.');
+          return;
+        }
+        listState.savingBulk = true;
         const payload = { itemsToUpdate: itemsToUpdate };
 
         // Đóng modal & hiển thị tiến trình
         closeBulkEditModal();
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:#2563eb;font-weight:700;">⏳ Đang lưu dữ liệu theo lô cho ' + itemsToUpdate.length + ' sản phẩm...</td></tr>';
-
+        console.log("=== [CLIENT DEBUG] PAYLOAD GỬI ĐI ===", JSON.stringify(payload));
         google.script.run
           .withSuccessHandler(function (res) {
+            listState.savingBulk = false;
             if (res && res.success) {
-              showAppToast('success', 'Thành công!', res.message || 'Cập nhật thành công!');
               clearSelectedLines();
-              fetchOrderData();
+              applySavedOrderChanges(res.changes);
+              renderCurrentView();
+              showAppToast('success', 'Đã lưu', res.changes
+                ? res.message || 'Đã cập nhật dữ liệu đang hiển thị.'
+                : 'Bấm Lọc (DB) để xem dữ liệu đã lưu.');
             } else {
+              renderCurrentView();
               showAppToast('error', 'Lỗi cập nhật', res && res.message ? res.message : 'Có lỗi xảy ra.');
-              fetchOrderData();
             }
+            console.log("=== [CLIENT DEBUG] KẾT QUẢ SERVER TRẢ VỀ ===", res);
           })
           .withFailureHandler(function (err) {
+            listState.savingBulk = false;
+            renderCurrentView();
             showAppToast('error', 'Lỗi Server', err.message);
-            fetchOrderData();
           })
           .updateOrderLineItemsBulk(payload);
       });
