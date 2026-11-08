@@ -17,10 +17,12 @@
       text-decoration: line-through !important;
       font-weight: 700;
     }
+
     .mold-normal {
       color: #b45309;
       font-size: 11px;
     }
+
     .mold-knife-box {
       font-size: 11px;
       margin-top: 2px;
@@ -37,11 +39,13 @@
       border: 1px solid #e2e8f0;
       margin-bottom: 12px;
     }
+
     .carousel-step-badge {
       font-weight: 700;
       color: #1e40af;
       font-size: 13px;
     }
+
     .carousel-product-header {
       background: #eff6ff;
       border: 1px solid #bfdbfe;
@@ -50,6 +54,7 @@
       border-radius: 6px;
       margin-bottom: 14px;
     }
+
     .carousel-product-header .po-chip {
       background: #dbeafe;
       color: #1e40af;
@@ -59,6 +64,7 @@
       font-size: 11px;
       margin-right: 6px;
     }
+
     .carousel-product-header .prod-title {
       font-weight: 800;
       font-size: 14px;
@@ -77,6 +83,7 @@
       gap: 10px;
       pointer-events: none;
     }
+
     .toast-box {
       pointer-events: auto;
       min-width: 320px;
@@ -85,7 +92,7 @@
       color: #1e293b;
       padding: 12px 18px;
       border-radius: 10px;
-      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
       display: flex;
       align-items: flex-start;
       gap: 12px;
@@ -94,36 +101,92 @@
       overflow: hidden;
       border: 1px solid #e2e8f0;
     }
-    .toast-success { border-left: 5px solid #10b981; }
-    .toast-error { border-left: 5px solid #ef4444; }
-    .toast-info { border-left: 5px solid #3b82f6; }
-    .toast-icon { font-size: 18px; line-height: 1.2; }
-    .toast-content { flex: 1; }
-    .toast-title { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
-    .toast-msg { font-size: 12px; color: #475569; line-height: 1.4; }
-    .toast-close { cursor: pointer; color: #94a3b8; font-weight: 700; border: none; background: none; }
-    .toast-close:hover { color: #0f172a; }
+
+    .toast-success {
+      border-left: 5px solid #10b981;
+    }
+
+    .toast-error {
+      border-left: 5px solid #ef4444;
+    }
+
+    .toast-info {
+      border-left: 5px solid #3b82f6;
+    }
+
+    .toast-icon {
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .toast-content {
+      flex: 1;
+    }
+
+    .toast-title {
+      font-weight: 700;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .toast-msg {
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.4;
+    }
+
+    .toast-close {
+      cursor: pointer;
+      color: #94a3b8;
+      font-weight: 700;
+      border: none;
+      background: none;
+    }
+
+    .toast-close:hover {
+      color: #0f172a;
+    }
+
     .toast-progress {
       position: absolute;
-      bottom: 0; left: 0;
+      bottom: 0;
+      left: 0;
       height: 3px;
       width: 100%;
       background: #e2e8f0;
     }
+
     .toast-progress-bar {
       height: 100%;
       width: 100%;
       background: #10b981;
       animation: toastProgress 3.5s linear forwards;
     }
-    .toast-error .toast-progress-bar { background: #ef4444; }
-    @keyframes toastSlideIn {
-      from { transform: translateX(100%); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
+
+    .toast-error .toast-progress-bar {
+      background: #ef4444;
     }
+
+    @keyframes toastSlideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
     @keyframes toastProgress {
-      from { width: 100%; }
-      to { width: 0%; }
+      from {
+        width: 100%;
+      }
+
+      to {
+        width: 0%;
+      }
     }
 
     /* [MỚI - SPEC-OMS-LINEITEM-202611-01] CSS BỔ SUNG CHO LINE-ITEM & BULK EDIT */
@@ -135,16 +198,19 @@
       align-items: center;
       gap: 3px;
     }
+
     .link-po:hover {
       text-decoration: underline;
       color: #1d4ed8;
     }
+
     .thumb-preview-box {
       position: relative;
       display: inline-block;
       vertical-align: middle;
       margin-right: 6px;
     }
+
     .thumb-img {
       width: 32px;
       height: 32px;
@@ -153,6 +219,7 @@
       border: 1px solid #cbd5e1;
       cursor: pointer;
     }
+
     .thumb-hover-zoom {
       display: none;
       position: absolute;
@@ -162,15 +229,17 @@
       background: #fff;
       padding: 4px;
       border-radius: 8px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
       border: 1px solid #cbd5e1;
     }
+
     .thumb-hover-zoom img {
       width: 140px;
       height: 140px;
       object-fit: cover;
       border-radius: 6px;
     }
+
     .thumb-preview-box:hover .thumb-hover-zoom {
       display: block;
     }
@@ -185,13 +254,14 @@
       color: #fff;
       padding: 12px 24px;
       border-radius: 30px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
       display: none;
       align-items: center;
       gap: 16px;
       z-index: 999;
       font-size: 13.5px;
     }
+
     .btn-bulk-action {
       background: #2563eb;
       color: #fff;
@@ -201,9 +271,11 @@
       font-weight: 700;
       cursor: pointer;
     }
+
     .btn-bulk-action:hover {
       background: #1d4ed8;
     }
+
     .btn-bulk-clear {
       background: transparent;
       color: #94a3b8;
@@ -213,6 +285,7 @@
       cursor: pointer;
       font-weight: 600;
     }
+
     .btn-bulk-clear:hover {
       color: #fff;
       border-color: #cbd5e1;
@@ -221,7 +294,10 @@
     /* Modal Bulk Edit Dialog */
     .custom-modal-overlay {
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background: rgba(15, 23, 42, 0.65);
       display: none;
       justify-content: center;
@@ -229,14 +305,122 @@
       z-index: 1000;
       backdrop-filter: blur(2px);
     }
+
+    .confirm-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2100;
+      backdrop-filter: blur(4px);
+      animation: fadeInModal 0.2s ease-out;
+    }
+
+    .confirm-modal-box {
+      background: #ffffff;
+      border-radius: 12px;
+      width: 440px;
+      max-width: 90vw;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+
+    .confirm-icon-circle {
+      width: 52px;
+      height: 52px;
+      background: #eff6ff;
+      color: #2563eb;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 12px;
+    }
+
+    .confirm-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+
+    .confirm-message {
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.5;
+      margin-bottom: 20px;
+      word-break: break-word;
+    }
+
+    .confirm-btn-group {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .confirm-btn-cancel {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .confirm-btn-cancel:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .confirm-btn-ok {
+      background: #16a34a;
+      color: #ffffff;
+      border: none;
+      padding: 8px 22px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+      box-shadow: 0 2px 4px rgba(22, 163, 74, 0.3);
+      transition: all 0.2s;
+    }
+
+    .confirm-btn-ok:hover {
+      background: #15803d;
+    }
+
+    @keyframes fadeInModal {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
     .custom-modal-content {
       background: #fff;
       border-radius: 12px;
       width: 520px;
       max-width: 95vw;
       padding: 20px 24px;
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
     }
+
     .modal-title-bar {
       display: flex;
       justify-content: space-between;
@@ -248,12 +432,14 @@
       font-size: 15px;
       color: #1e3a8a;
     }
+
     .bulk-form-group {
       display: flex;
       align-items: center;
       gap: 10px;
       margin-bottom: 10px;
     }
+
     .bulk-form-group label {
       width: 140px;
       font-weight: 600;
@@ -264,6 +450,7 @@
       align-items: center;
       gap: 6px;
     }
+
     .bulk-form-group input[type="text"],
     .bulk-form-group input[type="number"],
     .bulk-form-group input[type="date"] {
@@ -274,6 +461,7 @@
       outline: none;
       font-size: 12.5px;
     }
+
     .bulk-form-group input:disabled {
       background: #f1f5f9;
       color: #94a3b8;
@@ -283,13 +471,17 @@
     /* Lightbox Album */
     .lightbox-overlay {
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background: rgba(0, 0, 0, 0.85);
       display: none;
       justify-content: center;
       align-items: center;
       z-index: 2000;
     }
+
     .lightbox-content {
       position: relative;
       max-width: 90vw;
@@ -298,17 +490,19 @@
       flex-direction: column;
       align-items: center;
     }
+
     .lightbox-content img {
       max-width: 80vw;
       max-height: 75vh;
       border-radius: 8px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     }
+
     .lightbox-nav-btn {
       position: absolute;
       top: 50%;
       transform: translateY(-50%);
-      background: rgba(255,255,255,0.2);
+      background: rgba(255, 255, 255, 0.2);
       color: #fff;
       border: none;
       font-size: 26px;
@@ -316,9 +510,18 @@
       cursor: pointer;
       border-radius: 50%;
     }
-    .lightbox-nav-btn:hover { background: rgba(255,255,255,0.4); }
-    .lightbox-prev { left: -50px; }
-    .lightbox-next { right: -50px; }
+
+    .lightbox-nav-btn:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    .lightbox-prev {
+      left: -50px;
+    }
+
+    .lightbox-next {
+      right: -50px;
+    }
 
     body {
       margin: 0;
@@ -706,8 +909,9 @@
         <input type="date" id="fromDateFilter" class="filter-control" onchange="handleInstantFilter()">
       </div>
       <div class="filter-group">
-        <label>Đến ngày đặt</label>
-        <input type="date" id="toDateFilter" class="filter-control" onchange="handleInstantFilter()">
+        <label>Đến ngày giao</label>
+        <input type="date" id="toDateFilter" class="filter-control" title="Lọc đơn có ngày hẹn giao đến ngày này"
+          onchange="handleInstantFilter()">
       </div>
       <div style="display:flex;gap:6px;">
         <button type="button" class="btn-search" onclick="fetchOrderData()">🔍 Lọc (DB)</button>
@@ -751,9 +955,11 @@
 
         <!-- Thanh điều hướng lướt qua từng sản phẩm -->
         <div class="product-carousel-nav">
-          <button type="button" class="btn-reset" style="height:28px;padding:2px 10px;font-size:11.5px;" onclick="prevCarouselItem()">❮ Trước</button>
+          <button type="button" class="btn-reset" style="height:28px;padding:2px 10px;font-size:11.5px;"
+            onclick="prevCarouselItem()">❮ Trước</button>
           <span id="carouselStepIndicator" class="carousel-step-badge">Sản phẩm 1 / 1</span>
-          <button type="button" class="btn-reset" style="height:28px;padding:2px 10px;font-size:11.5px;" onclick="nextCarouselItem()">Tiếp theo ❯</button>
+          <button type="button" class="btn-reset" style="height:28px;padding:2px 10px;font-size:11.5px;"
+            onclick="nextCarouselItem()">Tiếp theo ❯</button>
         </div>
 
         <!-- Tiêu đề thẻ sản phẩm hiện tại (PO, Tên SP, SKU, ĐVT) -->
@@ -763,24 +969,29 @@
             <span id="curItemName" class="prod-title">Tên sản phẩm</span>
           </div>
           <div style="font-size:11.5px;color:#475569;margin-top:4px;">
-            Mã CTĐH: <strong id="curItemId" style="color:#0f172a;">---</strong> | SKU: <strong id="curItemSku">---</strong>
+            Mã CTĐH: <strong id="curItemId" style="color:#0f172a;">---</strong> | SKU: <strong
+              id="curItemSku">---</strong>
           </div>
         </div>
 
         <!-- Các trường chỉnh sửa cho sản phẩm đang xem -->
+        <div class="bulk-form-group">
+          <label><input type="checkbox" id="chk_codeSP" onchange="toggleBulkField('codeSP')"> Code SP (Khách):</label>
+          <input type="text" id="val_codeSP" placeholder="VD: DG-01..." disabled>
+        </div>
+
         <div class="bulk-form-group">
           <label><input type="checkbox" id="chk_dvt" onchange="toggleBulkField('dvt')"> Đơn vị tính (ĐVT):</label>
           <select id="val_dvt" class="filter-control" style="flex:1;" disabled>
             <option value="Cái">Cái</option>
             <option value="Tấm">Tấm</option>
             <option value="Mét">Mét</option>
-            <option value="Hộp">Hộp</option>
-            <option value="Bộ">Bộ</option>
-            <option value="Khay">Khay</option>
+            <option value="Lọ">Lọ</option>
           </select>
         </div>
         <div class="bulk-form-group">
-          <label><input type="checkbox" id="chk_soLuongDat" onchange="toggleBulkField('soLuongDat')"> Số lượng đặt:</label>
+          <label><input type="checkbox" id="chk_soLuongDat" onchange="toggleBulkField('soLuongDat')"> Số lượng
+            đặt:</label>
           <input type="number" id="val_soLuongDat" placeholder="VD: 5000" disabled>
         </div>
         <div class="bulk-form-group">
@@ -796,7 +1007,8 @@
           <input type="number" id="val_giaKhuon" placeholder="VD: 5000000" disabled>
         </div>
         <div class="bulk-form-group">
-          <label><input type="checkbox" id="chk_ngayGiao" onchange="toggleBulkField('ngayGiao')"> Ngày giao hàng:</label>
+          <label><input type="checkbox" id="chk_ngayGiao" onchange="toggleBulkField('ngayGiao')"> Ngày giao
+            hàng:</label>
           <input type="date" id="val_ngayGiao" disabled>
         </div>
         <div class="bulk-form-group">
@@ -827,7 +1039,8 @@
           <span style="font-size:11.5px;color:#64748b;">Dữ liệu đã sửa sẽ tự động lưu tạm khi chuyển sản phẩm.</span>
           <div style="display:flex; gap:8px;">
             <button type="button" class="btn-reset" onclick="closeBulkEditModal()">Hủy</button>
-            <button type="button" class="btn-search" style="background:#16a34a;" onclick="submitAllEditedItems()">💾 Lưu tất cả thay đổi</button>
+            <button type="button" class="btn-search" style="background:#16a34a;" onclick="submitAllEditedItems()">💾 Lưu
+              tất cả thay đổi</button>
           </div>
         </div>
       </div>
@@ -845,16 +1058,30 @@
         <button type="button" class="lightbox-nav-btn lightbox-next" onclick="nextLightboxImage(event)">❯</button>
       </div>
     </div>
+
+    <!-- MODAL XÁC NHẬN CHUYÊN NGHIỆP THAY THẾ window.confirm -->
+    <div id="customConfirmModal" class="confirm-modal-overlay">
+      <div class="confirm-modal-box">
+        <div class="confirm-icon-circle">💾</div>
+        <div id="customConfirmTitle" class="confirm-title">Xác nhận cập nhật</div>
+        <div id="customConfirmMessage" class="confirm-message">Bạn có chắc chắn muốn thực hiện thao tác này?</div>
+        <div class="confirm-btn-group">
+          <button type="button" class="confirm-btn-cancel" onclick="closeCustomConfirm(false)">Hủy bỏ</button>
+          <button type="button" id="btnCustomConfirmOk" class="confirm-btn-ok" onclick="closeCustomConfirm(true)">Xác
+            nhận lưu</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    const listState = {  
-    viewMode: 'LINE_ITEM', // 'LINE_ITEM' | 'HEADER'  
-    rawRecords: [],  
-    customersPopulated: false,  
-    /* [MỚI] Lưu danh sách nhân viên Sales */  
-    salesStaffList: [],
-    config: null
+    const listState = {
+      viewMode: 'LINE_ITEM', // 'LINE_ITEM' | 'HEADER'  
+      rawRecords: [],
+      customersPopulated: false,
+      /* [MỚI] Lưu danh sách nhân viên Sales */
+      salesStaffList: [],
+      config: null
     };
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -946,88 +1173,142 @@
         .queryOrdersAndLineItems(searchParams);
     }
 
-    // File: OrderList_View.html > function handleInstantFilter()
-function handleInstantFilter() {
-  const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
-  const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
-  const status = document.getElementById('statusFilter').value;
-  const fromDate = document.getElementById('fromDateFilter').value;
-  const toDate = document.getElementById('toDateFilter').value;
 
-  // =========================================================================
-  // [DEBUG CLIENT - BƯỚC 1]: ĐẶT TRƯỚC KHI FILTER
-  // =========================================================================
-  console.group("=== [DEBUG CLIENT] BỘ LỌC TỨC THÌ ===");
-  console.log("Từ khóa tìm kiếm (kw):", kw);
-  console.log("Khách hàng tìm kiếm (custKw):", custKw);
-  console.log("Chế độ xem hiện tại:", listState.viewMode);
-  console.log("Tổng số dữ liệu gốc trong bộ nhớ (rawRecords):", listState.rawRecords.length);
-  if (listState.rawRecords.length > 0) {
-    console.log("Mẫu 1 bản ghi gốc:", listState.rawRecords[0]);
-  }
+    function recalculateFilteredKPIs(records) {
+      const list = records || [];
+      let totalOrdersCount = 0;
+      let totalLineItemsCount = 0;
+      let totalRevenueSum = 0;
+      let totalRemainingSum = 0;
 
-  const filtered = listState.rawRecords.filter(function (item) {
-    // 1. Lọc theo từ khóa chung
-    if (kw) {
       if (listState.viewMode === 'HEADER') {
-        const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
-        const subMatch = (item.items || []).some(function (sub) {
-          return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
+        // 1. Chế độ Header: Mỗi phần tử là một Đơn hàng
+        totalOrdersCount = list.length;
+        list.forEach(function (ord) {
+          totalRevenueSum += Number(ord.tongGiaTri) || 0;
+          (ord.items || []).forEach(function (it) {
+            totalLineItemsCount++;
+            totalRemainingSum += Number(it.conLai) || 0;
+          });
         });
-        if (hText.indexOf(kw) === -1 && !subMatch) return false;
       } else {
-        const lText = [item.idChiTiet, item.maDH, item.soPO, item.khachHang, item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV].join(' ').toLowerCase();
-        if (lText.indexOf(kw) === -1) return false;
+        // 2. Chế độ Line-Item: Mỗi phần tử là một dòng chi tiết mặt hàng
+        totalLineItemsCount = list.length;
+        const uniqueOrders = new Set();
+        list.forEach(function (it) {
+          if (it.maDH) uniqueOrders.add(it.maDH);
+          totalRevenueSum += (Number(it.slDat) || 0) * (Number(it.donGia) || 0);
+          totalRemainingSum += Number(it.conLai) || 0;
+        });
+        totalOrdersCount = uniqueOrders.size;
       }
-    }
 
-    // 2. Lọc theo Khách hàng (gõ tay hoặc gợi ý)
-    if (custKw && custKw !== 'all') {
-      const cName = (item.khachHang || item.customerName || '').toLowerCase();
-      const cId = (item.maKH || '').toLowerCase();
-      
-      // LOG KIỂM TRA ĐIỀU KIỆN KHÁCH HÀNG
-      const isMatchCust = (cName.indexOf(custKw) !== -1 || cId.indexOf(custKw) !== -1);
-      if (!isMatchCust) return false;
-    }
-
-    // 3. Lọc theo Trạng thái
-    if (status && status !== 'ALL') {
-    const itemStatus = (item.trangThai || item.status || '').trim();
-    const statusGroups = (listState.config && listState.config.statusGroupsList) ? listState.config.statusGroupsList : {
-      'ACTIVE_ALL': ['Chờ sản xuất', 'Đang làm khuôn', 'Đang sản xuất'],
-      'DONE_ALL': ['Xong', 'Kết thúc', 'Hủy']
-    };
-
-    if (statusGroups[status]) {
-      // Trường hợp chọn theo nhóm trạng thái (ACTIVE_ALL hoặc DONE_ALL)
-      const allowedStatuses = statusGroups[status];
-      const isMatchedGroup = allowedStatuses.some(function(targetSt) {
-        return itemStatus.toLowerCase() === targetSt.toLowerCase() || itemStatus.indexOf(targetSt) !== -1;
+      updateSummaryKPIs({
+        totalOrders: totalOrdersCount,
+        totalLineItems: totalLineItemsCount,
+        totalRevenue: totalRevenueSum,
+        totalRemainingQty: totalRemainingSum
       });
-      if (!isMatchedGroup) return false;
-    } else {
-      // Trường hợp chọn 1 trạng thái cụ thể
-      if (itemStatus.toLowerCase().indexOf(status.toLowerCase()) === -1) return false;
     }
-  }
+    // File: OrderList_View.html > function handleInstantFilter()
+    function handleInstantFilter() {
+      const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
+      const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
+      const status = document.getElementById('statusFilter').value;
+      const fromDate = document.getElementById('fromDateFilter').value;
+      const toDate = document.getElementById('toDateFilter').value;
 
-    // 4. Lọc theo Khoảng ngày đặt
-    const orderDate = item.ngayDat || item.orderDate || '';
-    if (fromDate && orderDate && orderDate < fromDate) return false;
-    if (toDate && orderDate && orderDate > toDate) return false;
+      // =========================================================================
+      // [DEBUG CLIENT - BƯỚC 1]: ĐẶT TRƯỚC KHI FILTER
+      // =========================================================================
+      console.group("=== [DEBUG CLIENT] BỘ LỌC TỨC THÌ ===");
+      console.log("Từ khóa tìm kiếm (kw):", kw);
+      console.log("Khách hàng tìm kiếm (custKw):", custKw);
+      console.log("Chế độ xem hiện tại:", listState.viewMode);
+      console.log("Tổng số dữ liệu gốc trong bộ nhớ (rawRecords):", listState.rawRecords.length);
+      if (listState.rawRecords.length > 0) {
+        console.log("Mẫu 1 bản ghi gốc:", listState.rawRecords[0]);
+      }
 
-    return true;
-  });
+      const filtered = listState.rawRecords.filter(function (item) {
+        // 1. Lọc theo từ khóa chung
+        if (kw) {
+          if (listState.viewMode === 'HEADER') {
+            const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
+            const subMatch = (item.items || []).some(function (sub) {
+              return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
+            });
+            if (hText.indexOf(kw) === -1 && !subMatch) return false;
+          } else {
+            const lText = [item.idChiTiet, item.maDH, item.soPO, item.khachHang, item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV].join(' ').toLowerCase();
+            if (lText.indexOf(kw) === -1) return false;
+          }
+        }
 
-  // =========================================================================
-  // [DEBUG CLIENT - BƯỚC 2]: ĐẶT SAU KHI FILTER
-  // =========================================================================
-  console.log("Số bản ghi còn lại sau khi lọc:", filtered.length);
-  console.groupEnd();
+        // 2. Lọc theo Khách hàng (gõ tay hoặc gợi ý)
+        if (custKw && custKw !== 'all') {
+          const cName = (item.khachHang || item.customerName || '').toLowerCase();
+          const cId = (item.maKH || '').toLowerCase();
 
-  renderTableData(filtered);
-}
+          // LOG KIỂM TRA ĐIỀU KIỆN KHÁCH HÀNG
+          const isMatchCust = (cName.indexOf(custKw) !== -1 || cId.indexOf(custKw) !== -1);
+          if (!isMatchCust) return false;
+        }
+
+        // 3. Lọc theo Trạng thái
+        if (status && status !== 'ALL') {
+          const itemStatus = (item.trangThai || item.status || '').trim();
+          const statusGroups = (listState.config && listState.config.statusGroupsList) ? listState.config.statusGroupsList : {
+            'ACTIVE_ALL': ['Chờ sản xuất', 'Đang làm khuôn', 'Đang sản xuất'],
+            'DONE_ALL': ['Xong', 'Kết thúc', 'Hủy']
+          };
+
+          if (statusGroups[status]) {
+            // Trường hợp chọn theo nhóm trạng thái (ACTIVE_ALL hoặc DONE_ALL)
+            const allowedStatuses = statusGroups[status];
+            const isMatchedGroup = allowedStatuses.some(function (targetSt) {
+              return itemStatus.toLowerCase() === targetSt.toLowerCase() || itemStatus.indexOf(targetSt) !== -1;
+            });
+            if (!isMatchedGroup) return false;
+          } else {
+            // Trường hợp chọn 1 trạng thái cụ thể
+            if (itemStatus.toLowerCase().indexOf(status.toLowerCase()) === -1) return false;
+          }
+        }
+
+        // 4. Lọc theo Khoảng ngày đặt
+        const orderDate = item.ngayDat || item.orderDate || '';
+        if (fromDate && orderDate && orderDate < fromDate) return false;
+
+        // Lấy ngày giao theo Chi Tiết Đơn Hàng (CTĐH)
+        if (toDate) {
+          if (listState.viewMode === 'HEADER') {
+            // Đơn hàng (Header) thỏa mãn nếu có ít nhất 1 CTĐH có ngày giao <= toDate
+            const hasValidItem = (item.items || []).some(function (it) {
+              return it.ngayGiao && it.ngayGiao <= toDate;
+            });
+            if (!hasValidItem) return false;
+          } else {
+            // Chế độ Line-Item: kiểm tra trực tiếp ngày giao của dòng CTĐH
+            if (item.ngayGiao && item.ngayGiao > toDate) return false;
+          }
+        }
+
+        // Lấy ngày giao theo từng chế độ xem (Line-Item dùng ngayGiao, Header dùng ngayGiaoDK)
+        const deliveryDate = (listState.viewMode === 'HEADER') ? (item.ngayGiaoDK || '') : (item.ngayGiao || '');
+        if (toDate && deliveryDate && deliveryDate > toDate) return false;
+
+        return true;
+      });
+
+      // =========================================================================
+      // [DEBUG CLIENT - BƯỚC 2]: ĐẶT SAU KHI FILTER
+      // =========================================================================
+      console.log("Số bản ghi còn lại sau khi lọc:", filtered.length);
+      console.groupEnd();
+      recalculateFilteredKPIs(filtered);
+      renderTableData(filtered);
+    }
 
     /**
      * Render bảng dữ liệu theo chế độ HEADER hoặc LINE_ITEM
@@ -1165,10 +1446,10 @@ function handleInstantFilter() {
             const firstImg = imgUrls[0];
             /* [MỚI] Encode Base64 hoặc URI để không bao giờ bị vỡ nháy đơn/ngoặc kép */
             const safeImgAttr = encodeURIComponent(JSON.stringify(imgUrls));
-            imgHtml = 
+            imgHtml =
               '<div class="thumb-preview-box">' +
-                '<img src="' + escapeHtml(firstImg) + '" class="thumb-img" referrerpolicy="no-referrer" data-images="' + safeImgAttr + '" onclick="handleLightboxClick(this)" alt="Thumb">' +
-                '<div class="thumb-hover-zoom"><img src="' + escapeHtml(firstImg) + '" referrerpolicy="no-referrer"></div>' +
+              '<img src="' + escapeHtml(firstImg) + '" class="thumb-img" referrerpolicy="no-referrer" data-images="' + safeImgAttr + '" onclick="handleLightboxClick(this)" alt="Thumb">' +
+              '<div class="thumb-hover-zoom"><img src="' + escapeHtml(firstImg) + '" referrerpolicy="no-referrer"></div>' +
               '</div>';
           }
 
@@ -1181,7 +1462,7 @@ function handleInstantFilter() {
           const cuttingList = Array.isArray(mInfo.dao) ? mInfo.dao : [];
 
           if (formingList.length > 0) {
-            formingList.forEach(function(m) {
+            formingList.forEach(function (m) {
               const st = String(m.status || '').toLowerCase();
               const isBroken = st.includes('hong') || st.includes('hỏng');
               const cls = isBroken ? 'mold-broken' : 'mold-normal';
@@ -1192,7 +1473,7 @@ function handleInstantFilter() {
           }
 
           // Khuôn dao: chỉ hiển thị nếu có khuôn dao bị HỎNG
-          cuttingList.forEach(function(d) {
+          cuttingList.forEach(function (d) {
             const stDao = String(d.status || '').toLowerCase();
             const isDaoBroken = stDao.includes('hong') || stDao.includes('hỏng');
             if (isDaoBroken) {
@@ -1206,27 +1487,29 @@ function handleInstantFilter() {
             '<td style="text-align:center;"><input type="checkbox" class="chk-line-item" value="' + escapeHtml(it.idChiTiet) + '" ' + isChecked + ' onchange="handleSelectLine(this)"></td>' +
             '<td style="font-weight:800;color:#0f172a;">' + escapeHtml(it.idChiTiet) + '</td>' +
             '<td>' +
-              '<div style="font-weight:700;color:#1e40af;cursor:pointer;" data-madh="' + escapeHtml(it.maDH) + '" onclick="handleFilterOrderCode(this)" title="Bấm để lọc đơn này">' + escapeHtml(it.maDH) + '</div>' +
-              '<div style="font-size:11.5px;">' + poDisplayHtml + '</div>' +
+            '<div style="font-weight:700;color:#1e40af;cursor:pointer;" data-madh="' + escapeHtml(it.maDH) + '" onclick="handleFilterOrderCode(this)" title="Bấm để lọc đơn này">' + escapeHtml(it.maDH) + '</div>' +
+            '<div style="font-size:11.5px;">' + poDisplayHtml + '</div>' +
             '</td>' +
             '<td style="font-weight:600;">' + escapeHtml(it.khachHang) + '</td>' +
             '<td>' +
-              '<div style="display:flex;align-items:center;">' +
-                imgHtml +
-                '<div>' +
-                  '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + (it.codeSP ? ' <span style="color:#0369a1;">[' + escapeHtml(it.codeSP) + ']</span>' : '') + '</div>' +
-                  '<div style="font-size:11px;color:#64748b;">SKU: ' + escapeHtml(it.maSP) + (it.ghiChu ? ' | ' + escapeHtml(it.ghiChu) : '') + '</div>' +
-                '</div>' +
-              '</div>' +
+            '<div style="display:flex;align-items:center;">' +
+            imgHtml +
+            '<div>' +
+            // '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + (it.codeSP ? ' <span style="color:#0369a1;">[' + escapeHtml(it.codeSP) + ']</span>' : '') + '</div>' +
+            '<div style="font-weight:700;color:#1e293b;">' + escapeHtml(it.sanPham) + (it.codeSP && it.codeSP.trim() !== '' ? ' <span style="color:#0369a1;">[' + escapeHtml(it.codeSP) + ']</span>' : '') + '</div>' +
+
+            '<div style="font-size:11px;color:#64748b;">SKU: ' + escapeHtml(it.maSP) + (it.ghiChu ? ' | ' + escapeHtml(it.ghiChu) : '') + '</div>' +
+            '</div>' +
+            '</div>' +
             '</td>' +
             '<td>' +
-              '<div style="font-weight:600;color:#047857;">' + escapeHtml(mangVal) + '</div>' +
-              moldHtml +
+            '<div style="font-weight:600;color:#047857;">' + escapeHtml(mangVal) + '</div>' +
+            moldHtml +
             '</td>' +
             /* [MỚI - Ý 5] Số lượng đặt ở dòng trên, Đơn vị tính ở dòng dưới, đều căn phải */
             '<td style="text-align:right;">' +
-              '<div style="font-weight:700;color:#0f172a;">' + formatNumber(it.slDat) + '</div>' +
-              '<div style="font-size:11.5px;color:#64748b;margin-top:2px;">' + escapeHtml(it.dvt || 'Cái') + '</div>' +
+            '<div style="font-weight:700;color:#0f172a;">' + formatNumber(it.slDat) + '</div>' +
+            '<div style="font-size:11.5px;color:#64748b;margin-top:2px;">' + escapeHtml(it.dvt || 'Cái') + '</div>' +
             '</td>' +
             '<td style="text-align:right;">' + formatVND(it.donGia) + '</td>' +
             '<td style="text-align:right;font-weight:600;">' + formatNumber(it.daGiao) + '</td>' +
@@ -1235,7 +1518,7 @@ function handleInstantFilter() {
             '<td>' + escapeHtml(it.tenNV || '---') + '</td>' +
             '<td>' + renderStatusBadge(it.trangThai) + '</td>' +
             '</tr>';
-          });
+        });
         tbody.innerHTML = html;
         updateFloatingBar();
       }
@@ -1321,14 +1604,14 @@ function handleInstantFilter() {
        ========================================================================== */
     const selectedLineItemIds = new Set();
 
-    function toggleSelectLine(id, checked) {
+    /*function toggleSelectLine(id, checked) {
       if (checked) {
         selectedLineItemIds.add(id);
       } else {
         selectedLineItemIds.delete(id);
       }
       updateFloatingBar();
-    }
+    }*/
 
     function toggleSelectAllLines(masterChk) {
       const chks = document.querySelectorAll('.chk-line-item');
@@ -1356,7 +1639,8 @@ function handleInstantFilter() {
       const bar = document.getElementById('floatingBulkBar');
       const countEl = document.getElementById('selectedLinesCount');
       if (!bar) return;
-      if (listState.viewMode === 'MS-LINEITEM' || listState.viewMode === 'LINE_ITEM') {
+      // if (listState.viewMode === 'MS-LINEITEM' || listState.viewMode === 'LINE_ITEM') {
+      if (listState.viewMode === 'LINE_ITEM') {
         if (selectedLineItemIds.size > 0) {
           countEl.textContent = selectedLineItemIds.size;
           bar.style.display = 'flex';
@@ -1368,20 +1652,20 @@ function handleInstantFilter() {
       }
     }
 
-    function openBulkEditModal() {
+    /*function openBulkEditModal() {
       if (selectedLineItemIds.size === 0) {
         showAppToast('error', 'Chưa chọn dòng', 'Vui lòng tick chọn ít nhất 1 dòng mặt hàng để chỉnh sửa.');
         return;
       }
 
-      /* [MỚI - Ý 4] Đổ danh sách nhân viên vào dropdown trước khi hiển thị form */
+     
       populateSalesStaffDropdown(listState.salesStaffList);
 
       carouselItems = listState.rawRecords.filter(r => selectedLineItemIds.has(r.idChiTiet));
       if (carouselItems.length === 0) return;
 
       document.getElementById('bulkEditModal').style.display = 'flex';
-    }
+    }*/
 
     function closeBulkEditModal() {
       document.getElementById('bulkEditModal').style.display = 'none';
@@ -1394,59 +1678,6 @@ function handleInstantFilter() {
         val.disabled = !chk.checked;
         if (chk.checked) val.focus();
       }
-    }
-
-    function submitBulkEdit() {
-      const fieldsToUpdate = {};
-      // Thay mảng:
-      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
-      let hasChecked = false;
-
-      fieldList.forEach(function (f) {
-        const chk = document.getElementById('chk_' + f);
-        const val = document.getElementById('val_' + f);
-        if (chk && chk.checked) {
-          hasChecked = true;
-          fieldsToUpdate[f] = val.value;
-        }
-      });
-
-      if (!hasChecked) {
-        alert('Vui lòng đánh dấu chọn ít nhất một trường để ghi đè dữ liệu.');
-        return;
-      }
-
-      const count = selectedLineItemIds.size;
-      const confirmMsg = 'Bạn có chắc chắn muốn ghi đè ' + Object.keys(fieldsToUpdate).length + ' trường đã chọn cho ' + count + ' dòng mặt hàng? Thao tác này không thể hoàn tác!';
-      if (!confirm(confirmMsg)) return;
-
-      const payload = {
-        targetIds: Array.from(selectedLineItemIds),
-        fieldsToUpdate: fieldsToUpdate
-      };
-
-      // Loading indicator
-      const modal = document.getElementById('bulkEditModal');
-      modal.style.display = 'none';
-      const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:#2563eb;font-weight:700;">⏳ Đang thực hiện ghi đè hàng loạt ' + count + ' dòng mặt hàng...</td></tr>';
-
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (res && res.success) {
-            alert(res.message || 'Cập nhật thành công!');
-            clearSelectedLines();
-            fetchOrderData();
-          } else {
-            alert('Lỗi cập nhật: ' + (res && res.message ? res.message : 'Không xác định'));
-            fetchOrderData();
-          }
-        })
-        .withFailureHandler(function (err) {
-          alert('Lỗi kết nối máy chủ: ' + err.message);
-          fetchOrderData();
-        })
-        .updateOrderLineItemsBulk(payload);
     }
 
     /* ==========================================================================
@@ -1529,11 +1760,11 @@ function handleInstantFilter() {
       toast.className = 'toast-box ' + (isSuccess ? 'toast-success' : 'toast-error');
 
       const icon = isSuccess ? '✅' : '⚠️';
-      toast.innerHTML = 
+      toast.innerHTML =
         '<div class="toast-icon">' + icon + '</div>' +
         '<div class="toast-content">' +
-          '<div class="toast-title">' + escapeHtml(title) + '</div>' +
-          '<div class="toast-msg">' + escapeHtml(message) + '</div>' +
+        '<div class="toast-title">' + escapeHtml(title) + '</div>' +
+        '<div class="toast-msg">' + escapeHtml(message) + '</div>' +
         '</div>' +
         '<button class="toast-close" onclick="this.parentElement.remove()">✕</button>' +
         '<div class="toast-progress"><div class="toast-progress-bar"></div></div>';
@@ -1560,17 +1791,19 @@ function handleInstantFilter() {
       /* [MỚI] Nạp danh sách Sales vào dropdown khi mở modal */
       populateSalesStaffDropdown(listState.salesStaffList);
 
+      carouselDrafts = {};
       // Lấy toàn bộ record tương ứng với selectedLineItemIds
       carouselItems = listState.rawRecords.filter(r => selectedLineItemIds.has(r.idChiTiet));
       if (carouselItems.length === 0) return;
 
       carouselIndex = 0;
-      carouselDrafts = {};
 
       /* [MỚI - Ý 3] Bổ sung maNV và trangThai vào danh sách draft */
       carouselItems.forEach(item => {
+
         carouselDrafts[item.idChiTiet] = {
           fields: {
+            codeSP: item.codeSP || '',
             dvt: item.dvt || 'Cái',
             soLuongDat: item.slDat || 0,
             donGia: item.donGia || 0,
@@ -1582,6 +1815,7 @@ function handleInstantFilter() {
             trangThai: item.trangThai || 'Chờ sản xuất'
           },
           checked: {
+            codeSP: false,
             dvt: false, soLuongDat: false, donGia: false,
             mang: false, giaKhuon: false, ngayGiao: false, ngayDat: false,
             maNV: false, trangThai: false
@@ -1606,7 +1840,7 @@ function handleInstantFilter() {
       document.getElementById('curItemSku').textContent = curItem.maSP + (curItem.codeSP ? ' [' + curItem.codeSP + ']' : '');
 
       /* [MỚI - Ý 4] Bao gồm maNV và trangThai vào danh sách trường hiển thị */
-      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
+      const fieldList = ['codeSP', 'dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
       fieldList.forEach(f => {
         const chk = document.getElementById('chk_' + f);
         const val = document.getElementById('val_' + f);
@@ -1625,7 +1859,7 @@ function handleInstantFilter() {
       const draft = carouselDrafts[curItem.idChiTiet];
 
       // Thay mảng:
-      const fieldList = ['dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
+      const fieldList = ['codeSP', 'dvt', 'soLuongDat', 'donGia', 'mang', 'giaKhuon', 'ngayGiao', 'ngayDat', 'maNV', 'trangThai'];
       fieldList.forEach(f => {
         const chk = document.getElementById('chk_' + f);
         const val = document.getElementById('val_' + f);
@@ -1650,6 +1884,32 @@ function handleInstantFilter() {
       }
     }
 
+    /**
+ * Hiển thị Hộp thoại xác nhận UI chuyên nghiệp thay thế window.confirm
+ * @param {string} title Tiêu đề thông báo
+ * @param {string} message Nội dung chi tiết cần xác nhận
+ * @param {Function} onConfirm Callback thực thi khi người dùng bấm Xác nhận
+ */
+    let _confirmCallback = null;
+
+    function showAppConfirm(title, message, onConfirm) {
+      _confirmCallback = onConfirm;
+      document.getElementById('customConfirmTitle').textContent = title || 'Xác nhận thao tác';
+      document.getElementById('customConfirmMessage').innerHTML = message || 'Bạn có chắc chắn muốn tiếp tục?';
+      document.getElementById('customConfirmModal').style.display = 'flex';
+    }
+
+    function closeCustomConfirm(isConfirmed) {
+      document.getElementById('customConfirmModal').style.display = 'none';
+      if (isConfirmed && typeof _confirmCallback === 'function') {
+        const cb = _confirmCallback;
+        _confirmCallback = null;
+        cb();
+      } else {
+        _confirmCallback = null;
+      }
+    }
+
     function submitAllEditedItems() {
       // Lưu sản phẩm hiện tại trước khi submit
       saveCurrentDraftFromInputs();
@@ -1664,6 +1924,13 @@ function handleInstantFilter() {
         Object.keys(draft.checked).forEach(f => {
           if (draft.checked[f]) {
             fields[f] = draft.fields[f];
+            /* Convert numeric fields to numbers before sending to backend
+             if (['soLuongDat', 'donGia', 'giaKhuon'].includes(f)) {
+               fields[f] = Number(draft.fields[f]) || 0;
+             } else {
+               fields[f] = draft.fields[f];
+             }
+             */
             hasAnyField = true;
           }
         });
@@ -1681,32 +1948,34 @@ function handleInstantFilter() {
         return;
       }
 
-      const confirmMsg = 'Xác nhận cập nhật dữ liệu cho ' + itemsToUpdate.length + ' mặt hàng đã được chỉnh sửa?';
-      if (!confirm(confirmMsg)) return;
+      const confirmMsg = 'Hệ thống sẽ ghi nhận và đồng bộ các thay đổi cho <strong>' + itemsToUpdate.length + '</strong> mặt hàng đã chọn vào Database.<br>Thao tác này sẽ áp dụng ngay lập tức.';
 
-      const payload = { itemsToUpdate: itemsToUpdate };
 
-      // Đóng modal & hiển thị tiến trình
-      closeBulkEditModal();
-      const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:#2563eb;font-weight:700;">⏳ Đang lưu dữ liệu theo lô cho ' + itemsToUpdate.length + ' sản phẩm...</td></tr>';
+      showAppConfirm('Xác nhận lưu thay đổi hàng loạt', confirmMsg, function () {
+        const payload = { itemsToUpdate: itemsToUpdate };
 
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (res && res.success) {
-            showAppToast('success', 'Thành công!', res.message || 'Cập nhật thành công!');
-            clearSelectedLines();
+        // Đóng modal & hiển thị tiến trình
+        closeBulkEditModal();
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:#2563eb;font-weight:700;">⏳ Đang lưu dữ liệu theo lô cho ' + itemsToUpdate.length + ' sản phẩm...</td></tr>';
+
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res && res.success) {
+              showAppToast('success', 'Thành công!', res.message || 'Cập nhật thành công!');
+              clearSelectedLines();
+              fetchOrderData();
+            } else {
+              showAppToast('error', 'Lỗi cập nhật', res && res.message ? res.message : 'Có lỗi xảy ra.');
+              fetchOrderData();
+            }
+          })
+          .withFailureHandler(function (err) {
+            showAppToast('error', 'Lỗi Server', err.message);
             fetchOrderData();
-          } else {
-            showAppToast('error', 'Lỗi cập nhật', res && res.message ? res.message : 'Có lỗi xảy ra.');
-            fetchOrderData();
-          }
-        })
-        .withFailureHandler(function (err) {
-          showAppToast('error', 'Lỗi Server', err.message);
-          fetchOrderData();
-        })
-        .updateOrderLineItemsBulk(payload);
+          })
+          .updateOrderLineItemsBulk(payload);
+      });
     }
 
     function populateSalesStaffDropdown(staffList) {

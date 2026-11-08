@@ -1056,7 +1056,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
           }
         }
         if (fromDate && item.ngayDat && item.ngayDat < fromDate) return false;
-        if (toDate && item.ngayDat && item.ngayDat > toDate) return false;
+        if (toDate && item.ngayGiao && item.ngayGiao > toDate) return false;
         if (keyword) {
           const haystack = [
             item.idChiTiet, item.maDH, item.soPO, item.khachHang,
@@ -1089,31 +1089,74 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         success: true,
         viewMode: 'LINE_ITEM',
         total: total,
-        summary: this.computeQueryMetrics_(orderHeadersList, filteredLines),
+        summary: this.computeQueryMetrics_(null, filteredLines),
         customers: catalog.customers,
         salesStaffList: catalog.salesStaffList,
         data: pagedData
       };
     } else {
-      const filteredHeaders = orderHeadersList.filter(function(ord) {
-        if (maKHFilter && maKHFilter !== 'ALL' && ord.maKH !== maKHFilter && ord.khachHang !== maKHFilter) {
-          return false;
+      const validLines = allLineItems.filter(function(item) {
+      if (maKHFilter && maKHFilter !== 'ALL' && item.maKH !== maKHFilter && item.khachHang !== maKHFilter) {
+        return false;
+      }
+      if (statusFilter && statusFilter !== 'ALL' && statusFilter !== 'all') {
+        const sLow = item.trangThai.toLowerCase().trim();
+        if (statusFilter === CONFIG.FILTER_STATUS_GROUPS.ACTIVE_ALL) {
+          const isChoSX = sLow.includes(CONFIG.LINE_STATUS.NEW.toLowerCase());
+          const isKhuon = sLow.includes(CONFIG.LINE_STATUS.MOLDING.toLowerCase()) || sLow.includes('khuôn');
+          const isDangSX = sLow.includes(CONFIG.LINE_STATUS.IN_PRODUCTION.toLowerCase()) && !sLow.includes('chờ');
+          if (!isChoSX && !isKhuon && !isDangSX) return false;
+        } else if (statusFilter === CONFIG.FILTER_STATUS_GROUPS.DONE_ALL) {
+          const isXong = sLow.includes(CONFIG.LINE_STATUS.COMPLETED.toLowerCase());
+          const isKetThuc = sLow.includes(CONFIG.LINE_STATUS.CLOSED.toLowerCase());
+          const isHoanTat = sLow.includes(CONFIG.ORDER_STATUS.COMPLETED.toLowerCase());
+          if (!isXong && !isKetThuc && !isHoanTat) return false;
+        } else {
+          if (sLow.indexOf(statusFilter.toLowerCase()) === -1) return false;
         }
-        /* [MỚI - Ý 5] Lọc trạng thái theo phân nhóm cho Header */
-        if (!isStatusMatch(ord.trangThai, statusFilter)) {
-          return false;
-        }
-        if (fromDate && ord.ngayDat && ord.ngayDat < fromDate) return false;
-        if (toDate && ord.ngayDat && ord.ngayDat > toDate) return false;
-        if (keyword) {
-          const itemMatch = ord.items.some(function(it) {
-            return (it.sanPham + ' ' + it.codeSP + ' ' + it.maSP + ' ' + it.idChiTiet).toLowerCase().indexOf(keyword) !== -1;
-          });
-          const headerHaystack = [ord.maDH, ord.soPO, ord.khachHang, ord.maKH, ord.salesPerson].join(' ').toLowerCase();
-          if (headerHaystack.indexOf(keyword) === -1 && !itemMatch) return false;
-        }
-        return true;
+      }
+      if (fromDate && item.ngayDat && item.ngayDat < fromDate) return false;
+      // Lấy theo ngày giao của Chi Tiết Đơn Hàng (CTĐH)
+      if (toDate && item.ngayGiao && item.ngayGiao > toDate) return false;
+      if (keyword) {
+        const haystack = [
+          item.idChiTiet, item.maDH, item.soPO, item.khachHang,
+          item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV
+        ].join(' ').toLowerCase();
+        if (haystack.indexOf(keyword) === -1) return false;
+      }
+      return true;
+    });
+
+    // 2. Gom các CTĐH hợp lệ vào từng Đơn hàng (Header)
+    const matchedOrderIdSet = new Set(validLines.map(function(l) { return l.maDH; }));
+    const filteredHeaders = [];
+
+    orderHeadersList.forEach(function(ord) {
+      if (!matchedOrderIdSet.has(ord.maDH)) return;
+      // Tạo bản sao Header với danh sách items chỉ chứa các CTĐH khớp ngày giao
+      const matchedItemsForPO = validLines.filter(function(l) { return l.maDH === ord.maDH; });
+      let subTongSLDat = 0, subTongDaGiao = 0, subTongConLai = 0, subTongGiaTri = 0;
+      matchedItemsForPO.forEach(function(it) {
+        subTongSLDat += (Number(it.slDat) || 0);
+        subTongDaGiao += (Number(it.daGiao) || 0);
+        subTongConLai += (Number(it.conLai) || 0);
+        subTongGiaTri += ((Number(it.slDat) || 0) * (Number(it.donGia) || 0));
       });
+
+      const cloneOrd = Object.assign({}, ord, {
+        items: matchedItemsForPO,
+        itemCount: matchedItemsForPO.length,
+        tongSLDat: subTongSLDat,
+        tongDaGiao: subTongDaGiao,
+        tongConLai: subTongConLai,
+        tongGiaTri: subTongGiaTri
+      });
+
+      filteredHeaders.push(cloneOrd);
+    });
+
+// -----------------------------
 
       filteredHeaders.reverse();
       const total = filteredHeaders.length;
@@ -1137,7 +1180,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         success: true,
         viewMode: 'HEADER',
         total: total,
-        summary: this.computeQueryMetrics_(filteredHeaders, allLineItems),
+        summary: this.computeQueryMetrics_(null, validLines),
         customers: catalog.customers,
         salesStaffList: catalog.salesStaffList,
         data: pagedData
@@ -1368,17 +1411,35 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
    * @private
    */
   computeQueryMetrics_: function(headers, lines) {
+    let totalOrders = 0;
+    let totalLineItems = 0;
     let totalRevenue = 0;
     let totalRemainingQty = 0;
-    headers.forEach(function(h) {
-      totalRevenue += (Number(h.tongGiaTri) || 0);
-    });
-    lines.forEach(function(l) {
-      totalRemainingQty += (Number(l.conLai) || 0);
-    });
+
+    if (lines && Array.isArray(lines)) {
+      totalLineItems = lines.length;
+      const uniqueOrderIds = new Set();
+      lines.forEach(function(l) {
+        if (l.maDH) uniqueOrderIds.add(l.maDH);
+        totalRevenue += ((Number(l.slDat) || 0) * (Number(l.donGia) || 0));
+        totalRemainingQty += (Number(l.conLai) || 0);
+      });
+      totalOrders = uniqueOrderIds.size;
+    } else if (headers && Array.isArray(headers)) {
+      totalOrders = headers.length;
+      headers.forEach(function(h) {
+        totalRevenue += (Number(h.tongGiaTri) || 0);
+        const subItems = h.items || [];
+        totalLineItems += subItems.length;
+        subItems.forEach(function(it) {
+          totalRemainingQty += (Number(it.conLai) || 0);
+        });
+      });
+    }
+
     return {
-      totalOrders: headers.length,
-      totalLineItems: lines.length,
+      totalOrders: totalOrders,
+      totalLineItems: totalLineItems,
       totalRevenue: totalRevenue,
       totalRemainingQty: totalRemainingQty
     };
@@ -1824,15 +1885,16 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
             affectedOrdersMap[currentDH] = fields.ngayDat;
           }
           if (currentSP) {
-            if (!affectedProductsMap[currentSP]) affectedProductsMap[currentSP] = {};
-            if (fields.mang !== undefined && fields.mang !== '') affectedProductsMap[currentSP].mang = fields.mang;
-            if (fields.giaKhuon !== undefined && fields.giaKhuon !== '') affectedProductsMap[currentSP].giaKhuon = fields.giaKhuon;
-            if (fields.dvt !== undefined && fields.dvt !== '') affectedProductsMap[currentSP].donvi = fields.dvt;
-            /* [MỚI - Ý 1] Cập nhật luôn Đơn giá mới vào Master 01_02_SAN_PHAM */
-            if (fields.donGia !== undefined && fields.donGia !== null && fields.donGia !== '') {
-              affectedProductsMap[currentSP].dongia = Number(fields.donGia) || 0;
-            }
-          }
+        if (!affectedProductsMap[currentSP]) affectedProductsMap[currentSP] = {};
+        if (fields.codeSP !== undefined && fields.codeSP !== null) affectedProductsMap[currentSP].codeSP = String(fields.codeSP).trim();
+        if (fields.mang !== undefined && fields.mang !== '') affectedProductsMap[currentSP].mang = fields.mang;
+        if (fields.giaKhuon !== undefined && fields.giaKhuon !== '') affectedProductsMap[currentSP].giaKhuon = fields.giaKhuon;
+        if (fields.dvt !== undefined && fields.dvt !== '') affectedProductsMap[currentSP].donvi = fields.dvt;
+        /* [MỚI - Ý 1] Cập nhật luôn Đơn giá mới vào Master 01_02_SAN_PHAM */
+        if (fields.donGia !== undefined && fields.donGia !== null && fields.donGia !== '') {
+          affectedProductsMap[currentSP].dongia = Number(fields.donGia) || 0;
+        }
+      }
 
           // Cập nhật Số lượng đặt & Tính lại SL_Con_Lai
           if (fields.soLuongDat !== undefined && fields.soLuongDat !== null && fields.soLuongDat !== '') {
@@ -1900,6 +1962,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         const prodData = prodSheet.getDataRange().getValues();
         const pHeaders = prodData[0].map(h => String(h || '').trim());
         const colSpId = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.ID);
+        const colCodeCust = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.CODE_CUST);
         const colFilm = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.FILM);
         const colMoldPrice = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.MOLD_PRICE);
         const colUnit = pHeaders.indexOf(CONFIG.COLUMNS.PRODUCTS.UNIT);
@@ -1912,6 +1975,10 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
             const pId = String(prodData[rp][colSpId] || '').trim();
             if (affectedProductsMap[pId]) {
               const spUpdates = affectedProductsMap[pId];
+              if (spUpdates.codeSP !== undefined && colCodeCust !== -1) {
+            prodData[rp][colCodeCust] = spUpdates.codeSP;
+            prodChanged = true;
+          }
               if (spUpdates.mang !== undefined && colFilm !== -1) {
                 prodData[rp][colFilm] = String(spUpdates.mang).trim();
                 prodChanged = true;
