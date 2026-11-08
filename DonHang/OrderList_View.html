@@ -5,11 +5,32 @@
   <base target="_top">
   <meta charset="utf-8">
   <title>NAPACO OMS - Tra Cứu Đơn Hàng & Chi Tiết Mặt Hàng (Dual-View)</title>
+    <!-- [MỚI - SPEC-LINE-DND-01] Thư viện kéo thả siêu nhẹ SortableJS (<15KB) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
       font-family: 'Segoe UI', Roboto, -apple-system, Arial, sans-serif;
     }
+
+        /* [MỚI - SPEC-LINE-DND-01] CSS GIAO DIỆN PHÂN VÙNG DỌC KANBAN */
+    .kanban-view-container { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+    .kanban-zone-card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .kanban-zone-header { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; font-weight: 700; font-size: 13.5px; }
+    .zone-header-dang-sx { background: #eff6ff; color: #1e40af; border-left: 5px solid #2563eb; }
+    .zone-header-uu-tien { background: #fefce8; color: #854d0e; border-left: 5px solid #eab308; }
+    .zone-header-cho-sx { background: #f8fafc; color: #475569; border-left: 5px solid #94a3b8; }
+    .kanban-zone-list { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+    .kanban-item-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; cursor: grab; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .kanban-item-card:hover { border-color: #93c5fd; box-shadow: 0 2px 6px rgba(37,99,235,0.1); }
+    .kanban-item-left { display: flex; align-items: center; gap: 10px; flex: 1; }
+    .drag-handle { cursor: grab; font-size: 16px; color: #94a3b8; font-weight: bold; letter-spacing: -2px; padding: 2px 4px; }
+    .kanban-empty-placeholder { border: 2px dashed #cbd5e1; border-radius: 6px; height: 55px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 12px; font-style: italic; }
+    .sortable-ghost { opacity: 0.4; background: #e0f2fe !important; border: 2px dashed #0284c7 !important; }
+    .sortable-chosen { box-shadow: 0 8px 18px rgba(0,0,0,0.18); transform: scale(1.01); }
+    .sync-status-badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; }
+    .sync-saving { background: #fef3c7; color: #b45309; }
+    .sync-saved { background: #dcfce7; color: #15803d; }
 
     /* [MỚI - Ý 4] CSS khuôn hỏng chữ đỏ và gạch ngang */
     .mold-broken {
@@ -846,6 +867,11 @@
         <button type="button" id="btnViewLineItem" class="view-btn active" onclick="switchViewMode('LINE_ITEM')">
           (•) Xem theo Chi Tiết Mặt Hàng (Line-Item)
         </button>
+
+        <!-- [MỚI - SPEC-LINE-DND-01] Tab Kanban phân vùng dọc kéo - thả -->
+        <button type="button" id="btnViewKanban" class="view-btn" onclick="switchViewMode('KANBAN_LINE')">
+          ( ) Điều Phối Xưởng (Kanban)
+        </button>
       </div>
     </div>
 
@@ -934,6 +960,41 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+        <!-- [MỚI - SPEC-LINE-DND-01] GIAO DIỆN 3 VÙNG ACCORDION KÉO THẢ (KANBAN LINE) -->
+    <div id="kanbanContainer" class="kanban-view-container" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 4px 6px;">
+        <span style="color:#475569; font-weight:600;">Kéo thả thẻ giữa các khu vực để phân vùng và sắp xếp thứ tự thực hiện:</span>
+        <span id="kanbanSyncBadge" class="sync-status-badge sync-saved">✓ Đã đồng bộ</span>
+      </div>
+
+      <!-- VÙNG 1: ĐANG SẢN XUẤT -->
+      <div class="kanban-zone-card">
+        <div class="kanban-zone-header zone-header-dang-sx" onclick="toggleKanbanZone('zone_DANG_SAN_XUAT')">
+          <span>▼ [VÙNG 1: ĐANG SẢN XUẤT] (<span id="count_DANG_SAN_XUAT">0</span>)</span>
+          <span style="font-size:12px; font-weight:normal;">Nhấp để thu gọn/mở rộng</span>
+        </div>
+        <div id="zone_DANG_SAN_XUAT" class="kanban-zone-list" data-zone="DANG_SAN_XUAT"></div>
+      </div>
+
+      <!-- VÙNG 2: ƯU TIÊN -->
+      <div class="kanban-zone-card">
+        <div class="kanban-zone-header zone-header-uu-tien" onclick="toggleKanbanZone('zone_UU_TIEN')">
+          <span>▼ [VÙNG 2: ƯU TIÊN] (<span id="count_UU_TIEN">0</span>)</span>
+          <span style="font-size:12px; font-weight:normal;">Nhấp để thu gọn/mở rộng</span>
+        </div>
+        <div id="zone_UU_TIEN" class="kanban-zone-list" data-zone="UU_TIEN"></div>
+      </div>
+
+      <!-- VÙNG 3: CHỜ SẢN XUẤT -->
+      <div class="kanban-zone-card">
+        <div class="kanban-zone-header zone-header-cho-sx" onclick="toggleKanbanZone('zone_CHO_SAN_XUAT')">
+          <span>▼ [VÙNG 3: CHỜ SẢN XUẤT] (<span id="count_CHO_SAN_XUAT">0</span>)</span>
+          <span style="font-size:12px; font-weight:normal;">Nhấp để thu gọn/mở rộng</span>
+        </div>
+        <div id="zone_CHO_SAN_XUAT" class="kanban-zone-list" data-zone="CHO_SAN_XUAT"></div>
       </div>
     </div>
 
@@ -1092,11 +1153,27 @@
      * Chuyển đổi tức thì giữa View 1 (PO Header) và View 2 (Line-Item)
      */
     function switchViewMode(mode) {
-      listState.viewMode = (mode === 'LINE_ITEM') ? 'LINE_ITEM' : 'HEADER';
-
+      //listState.viewMode = (mode === 'LINE_ITEM') ? 'LINE_ITEM' : 'HEADER';
+      listState.viewMode = mode;
       const btnHeader = document.getElementById('btnViewHeader');
       const btnLine = document.getElementById('btnViewLineItem');
       const titleEl = document.getElementById('currentViewTitle');
+
+            
+      const btnKanban = document.getElementById('btnViewKanban');
+      const tableCard = document.querySelector('.table-card');
+      const kanbanContainer = document.getElementById('kanbanContainer');
+      [btnHeader, btnLine, btnKanban].forEach(b => { if(b) b.classList.remove('active'); });
+
+      if (mode === 'KANBAN_LINE') {
+        btnKanban.classList.add('active');
+        tableCard.style.display = 'none';
+        kanbanContainer.style.display = 'flex';
+        fetchKanbanData();
+        return;
+      }
+      tableCard.style.display = 'block';
+      kanbanContainer.style.display = 'none';
 
       if (listState.viewMode === 'HEADER') {
         btnHeader.classList.add('active');
@@ -1113,6 +1190,140 @@
       }
 
       fetchOrderData();
+    }
+
+        /* [MỚI - SPEC-LINE-DND-01] CÁC HÀM XỬ LÝ KANBAN KÉO - THẢ */
+    let kanbanSortables = [];
+
+    function toggleKanbanZone(zoneId) {
+      const el = document.getElementById(zoneId);
+      if (el) el.style.display = (el.style.display === 'none') ? 'flex' : 'none';
+    }
+
+    function fetchKanbanData() {
+      const badge = document.getElementById('kanbanSyncBadge');
+      badge.className = 'sync-status-badge sync-saving';
+      badge.textContent = '⏳ Đang tải...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success) {
+            renderKanbanBoards(res.data);
+            badge.className = 'sync-status-badge sync-saved';
+            badge.textContent = '✓ Đã đồng bộ';
+          } else {
+            showAppToast('error', 'Lỗi tải Kanban', res ? res.message : '');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showAppToast('error', 'Lỗi Server', err.message);
+        })
+        .apiGetLineKanbanData();
+    }
+
+    function renderKanbanBoards(data) {
+      const zones = ['DANG_SAN_XUAT', 'UU_TIEN', 'CHO_SAN_XUAT'];
+      kanbanSortables.forEach(s => s.destroy());
+      kanbanSortables = [];
+
+      zones.forEach(zoneKey => {
+        const container = document.getElementById('zone_' + zoneKey);
+        const countEl = document.getElementById('count_' + zoneKey);
+        const items = data[zoneKey] || [];
+        if (countEl) countEl.textContent = items.length;
+
+        let html = '';
+        items.forEach(it => {
+          html += `
+            <div class="kanban-item-card" data-id="${escapeHtml(it.idChiTiet)}">
+              <div class="kanban-item-left">
+                <span class="drag-handle">:::</span>
+                <div>
+                  <div>
+                    <strong style="color:#1e40af;">[${escapeHtml(it.idChiTiet)}]</strong>
+                    <span style="color:#475569; font-weight:700; margin-left:4px;">${escapeHtml(it.idDonHang)}</span> |
+                    <span style="font-weight:700; color:#0f172a;">${escapeHtml(it.tenSP)}</span>
+                  </div>
+                  <div style="font-size:11.5px; color:#64748b; margin-top:3px;">
+                    SL: <strong>${formatNumber(it.soLuongDat)}</strong> | Hạn giao: <strong>${it.ngayGiao || '---'}</strong>
+                  </div>
+                </div>
+              </div>
+              <div>${renderStatusBadge(it.trangThai)}</div>
+            </div>`;
+        });
+
+        if (items.length === 0) {
+          html = '<div class="kanban-empty-placeholder">Chưa có đơn hàng - Thả thẻ vào đây</div>';
+        }
+        container.innerHTML = html;
+
+        const sortable = new Sortable(container, {
+          group: 'LINE_KANBAN_SHARED',
+          animation: 150,
+          handle: '.drag-handle',
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          filter: '.kanban-empty-placeholder',
+          onEnd: function(evt) {
+            handleKanbanDrop(evt);
+          }
+        });
+        kanbanSortables.push(sortable);
+      });
+    }
+
+    function handleKanbanDrop(evt) {
+      // Xóa khung placeholder trống nếu có thẻ chuyển tới
+      ['DANG_SAN_XUAT', 'UU_TIEN', 'CHO_SAN_XUAT'].forEach(zk => {
+        const el = document.getElementById('zone_' + zk);
+        const cards = el.querySelectorAll('.kanban-item-card');
+        const placeholder = el.querySelector('.kanban-empty-placeholder');
+        if (cards.length > 0 && placeholder) placeholder.remove();
+        if (cards.length === 0 && !placeholder) {
+          el.innerHTML = '<div class="kanban-empty-placeholder">Chưa có đơn hàng - Thả thẻ vào đây</div>';
+        }
+        const countEl = document.getElementById('count_' + zk);
+        if (countEl) countEl.textContent = cards.length;
+      });
+
+      // Thu thập vị trí mới của thẻ
+      const updates = [];
+      ['DANG_SAN_XUAT', 'UU_TIEN', 'CHO_SAN_XUAT'].forEach(zoneKey => {
+        const container = document.getElementById('zone_' + zoneKey);
+        const cards = container.querySelectorAll('.kanban-item-card');
+        cards.forEach((card, idx) => {
+          const id = card.getAttribute('data-id');
+          if (id) {
+            updates.push({
+              idChiTiet: id,
+              vungHienThi: zoneKey,
+              thuTu: idx + 1
+            });
+          }
+        });
+      });
+
+      // Optimistic UI Feedback
+      const badge = document.getElementById('kanbanSyncBadge');
+      badge.className = 'sync-status-badge sync-saving';
+      badge.textContent = '⏳ Đang lưu vị trí...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success) {
+            badge.className = 'sync-status-badge sync-saved';
+            badge.textContent = '✓ Đã lưu vị trí';
+          } else {
+            showAppToast('error', 'Lưu thất bại', res ? res.message : '');
+            fetchKanbanData(); // Rollback trạng thái giao diện
+          }
+        })
+        .withFailureHandler(function(err) {
+          showAppToast('error', 'Lỗi kết nối', 'Không thể lưu vị trí, kiểm tra kết nối mạng!');
+          fetchKanbanData(); // Rollback trạng thái giao diện
+        })
+        .apiUpdateLineKanbanPositions({ updates: updates });
     }
 
     /**

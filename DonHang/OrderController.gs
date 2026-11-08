@@ -200,6 +200,26 @@ const OrderController = {
         error: { message: err.message }
       };
     }
+  }, 
+
+    /* [MỚI - SPEC-LINE-DND-01] Controller lấy dữ liệu 3 phân vùng Kanban */
+  getLineKanbanData: function() {
+    try {
+      return OrderService.getLineKanbanData();
+    } catch (err) {
+      console.error('[OrderController.getLineKanbanData] Lỗi:', err);
+      return { success: false, message: err.message || 'Lỗi tải dữ liệu Kanban' };
+    }
+  },
+
+  /* [MỚI - SPEC-LINE-DND-01] Controller cập nhật vị trí kéo thả */
+  updateLineKanbanPositions: function(payload) {
+    try {
+      return OrderService.updateLineKanbanPositions(payload);
+    } catch (err) {
+      console.error('[OrderController.updateLineKanbanPositions] Lỗi:', err);
+      return { success: false, message: err.message || 'Lỗi lưu vị trí kéo thả' };
+    }
   }
 };
 
@@ -259,6 +279,27 @@ function queryOrdersAndLineItems(searchParams) {
  */
 function updateOrderLineItemsBulk(payload) {
   return OrderController.updateOrderLineItemsBulk(payload);
+}
+
+/**
+ * [MỚI - SPEC-LINE-DND-01] Global RPC lấy dữ liệu Kanban 3 vùng
+ */
+function apiGetLineKanbanData() {
+  return OrderController.getLineKanbanData();
+}
+
+/**
+ * [MỚI - SPEC-LINE-DND-01] Global RPC cập nhật vị trí kéo thả Kanban
+ */
+function apiUpdateLineKanbanPositions(payload) {
+  return OrderController.updateLineKanbanPositions(payload);
+}
+
+/**
+ * [MỚI - SPEC-LINE-DND-01] Hàm gọi thủ công để chạy Migration
+ */
+function runKanbanMigration() {
+  return OrderService.migrateKanbanColumnsData();
 }
 
 /**

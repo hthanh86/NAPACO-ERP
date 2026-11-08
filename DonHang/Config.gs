@@ -77,6 +77,13 @@ var CONFIG = {
     CUTTING: 'KhuonDao'
   },
 
+  /* [MỚI - SPEC-LINE-DND-01] Định nghĩa tập trung danh mục Vùng hiển thị Kanban */
+  KANBAN_ZONES: {
+    IN_PRODUCTION: 'DANG_SAN_XUAT',
+    PRIORITY: 'UU_TIEN',
+    PENDING: 'CHO_SAN_XUAT'
+  },
+
   FILTER_STATUS_GROUPS: {  
     ACTIVE_ALL: 'ACTIVE_ALL', // Nhóm Đang chạy (Chờ sản xuất + Đang sản xuất + Đang làm khuôn)  
     DONE_ALL: 'DONE_ALL', // Nhóm Đã xong (Xong + Kết thúc)  
@@ -170,7 +177,10 @@ var CONFIG = {
       STAFF_ID: 'Ma_NV',
       STATUS: 'Trang_Thai',
       /* [MỚI - VẤN ĐỀ 4] Bổ sung ánh xạ cột đơn vị tính nếu bảng chi tiết có lưu hoặc đồng bộ Master */
-      UNIT: 'dvt'
+      UNIT: 'dvt',
+/* [MỚI - SPEC-LINE-DND-01] Khai báo tập trung 2 cột Phân vùng & Thứ tự ưu tiên */
+      KANBAN_ZONE: 'Vung_Hien_Thi',
+      PRIORITY_ORDER: 'Thu_Tu_Uu_Tien'
     },
 
     /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Định nghĩa cột bảng Công cụ / Khuôn và danh sách quyền */

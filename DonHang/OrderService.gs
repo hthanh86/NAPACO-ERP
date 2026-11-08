@@ -1924,6 +1924,14 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
           const colStatus = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.STATUS);
           if (colStatus !== -1 && fields.trangThai !== undefined && fields.trangThai !== null && fields.trangThai !== '') {
             detailData[r][colStatus] = String(fields.trangThai).trim();
+            /* [MỚI - SPEC-LINE-DND-01] Quy tắc Reset Blank khi Hoàn thành */
+            const newStLow = String(fields.trangThai).trim().toLowerCase();
+            if (newStLow.includes('hoàn thành') || newStLow.includes('xong') || newStLow.includes('kết thúc')) {
+              const colZone = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+              const colPriority = dHeaders.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+              if (colZone !== -1) detailData[r][colZone] = '';
+              if (colPriority !== -1) detailData[r][colPriority] = '';
+            }
           }
         }
       }
@@ -2070,4 +2078,212 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
 
     return s;
   },
+
+    /**
+   * [MỚI - SPEC-LINE-DND-01] API lấy dữ liệu chi tiết đơn hàng phân theo 3 vùng Kanban dọc
+   */
+  getLineKanbanData: function() {
+    console.log("=== [SERVER] Bắt đầu apiGetLineKanbanData ===");
+    const opSS = this.getOperationSpreadsheet_();
+    const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
+    if (!detailSheet) throw new Error('Không tìm thấy sheet: ' + CONFIG.SHEET_NAMES.ORDER_DETAILS);
+
+    const catalog = this.getCatalogAndAuthData();
+    const detailRows = detailSheet.getDataRange().getValues();
+    if (detailRows.length <= 1) {
+      return { success: true, data: { DANG_SAN_XUAT: [], UU_TIEN: [], CHO_SAN_XUAT: [] } };
+    }
+
+    const dHdrs = detailRows[0].map(h => String(h || '').trim());
+    const colId = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.ID);
+    const colOrderId = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.ORDER_ID);
+    const colSpId = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRODUCT_ID);
+    const colQty = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.QTY_ORDER);
+    const colDate = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.DELIVERY_DATE);
+    const colStatus = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.STATUS);
+    let colZone = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+    let colPriority = dHdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+
+    const result = {
+      DANG_SAN_XUAT: [],
+      UU_TIEN: [],
+      CHO_SAN_XUAT: []
+    };
+
+    for (let r = 1; r < detailRows.length; r++) {
+      const row = detailRows[r];
+      const idChiTiet = colId !== -1 ? String(row[colId] || '').trim() : '';
+      if (!idChiTiet) continue;
+
+      const status = colStatus !== -1 ? String(row[colStatus] || '').trim() : '';
+      const sLow = status.toLowerCase();
+      // Quy tắc: Ẩn các đơn đã hoàn thành/xong/kết thúc
+      if (sLow.includes('hoàn thành') || sLow.includes('xong') || sLow.includes('kết thúc') || sLow.includes('hủy')) {
+        continue;
+      }
+
+      let zone = (colZone !== -1 && row[colZone]) ? String(row[colZone]).trim() : '';
+      if (!zone || !result[zone]) {
+        zone = CONFIG.KANBAN_ZONES.PENDING; // Mặc định CHO_SAN_XUAT
+      }
+
+      const priority = (colPriority !== -1 && row[colPriority] !== '' && !isNaN(row[colPriority])) ? parseInt(row[colPriority], 10) : 999999;
+      const spId = colSpId !== -1 ? String(row[colSpId] || '').trim() : '';
+      const prodObj = catalog.productByIdMap[spId] || catalog.productByIdMap[spId.toUpperCase()];
+      const prodName = prodObj ? prodObj.prodName : spId;
+
+      result[zone].push({
+        idChiTiet: idChiTiet,
+        idDonHang: colOrderId !== -1 ? String(row[colOrderId] || '').trim() : '',
+        maSP: spId,
+        tenSP: prodName,
+        soLuongDat: colQty !== -1 ? (Number(row[colQty]) || 0) : 0,
+        ngayGiao: colDate !== -1 ? this.formatSheetDate_(row[colDate]) : '',
+        trangThai: status,
+        thuTu: priority
+      });
+    }
+
+    // Sắp xếp thứ tự ưu tiên tăng dần trong từng vùng
+    ['DANG_SAN_XUAT', 'UU_TIEN', 'CHO_SAN_XUAT'].forEach(z => {
+      result[z].sort((a, b) => a.thuTu - b.thuTu);
+    });
+
+    console.log(`[SERVER] Đã tải Kanban: Đang chạy=${result.DANG_SAN_XUAT.length}, Ưu tiên=${result.UU_TIEN.length}, Chờ=${result.CHO_SAN_XUAT.length}`);
+    return { success: true, data: result };
+  },
+
+  /**
+   * [MỚI - SPEC-LINE-DND-01] Cập nhật vị trí & thứ tự kéo thả có LockService và Batch Update
+   */
+  updateLineKanbanPositions: function(payload) {
+    console.log("=== [SERVER] updateLineKanbanPositions nhận payload:", JSON.stringify(payload));
+    if (!payload || !Array.isArray(payload.updates) || payload.updates.length === 0) {
+      return { success: false, message: 'Dữ liệu vị trí kéo thả không hợp lệ.' };
+    }
+
+    const lock = LockService.getScriptLock();
+    let hasLock = false;
+    try {
+      hasLock = lock.tryLock(10000); // Khóa 10s theo đặc tả
+    } catch (e) {
+      hasLock = false;
+    }
+    if (!hasLock) {
+      return { success: false, message: 'Hệ thống đang bận cập nhật vị trí từ người dùng khác. Vui lòng thử lại!' };
+    }
+
+    try {
+      const opSS = this.getOperationSpreadsheet_();
+      const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
+      if (!detailSheet) throw new Error('Không tìm thấy bảng: ' + CONFIG.SHEET_NAMES.ORDER_DETAILS);
+
+      const dataRange = detailSheet.getDataRange();
+      const values = dataRange.getValues();
+      if (values.length <= 1) return { success: true, updatedCount: 0 };
+
+      let headers = values[0].map(h => String(h || '').trim());
+      const colId = headers.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.ID);
+      let colZone = headers.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+      let colPriority = headers.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+
+      // Tự động thêm cột vào cuối sheet nếu chưa tồn tại
+      if (colZone === -1) {
+        colZone = headers.length;
+        detailSheet.getRange(1, colZone + 1).setValue(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+        headers.push(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+      }
+      if (colPriority === -1) {
+        colPriority = headers.length;
+        detailSheet.getRange(1, colPriority + 1).setValue(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+        headers.push(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+      }
+
+      const updateMap = {};
+      payload.updates.forEach(u => {
+        if (u.idChiTiet) {
+          updateMap[String(u.idChiTiet).trim()] = {
+            vungHienThi: u.vungHienThi || '',
+            thuTu: (u.thuTu !== undefined && u.thuTu !== null && u.thuTu !== '') ? parseInt(u.thuTu, 10) : ''
+          };
+        }
+      });
+
+      const maxColIdx = Math.max(colZone, colPriority);
+      let updatedCount = 0;
+
+      // Cập nhật mảng in-memory và tạo ma trận ghi cột theo lô (Batch Write)
+      const writeMatrix = [];
+      for (let r = 1; r < values.length; r++) {
+        const row = values[r];
+        while (row.length <= maxColIdx) row.push('');
+        const idCT = colId !== -1 ? String(row[colId] || '').trim() : '';
+
+        if (idCT && updateMap[idCT]) {
+          row[colZone] = updateMap[idCT].vungHienThi;
+          row[colPriority] = updateMap[idCT].thuTu;
+          updatedCount++;
+        }
+        writeMatrix.push([row[colZone], row[colPriority]]);
+      }
+
+      // Ghi lô 2 cột M và N (Cột 13 và 14) bằng setValues duy nhất
+      if (writeMatrix.length > 0) {
+        detailSheet.getRange(2, Math.min(colZone, colPriority) + 1, writeMatrix.length, 2).setValues(writeMatrix);
+      }
+      SpreadsheetApp.flush();
+      console.log(`[SERVER] Đã cập nhật vị trí cho ${updatedCount} chi tiết đơn hàng thành công.`);
+      return { success: true, message: 'Cập nhật vị trí thành công', updatedCount: updatedCount };
+    } catch (err) {
+      console.error('[SERVER] Lỗi updateLineKanbanPositions:', err);
+      return { success: false, message: 'Lỗi máy chủ khi lưu vị trí: ' + err.message };
+    } finally {
+      lock.releaseLock();
+    }
+  },
+
+  /**
+   * [MỚI - SPEC-LINE-DND-01] Hàm Migration Script chạy 1 lần khởi tạo 2 cột M & N cho dữ liệu cũ
+   */
+  migrateKanbanColumnsData: function() {
+    console.log("=== BẮT ĐẦU MIGRATION DỮ LIỆU KANBAN ===");
+    const opSS = this.getOperationSpreadsheet_();
+    const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
+    if (!detailSheet) throw new Error('Không tìm thấy sheet: ' + CONFIG.SHEET_NAMES.ORDER_DETAILS);
+
+    const range = detailSheet.getDataRange();
+    const vals = range.getValues();
+    if (vals.length <= 1) return 'Sheet rỗng.';
+
+    const hdrs = vals[0].map(h => String(h || '').trim());
+    let cZone = hdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+    let cPriority = hdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+    const cStatus = hdrs.indexOf(CONFIG.COLUMNS.ORDER_DETAILS.STATUS);
+
+    if (cZone === -1) {
+      cZone = hdrs.length;
+      detailSheet.getRange(1, cZone + 1).setValue(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+      hdrs.push(CONFIG.COLUMNS.ORDER_DETAILS.KANBAN_ZONE);
+    }
+    if (cPriority === -1) {
+      cPriority = hdrs.length;
+      detailSheet.getRange(1, cPriority + 1).setValue(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+      hdrs.push(CONFIG.COLUMNS.ORDER_DETAILS.PRIORITY_ORDER);
+    }
+
+    const batchVals = [];
+    let autoSeq = 1;
+    for (let r = 1; r < vals.length; r++) {
+      const st = cStatus !== -1 ? String(vals[r][cStatus] || '').trim().toLowerCase() : '';
+      if (st.includes('hoàn thành') || st.includes('xong') || st.includes('kết thúc')) {
+        batchVals.push(['', '']);
+      } else {
+        batchVals.push([CONFIG.KANBAN_ZONES.PENDING, autoSeq++]);
+      }
+    }
+
+    detailSheet.getRange(2, Math.min(cZone, cPriority) + 1, batchVals.length, 2).setValues(batchVals);
+    SpreadsheetApp.flush();
+    return `Migration thành công: đã cập nhật ${batchVals.length} dòng dữ liệu.`;
+  }
 }
