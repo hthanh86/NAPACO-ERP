@@ -847,23 +847,70 @@
       padding: 6px 8px;
       border-bottom: 1px solid #e2e8f0;
     }
+    .oms-shell .app-wrapper {
+      width: 100%;
+      min-width: 0;
+      padding: clamp(14px, 2.4vw, 30px);
+    }
+
+    .oms-shell .top-bar {
+      padding: 18px 20px;
+      border: 1px solid #dae3ef;
+      background: #fff;
+      color: #14223b;
+      box-shadow: 0 2px 5px #14223b08;
+    }
+
+    .oms-workspace-label {
+      color: #46648b;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+    }
+
+    .oms-shell .brand-title { margin-top: 4px; font-size: clamp(20px, 2vw, 26px); }
+    .oms-shell .brand-sub { margin-top: 4px; color: #526781; }
+    .oms-shell .view-switcher { max-width: 100%; flex-wrap: wrap; background: #edf2f9; }
+    .oms-shell .view-btn { color: #364e6f; }
+    .oms-shell .view-btn.active { color: #1249ac; box-shadow: 0 1px 4px #16284a26; }
+    .oms-shell .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .oms-shell .kpi-card { border-color: #dae3ef; }
+    .oms-shell .kpi-value { overflow-wrap: anywhere; }
+    .oms-shell .filter-card { grid-template-columns: repeat(auto-fit, minmax(min(100%, 138px), 1fr)); }
+    .oms-shell .filter-group, .oms-shell .filter-control { min-width: 0; }
+    .oms-shell .table-card { min-width: 0; }
+
+    @media (max-width: 650px) {
+      .oms-shell .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .oms-shell .top-bar { padding: 14px; }
+      .oms-shell .view-btn { padding: 7px 9px; }
+    }
   </style>
 </head>
 
-<body>
+<? const isBe = typeof productType !== 'undefined' && productType === '2'; ?>
+<? const hasMenu = typeof appUrl !== 'undefined' && appUrl; ?>
+<body class="<?= hasMenu ? 'oms-shell' : '' ?>" data-product-type="<?= isBe ? '2' : '1' ?>">
+  <? if (hasMenu) { ?>
+    <?!= renderOrderMenu_(appUrl, isBe ? 'be' : 'list') ?>
+  <? } ?>
   <div class="app-wrapper">
     <!-- HEADER & CHUYỂN ĐỔI CHẾ ĐỘ XEM KÉP (DUAL-VIEW SWITCHER) -->
     <div class="top-bar">
       <div>
-        <div class="brand-title">📦 NAPACO ERP — TRUNG TÂM TRA CỨU ĐƠN HÀNG</div>
-        <div class="brand-sub">Chuyển đổi linh hoạt giữa góc nhìn Quản lý PO (Header) và Chi Tiết Đơn Hàng (Line-Item)
+        <div class="oms-workspace-label">ĐƠN HÀNG / <?= isBe ? 'TYPE 2' : 'TYPE 1' ?></div>
+        <div class="brand-title"><?= isBe ? 'Đơn hàng Bế' : 'Đơn hàng Định Hình' ?></div>
+        <div class="brand-sub">
+          <?= isBe ? 'Line-Item và Kanban' : 'PO Header, Line-Item và Kanban' ?>
         </div>
       </div>
       <!-- [MỚI - VẤN ĐỀ 3] ĐỔI MẶC ĐỊNH SANG CHI TIẾT MẶT HÀNG (LINE-ITEM) -->
       <div class="view-switcher">
-        <button type="button" id="btnViewHeader" class="view-btn" onclick="switchViewMode('HEADER')">
-          ( ) Xem theo Đơn Hàng (PO Header)
-        </button>
+        <? if (!isBe) { ?>
+          <button type="button" id="btnViewHeader" class="view-btn" onclick="switchViewMode('HEADER')">
+            ( ) Xem theo Đơn Hàng (PO Header)
+          </button>
+        <? } ?>
         <button type="button" id="btnViewLineItem" class="view-btn active" onclick="switchViewMode('LINE_ITEM')">
           (•) Xem theo Chi Tiết Mặt Hàng (Line-Item)
         </button>
@@ -1156,18 +1203,21 @@
     });
 
     function switchViewMode(mode) {
+      const btnHeader = document.getElementById('btnViewHeader');
+      if (mode === 'HEADER' && !btnHeader) return;
       listState.viewMode = mode;
       const isHeader = mode === 'HEADER';
       const isLine = mode === 'LINE_ITEM';
       const isKanban = mode === 'KANBAN_LINE';
-      const btnHeader = document.getElementById('btnViewHeader');
       const btnLine = document.getElementById('btnViewLineItem');
       const btnKanban = document.getElementById('btnViewKanban');
 
-      btnHeader.classList.toggle('active', isHeader);
       btnLine.classList.toggle('active', isLine);
       btnKanban.classList.toggle('active', isKanban);
-      btnHeader.textContent = (isHeader ? '(•)' : '( )') + ' Xem theo Đơn Hàng (PO Header)';
+      if (btnHeader) {
+        btnHeader.classList.toggle('active', isHeader);
+        btnHeader.textContent = (isHeader ? '(•)' : '( )') + ' Xem theo Đơn Hàng (PO Header)';
+      }
       btnLine.textContent = (isLine ? '(•)' : '( )') + ' Xem theo Chi Tiết Mặt Hàng (Line-Item)';
       btnKanban.textContent = (isKanban ? '(•)' : '( )') + ' Điều Phối Xưởng (Kanban)';
 
@@ -1391,6 +1441,7 @@
       const custTarget = document.getElementById('customerFilterInput') || document.getElementById('customerFilter');
       const searchParams = {
         viewMode: 'ALL_VIEWS',
+        productType: document.body.dataset.productType,
         keyword: document.getElementById('keywordInput').value.trim(),
         maKH: custTarget ? custTarget.value.trim() : 'ALL',
         status: document.getElementById('statusFilter').value,
@@ -1472,108 +1523,85 @@
         totalRemainingQty: totalRemainingSum
       });
     }
-    // File: OrderList_View.html > function handleInstantFilter()
+    function updateHeaderItemTotals(order) {
+      order.itemCount = order.items.length;
+      order.tongSLDat = 0;
+      order.tongDaGiao = 0;
+      order.tongConLai = 0;
+      order.tongGiaTri = 0;
+      order.items.forEach(item => {
+        order.tongSLDat += Number(item.slDat) || 0;
+        order.tongDaGiao += Number(item.daGiao) || 0;
+        order.tongConLai += Number(item.conLai) || 0;
+        order.tongGiaTri += (Number(item.slDat) || 0) * (Number(item.donGia) || 0);
+      });
+    }
+
     function handleInstantFilter() {
-      if (!listState.views || listState.loading || listState.savingBulk ||
-          !listState.views[listState.viewMode].success) return;
+      const mode = listState.viewMode;
+      const view = listState.views && listState.views[mode];
+      if (!view || !view.success || listState.loading || listState.savingBulk) return;
       listState.instantFilterActive = true;
-      const isKanban = listState.viewMode === 'KANBAN_LINE';
+      const isKanban = mode === 'KANBAN_LINE';
       if (isKanban && listState.savingKanban) return;
-      const records = isKanban ? listState.views.LINE_ITEM.data : listState.rawRecords;
+
       const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
       const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
       const status = document.getElementById('statusFilter').value;
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
+      const statusGroups = (listState.config && listState.config.statusGroupsList) || {
+        ACTIVE_ALL: ['Chờ sản xuất', 'Đang làm khuôn', 'Đang sản xuất'],
+        DONE_ALL: ['Xong', 'Kết thúc', 'Hủy']
+      };
 
-      // =========================================================================
-      // [DEBUG CLIENT - BƯỚC 1]: ĐẶT TRƯỚC KHI FILTER
-      // =========================================================================
-      console.group("=== [DEBUG CLIENT] BỘ LỌC TỨC THÌ ===");
-      console.log("Từ khóa tìm kiếm (kw):", kw);
-      console.log("Khách hàng tìm kiếm (custKw):", custKw);
-      console.log("Chế độ xem hiện tại:", listState.viewMode);
-      console.log("Tổng số dữ liệu gốc trong bộ nhớ (rawRecords):", records.length);
-      if (records.length > 0) {
-        console.log("Mẫu 1 bản ghi gốc:", records[0]);
-      }
-
-      const filtered = records.filter(function (item) {
-        // 1. Lọc theo từ khóa chung
+      function matchesLine(item) {
         if (kw) {
-          if (listState.viewMode === 'HEADER') {
-            const hText = [item.maDH, item.soPO, item.khachHang, item.maKH, item.salesPerson].join(' ').toLowerCase();
-            const subMatch = (item.items || []).some(function (sub) {
-              return [sub.idChiTiet, sub.sanPham, sub.codeSP, sub.maSP].join(' ').toLowerCase().indexOf(kw) !== -1;
-            });
-            if (hText.indexOf(kw) === -1 && !subMatch) return false;
-          } else {
-            const lText = [item.idChiTiet, item.maDH, item.soPO, item.khachHang, item.maSP, item.codeSP, item.sanPham, item.ghiChu, item.tenNV].join(' ').toLowerCase();
-            if (lText.indexOf(kw) === -1) return false;
-          }
+          const text = [item.idChiTiet, item.maDH, item.soPO, item.khachHang, item.maSP,
+            item.codeSP, item.sanPham, item.ghiChu, item.tenNV].join(' ').toLowerCase();
+          if (!text.includes(kw)) return false;
         }
-
-        // 2. Lọc theo Khách hàng (gõ tay hoặc gợi ý)
         if (custKw && custKw !== 'all') {
-          const cName = (item.khachHang || item.customerName || '').toLowerCase();
-          const cId = (item.maKH || '').toLowerCase();
-
-          // LOG KIỂM TRA ĐIỀU KIỆN KHÁCH HÀNG
-          const isMatchCust = (cName.indexOf(custKw) !== -1 || cId.indexOf(custKw) !== -1);
-          if (!isMatchCust) return false;
+          const name = (item.khachHang || item.customerName || '').toLowerCase();
+          const id = (item.maKH || '').toLowerCase();
+          if (!name.includes(custKw) && !id.includes(custKw)) return false;
         }
-
-        // 3. Lọc theo Trạng thái
         if (status && status !== 'ALL') {
-          const itemStatus = (item.trangThai || item.status || '').trim();
-          const statusGroups = (listState.config && listState.config.statusGroupsList) ? listState.config.statusGroupsList : {
-            'ACTIVE_ALL': ['Chờ sản xuất', 'Đang làm khuôn', 'Đang sản xuất'],
-            'DONE_ALL': ['Xong', 'Kết thúc', 'Hủy']
-          };
-
-          if (statusGroups[status]) {
-            // Trường hợp chọn theo nhóm trạng thái (ACTIVE_ALL hoặc DONE_ALL)
-            const allowedStatuses = statusGroups[status];
-            const isMatchedGroup = allowedStatuses.some(function (targetSt) {
-              return itemStatus.toLowerCase() === targetSt.toLowerCase() || itemStatus.indexOf(targetSt) !== -1;
-            });
-            if (!isMatchedGroup) return false;
-          } else {
-            // Trường hợp chọn 1 trạng thái cụ thể
-            if (itemStatus.toLowerCase().indexOf(status.toLowerCase()) === -1) return false;
-          }
+          const itemStatus = (item.trangThai || item.status || '').trim().toLowerCase();
+          const allowed = statusGroups[status] || [status];
+          if (!allowed.some(value => itemStatus.includes(value.toLowerCase()))) return false;
         }
-
-        // 4. Lọc theo Khoảng ngày đặt
         const orderDate = item.ngayDat || item.orderDate || '';
         if (fromDate && orderDate && orderDate < fromDate) return false;
+        return !(toDate && item.ngayGiao && item.ngayGiao > toDate);
+      }
 
-        // Lấy ngày giao theo Chi Tiết Đơn Hàng (CTĐH)
-        if (toDate) {
-          if (listState.viewMode === 'HEADER') {
-            // Đơn hàng (Header) thỏa mãn nếu có ít nhất 1 CTĐH có ngày giao <= toDate
-            const hasValidItem = (item.items || []).some(function (it) {
-              return it.ngayGiao && it.ngayGiao <= toDate;
-            });
-            if (!hasValidItem) return false;
-          } else {
-            // Chế độ Line-Item: kiểm tra trực tiếp ngày giao của dòng CTĐH
-            if (item.ngayGiao && item.ngayGiao > toDate) return false;
-          }
+      const lineView = listState.views.LINE_ITEM;
+      const matchedLines = lineView && lineView.success ? lineView.data.filter(matchesLine) : null;
+
+      if (mode === 'HEADER') {
+        const matchedByOrder = new Map();
+        if (matchedLines) {
+          matchedLines.forEach(item => {
+            if (!matchedByOrder.has(item.maDH)) matchedByOrder.set(item.maDH, []);
+            matchedByOrder.get(item.maDH).push(item);
+          });
         }
+        const orders = [];
+        view.data.forEach(order => {
+          const items = matchedLines ? (matchedByOrder.get(order.maDH) || []).slice().reverse()
+            : (order.items || []).filter(matchesLine);
+          if (items.length === 0) return;
+          const filteredOrder = Object.assign({}, order, { items });
+          updateHeaderItemTotals(filteredOrder);
+          orders.push(filteredOrder);
+        });
+        recalculateFilteredKPIs(orders);
+        renderTableData(orders);
+        return;
+      }
 
-        // Lấy ngày giao theo từng chế độ xem (Line-Item dùng ngayGiao, Header dùng ngayGiaoDK)
-        const deliveryDate = (listState.viewMode === 'HEADER') ? (item.ngayGiaoDK || '') : (item.ngayGiao || '');
-        if (toDate && deliveryDate && deliveryDate > toDate) return false;
-
-        return true;
-      });
-
-      // =========================================================================
-      // [DEBUG CLIENT - BƯỚC 2]: ĐẶT SAU KHI FILTER
-      // =========================================================================
-      console.log("Số bản ghi còn lại sau khi lọc:", filtered.length);
-      console.groupEnd();
+      const filtered = matchedLines || view.data.filter(matchesLine);
       if (isKanban) {
         const ids = new Set(filtered.map(item => item.idChiTiet));
         const board = listState.views.KANBAN_LINE.data;
@@ -1593,9 +1621,10 @@
       const thead = document.getElementById('tableHead');
       const tbody = document.getElementById('tableBody');
       const countEl = document.getElementById('recordCountBadge');
-      countEl.textContent = records.length + (listState.viewMode === 'HEADER' ? ' đơn hàng (PO)' : ' dòng chi tiết mặt hàng');
-
       if (listState.viewMode === 'HEADER') {
+        const lineCount = records.reduce((total, order) => total + (order.items || []).length, 0);
+        countEl.textContent = records.length + ' đơn hàng (PO) · ' + lineCount + ' dòng chi tiết';
+        countEl.title = 'PO Header · dữ liệu chung v4';
         thead.innerHTML =
           '<tr>' +
           '<th style="width:130px;">Mã Đơn Hàng</th>' +
@@ -1678,6 +1707,8 @@
         tbody.innerHTML = html;
 
       } else {
+        countEl.textContent = records.length + ' dòng chi tiết mặt hàng';
+        countEl.removeAttribute('title');
         // [SPEC-OMS-LINEITEM-202611-01] CHẾ ĐỘ 2: LINE-ITEM VIEW CẬP NHẬT MỚI
         thead.innerHTML =
           '<tr>' +
@@ -2220,16 +2251,12 @@
         views.LINE_ITEM.data.forEach(updateLine);
         views.LINE_ITEM.summary = summarize(views.LINE_ITEM.data);
       }
-      if (views.HEADER.success) {
+      if (views.HEADER && views.HEADER.success) {
         views.HEADER.data.forEach(order => {
           const change = orderChanges.get(order.maDH);
           if (change) Object.assign(order, change);
           order.items.forEach(updateLine);
-          order.tongSLDat = order.items.reduce((sum, item) => sum + (Number(item.slDat) || 0), 0);
-          order.tongDaGiao = order.items.reduce((sum, item) => sum + (Number(item.daGiao) || 0), 0);
-          const totals = summarize(order.items);
-          order.tongConLai = totals.totalRemainingQty;
-          order.tongGiaTri = totals.totalRevenue;
+          updateHeaderItemTotals(order);
         });
         views.HEADER.summary = views.LINE_ITEM.success
           ? views.LINE_ITEM.summary

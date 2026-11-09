@@ -14,13 +14,15 @@
 /**
  * Entry point cho Standalone Web App
  * Hỗ trợ tham số URL:
- *  - ?view=list (Mặc định): Mở giao diện Tra cứu đơn hàng kép (OrderList_View.html)
- *  - ?view=create: Mở giao diện Tạo đơn hàng (OrderModal.html)
+ *  - Không có tham số hoặc ?view=index: Mở trang Đơn Hàng.
+ *  - ?view=list: Mở danh sách Định Hình (type 1).
+ *  - ?view=be: Mở danh sách Bế (type 2).
+ *  - ?view=create: Mở giao diện Tạo đơn hàng (OrderModal.html).
  */
 function doGet(e) {
   try {
     const params = (e && e.parameter) ? e.parameter : {};
-    const view = String(params.view || 'list').toLowerCase();
+    const view = String(params.view || 'index').toLowerCase();
 
     if (view === 'create' || view === 'modal') {
       const sourceSheetId = params.sourceId || '';
@@ -35,10 +37,26 @@ function doGet(e) {
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
 
-    // Mặc định mở giao diện Tra cứu đơn hàng Dual-View
-    const listTemplate = HtmlService.createTemplateFromFile('OrderList_View');
-    return listTemplate.evaluate()
-      .setTitle('NAPACO OMS - Hệ Thống Tra Cứu & Quản Lý Đơn Hàng')
+    const appUrl = ScriptApp.getService().getUrl() || '';
+    let output;
+    let title;
+    if (view === 'index') {
+      const template = HtmlService.createTemplateFromFile('OrderIndex_View');
+      template.appUrl = appUrl;
+      output = template.evaluate();
+      title = 'NAPACO OMS - Đơn Hàng';
+    } else if (view === 'be') {
+      const template = HtmlService.createTemplateFromFile('OrderListBe_View');
+      template.appUrl = appUrl;
+      output = template.evaluate();
+      title = 'NAPACO OMS - Đơn Hàng Bế';
+    } else {
+      output = renderOrderListView_('1', appUrl);
+      title = 'NAPACO OMS - Đơn Hàng Định Hình';
+    }
+
+    return output
+      .setTitle(title)
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 
@@ -49,6 +67,28 @@ function doGet(e) {
       '<p>' + String(err.message || err) + '</p></div>'
     );
   }
+}
+
+function renderOrderMenu_(appUrl, activeModule) {
+  const links = [
+    { id: 'index', group: 'Đơn hàng', icon: '▦', label: 'Đơn Hàng', url: appUrl + '?view=index' },
+    { id: 'list', group: 'Đơn hàng', icon: '◫', label: 'Định Hình', url: appUrl + '?view=list' },
+    { id: 'be', group: 'Đơn hàng', icon: '✂', label: 'Bế', url: appUrl + '?view=be' },
+    // Điền URL web app của từng phân hệ khi có đường dẫn.
+    { id: 'film', group: 'Sản xuất', icon: '▤', label: 'Đặt Màng', url: '' },
+    { id: 'forming-log', group: 'Sản xuất', icon: '▣', label: 'Nhật Ký Định Hình', url: '' }
+  ];
+  const template = HtmlService.createTemplateFromFile('OrderMenu_View');
+  template.links = links;
+  template.activeModule = activeModule;
+  return template.evaluate().getContent();
+}
+
+function renderOrderListView_(productType, appUrl) {
+  const template = HtmlService.createTemplateFromFile('OrderList_View');
+  template.productType = productType;
+  template.appUrl = appUrl;
+  return template.evaluate();
 }
 
 /**

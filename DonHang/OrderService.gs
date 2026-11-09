@@ -810,8 +810,10 @@ const OrderService = {
     const pageSize = Math.max(1, parseInt(params.pageSize, 10) || 100);
 
     const catalog = this.getCatalogAndAuthData();
-    const onlyTypeOne = viewMode === 'ALL_VIEWS';
-    if (onlyTypeOne && !catalog.productTypeById) {
+    const productType = viewMode === 'ALL_VIEWS'
+      ? (String(params.productType || '').trim() === '2' ? '2' : '1')
+      : '';
+    if (productType && !catalog.productTypeById) {
       throw new Error('Không tìm thấy cột ' + CONFIG.COLUMNS.PRODUCTS.TYPE + ' trong ' + CONFIG.SHEET_NAMES.PRODUCTS + '.');
     }
     const opSS = this.getOperationSpreadsheet_();
@@ -1043,7 +1045,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
 
     // Dùng cùng điều kiện lọc chi tiết cho cả Header và Line-Item.
       const validLines = allLineItems.filter(function(item) {
-        if (onlyTypeOne && catalog.productTypeById.get(item.maSP.toUpperCase()) !== '1') return false;
+        if (productType && catalog.productTypeById.get(item.maSP.toUpperCase()) !== productType) return false;
         if (maKHFilter && maKHFilter !== 'ALL' && item.maKH !== maKHFilter && item.khachHang !== maKHFilter) {
           return false;
         }
@@ -1195,8 +1197,9 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
 
     if (viewMode === 'ALL_VIEWS') {
       const lineView = buildLineView();
-      const headerView = buildHeaderView(lineView.success ? lineView.data.slice().reverse() : null, true);
-      if (lineView.success && headerView.success) lineView.summary = headerView.summary;
+      const headerView = productType === '2' ? null
+        : buildHeaderView(lineView.success ? lineView.data.slice().reverse() : null, true);
+      if (lineView.success && headerView && headerView.success) lineView.summary = headerView.summary;
       const kanbanView = lineView.success
         ? this.buildLineKanbanData_(detailRows, catalog, new Map(
             lineView.data.map(item => [item.idChiTiet, item])
