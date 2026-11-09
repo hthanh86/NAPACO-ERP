@@ -8,17 +8,167 @@ const FilmColumns_ = {
 };
 
 function getFilmOrders() {
-  const db = filmDatabase_();
+  const db = filmDatabase_(true);
+  const orders = filmOrders_(db);
+  for (const order of orders) {
+    for (const line of order.lines) {
+      line.hasAssignmentColumn = db.details.positions.has(CONFIG.COLUMNS.ORDER_DETAILS.FILM_LINE_ID);
+      line.canAssign = line.hasAssignmentColumn &&
+        order.Trang_Thai !== 'Hủy' && line.Trang_Thai !== 'Hủy';
+    }
+  }
   return {
-    orders: filmOrders_(db),
+    orders,
     suppliers: db.suppliers,
     materials: db.materials.rows.map(row => row.data).filter(row => row.VL_ID),
-    details: db.details.rows.map(row => row.data).filter(row =>
-      row.ID_Chi_Tiet && (row.Trang_Thai === CONFIG.LINE_STATUS.NEW || row.DN_ID)),
     today: filmDate_(new Date()),
     setup: db.setup,
     receiptWarning: db.receiptWarning
   };
+}
+
+function filmDescribeDetails_(db, rows) {
+  if (!rows.length) return [];
+  const names = CONFIG.SHEET_NAMES;
+  const { ORDERS: order, CUSTOMERS: customer, PRODUCTS: product } = CONFIG.COLUMNS;
+  const index = (book, name, key, value) => new Map(
+    filmTable_(book, [name], [key, value]).rows
+      .filter(({ data }) => data[key]).map(({ data }) => [data[key], data[value]]));
+  const customers = index(db.master, names.CUSTOMERS, customer.ID, customer.NAME);
+  const orders = index(db.operation, names.ORDERS, order.ID, order.CUSTOMER_ID);
+  const products = index(db.master, names.PRODUCTS, product.ID, product.NAME);
+  return rows.map(({ data }) => ({
+    id: data.ID_Chi_Tiet,
+    customer: customers.get(orders.get(data.ID_DonHang)) || '',
+    product: products.get(data.Ma_SP) || '',
+    qty: data.So_Luong_Dat || '',
+    delivery: data.Ngay_Giao || '',
+    assigned: !!data.DN_ID,
+    editable: data.Trang_Thai === CONFIG.LINE_STATUS.NEW
+  }));
+}
+
+function filmDetails_(operation, headersOnly = false, include) {
+  const detail = CONFIG.COLUMNS.ORDER_DETAILS;
+  return filmTable_(operation, [CONFIG.SHEET_NAMES.ORDER_DETAILS],
+    [detail.ID, detail.STATUS], [detail.FILM_LINE_ID, detail.ORDER_ID, detail.PRODUCT_ID,
+      detail.QTY_ORDER, detail.DELIVERY_DATE], include, headersOnly);
+}
+
+function filmAssignmentRows_(operation, lineId, includeAvailable) {
+  const details = filmDetails_(operation, false, (cells, positions) => {
+    const detail = CONFIG.COLUMNS.ORDER_DETAILS;
+    const link = filmText_(cells[positions.get(detail.FILM_LINE_ID)]);
+    return !!filmText_(cells[positions.get(detail.ID)]) &&
+      ((lineId && link === lineId) ||
+        (includeAvailable && !link && filmText_(cells[positions.get(detail.STATUS)]) === CONFIG.LINE_STATUS.NEW));
+  });
+  if (!details.positions.has(CONFIG.COLUMNS.ORDER_DETAILS.FILM_LINE_ID)) {
+    throw new Error(CONFIG.SHEET_NAMES.ORDER_DETAILS + ' thiếu cột DN_ID.');
+  }
+  return details;
+}
+
+function filmAssertAssignmentLine_(operation, lineId) {
+  const names = CONFIG.SHEET_NAMES;
+  const lines = filmTable_(operation, [names.FILM_LINES], ['DN_ID', 'Trang_Thai'], ['PO_NVL_ID']);
+  const matches = lines.rows.filter(({ data }) => data.DN_ID === lineId);
+  if (matches.length !== 1 || matches[0].data.Trang_Thai === 'Hủy') {
+    throw new Error('Dòng đặt màng không tồn tại hoặc không thể sửa.');
+  }
+  const poId = matches[0].data.PO_NVL_ID;
+  if (poId && operation.getSheetByName(names.FILM_PO)) {
+    const headers = filmTable_(operation, [names.FILM_PO], ['PO_NVL_ID', 'Trang_Thai']);
+    if (headers.rows.some(({ data }) => data.PO_NVL_ID === poId && data.Trang_Thai === 'Hủy')) {
+      throw new Error('Đơn đặt màng đã hủy.');
+    }
+  }
+}
+
+function getFilmOrderFormData(lineIds) {
+  const db = filmAccess_();
+  const material = filmMaterials_(db.master, ['DM_MAU_SAC']);
+  const colors = [...new Set(material.rows.map(({ data }) => data.DM_MAU_SAC).filter(Boolean))];
+  const today = filmDate_(new Date());
+  if (lineIds === null) {
+    return { today, colors, choices: filmDescribeDetails_(db, filmAssignmentRows_(db.operation, '', true).rows) };
+  }
+  return { today, colors, assignments: filmOrderAssignments_(db, lineIds) };
+}
+
+function getFilmOrderAssignments(lineIds) {
+  return filmOrderAssignments_(filmAccess_(), lineIds);
+}
+
+function filmOrderAssignments_(db, lineIds) {
+  if (!Array.isArray(lineIds)) throw new Error('Danh sách quy cách không hợp lệ.');
+  const ids = new Set(lineIds.map(filmText_).filter(Boolean));
+  const detail = CONFIG.COLUMNS.ORDER_DETAILS;
+  const { rows } = filmDetails_(db.operation, false, (cells, positions) =>
+    !!filmText_(cells[positions.get(detail.ID)]) &&
+    ids.has(filmText_(cells[positions.get(detail.FILM_LINE_ID)])));
+  const entries = filmDescribeDetails_(db, rows);
+  const byLine = new Map();
+  rows.forEach(({ data }, index) => {
+    if (!byLine.has(data.DN_ID)) byLine.set(data.DN_ID, []);
+    byLine.get(data.DN_ID).push(entries[index]);
+  });
+  return Array.from(byLine);
+}
+
+function getFilmAssignedDetails(lineId) {
+  const db = filmAccess_();
+  const id = filmText_(lineId);
+  if (!id) throw new Error('Thiếu mã dòng đặt màng.');
+  return filmDescribeDetails_(db, filmAssignmentRows_(db.operation, id, false).rows);
+}
+
+function getFilmAssignmentOptions(lineId) {
+  const db = filmAccess_();
+  const id = filmText_(lineId);
+  if (id) filmAssertAssignmentLine_(db.operation, id);
+  return filmDescribeDetails_(db, filmAssignmentRows_(db.operation, id, true).rows);
+}
+
+function saveFilmAssignments(lineId, originalIds, selectedIds) {
+  const id = filmText_(lineId);
+  if (!id || !Array.isArray(originalIds) || !Array.isArray(selectedIds)) {
+    throw new Error('Dữ liệu gán CTDH không hợp lệ.');
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const { operation } = filmAccess_();
+    filmAssertAssignmentLine_(operation, id);
+    const details = filmDetails_(operation);
+    if (!details.positions.has(CONFIG.COLUMNS.ORDER_DETAILS.FILM_LINE_ID)) {
+      throw new Error(CONFIG.SHEET_NAMES.ORDER_DETAILS + ' thiếu cột DN_ID.');
+    }
+    const original = new Set(originalIds);
+    const selected = new Set(selectedIds);
+    const linked = details.rows.filter(({ data }) => data.DN_ID === id);
+    if (linked.length !== original.size || linked.some(({ data }) => !original.has(data.ID_Chi_Tiet))) {
+      throw new Error('CTDH đã thay đổi. Hãy mở lại Sửa/Bổ sung.');
+    }
+    const byId = new Map();
+    for (const row of details.rows) {
+      const key = row.data.ID_Chi_Tiet;
+      if (original.has(key) || selected.has(key)) byId.set(key, byId.has(key) ? null : row);
+    }
+    const requests = [];
+    for (const key of new Set([...original, ...selected])) {
+      if (original.has(key) === selected.has(key)) continue;
+      const row = byId.get(key);
+      if (!row || !key || row.data.Trang_Thai !== CONFIG.LINE_STATUS.NEW ||
+          (row.data.DN_ID && row.data.DN_ID !== id)) {
+        throw new Error('Không thể đổi gán CTDH ' + key + '. Hãy mở lại Sửa/Bổ sung.');
+      }
+      filmWrite_(requests, details, row.index, { DN_ID: selected.has(key) ? id : '' });
+    }
+    if (requests.length) Sheets.Spreadsheets.batchUpdate({ requests }, operation.getId());
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function filmText_(value) {
@@ -42,10 +192,12 @@ function filmInputDate_(value, required) {
   return day;
 }
 
-function filmTable_(book, names, columns, optional = []) {
+function filmTable_(book, names, columns, optional = [], include = () => true, headersOnly = false) {
   const sheet = names.map(name => book.getSheetByName(name)).find(Boolean);
   if (!sheet) throw new Error('Thiếu tab ' + names[0] + '.');
-  const values = sheet.getDataRange().getValues();
+  const values = headersOnly && sheet.getLastRow()
+    ? sheet.getRange(1, 1, Math.min(6, sheet.getLastRow()), sheet.getLastColumn()).getValues()
+    : headersOnly ? [] : sheet.getDataRange().getValues();
   const index = values.slice(0, 6).findIndex(row => row.map(filmText_).includes(columns[0]));
   if (index < 0) throw new Error(sheet.getName() + ' thiếu cột ' + columns[0] + '.');
   const headers = values[index].map(filmText_);
@@ -58,15 +210,18 @@ function filmTable_(book, names, columns, optional = []) {
     if (position >= 0) positions.set(name, position);
     else if (columns.includes(name)) throw new Error(sheet.getName() + ' thiếu cột ' + name + '.');
   }
-  const rows = values.slice(index + 1).map((cells, offset) => {
+  const rows = [];
+  for (let rowIndex = index + 1; !headersOnly && rowIndex < values.length; rowIndex++) {
+    const cells = values[rowIndex];
+    if (!include(cells, positions)) continue;
     const data = {};
     for (const [name, col] of positions) data[name] = filmDate_(cells[col]);
-    return { index: index + offset + 1, data };
-  });
+    rows.push({ index: rowIndex, data });
+  }
   return { sheet, positions, rows };
 }
 
-function filmDatabase_() {
+function filmAccess_() {
   const env = getSecureEnv_();
   const master = SpreadsheetApp.openById(env.ID_MASTER);
   const operation = SpreadsheetApp.openById(env.ID_OPERATION);
@@ -84,16 +239,25 @@ function filmDatabase_() {
     throw new Error('Đặt Màng yêu cầu quyền Kinh doanh, Admin hoặc Manager.');
   }
 
-  const material = filmTable_(master, [names.FILM_MATERIALS, '01_04_ThongSoVatLieu'], FilmColumns_.material);
+  return { master, operation, userId: user[employee.ID] };
+}
+
+function filmMaterials_(master, extraColumns = []) {
+  return filmTable_(master, [CONFIG.SHEET_NAMES.FILM_MATERIALS, '01_04_ThongSoVatLieu'],
+    FilmColumns_.material.concat(extraColumns));
+}
+
+function filmDatabase_(listOnly = false) {
+  const { master, operation, userId } = filmAccess_();
+  const names = CONFIG.SHEET_NAMES;
+  const material = filmMaterials_(master);
   const suppliers = filmTable_(master, [names.FILM_SUPPLIERS, '01_03_DM_NhaCungCap'], FilmColumns_.supplier)
     .rows.map(row => row.data).filter(row => /^NCC(0[1-9]|[1-9]\d)$/.test(row.Ma_NCC) &&
       /màng/i.test(row.Loai_Cung_Cap));
   const lines = filmTable_(operation, [names.FILM_LINES], FilmColumns_.line,
     FilmColumns_.lineNew.concat('Ngay_Dat', 'Ma_NCC'));
   const detail = CONFIG.COLUMNS.ORDER_DETAILS;
-  const details = filmTable_(operation, [names.ORDER_DETAILS],
-    [detail.ID, detail.STATUS], [detail.FILM_LINE_ID, detail.ORDER_ID, detail.PRODUCT_ID,
-      detail.QTY_ORDER, detail.DELIVERY_DATE]);
+  const details = filmDetails_(operation, listOnly);
   const setup = [];
   let headers;
   try {
@@ -129,18 +293,12 @@ function filmDatabase_() {
     receipts.clear();
   }
   return { master, operation, materials: material, suppliers, headers, lines, details,
-    receipts, setup, receiptWarning, userId: user[employee.ID] };
+    receipts, setup, receiptWarning, userId };
 }
 
 function filmOrders_(db) {
   const orders = new Map();
   const materialById = new Map(db.materials.rows.map(({ data }) => [data.VL_ID, data]));
-  const assigned = new Map();
-  for (const { data } of db.details.rows) {
-    if (!data.DN_ID || !data.ID_Chi_Tiet) continue;
-    if (!assigned.has(data.DN_ID)) assigned.set(data.DN_ID, []);
-    assigned.get(data.DN_ID).push(data.ID_Chi_Tiet);
-  }
   for (const { data } of db.headers ? db.headers.rows : []) {
     if (data.PO_NVL_ID) orders.set(data.PO_NVL_ID, { ...data, lines: [] });
   }
@@ -153,7 +311,6 @@ function filmOrders_(db) {
     }
     const receipt = db.receipts.get(data.DN_ID);
     orders.get(id).lines.push({ ...data, material: materialById.get(data.VL_ID) || {},
-      detailIds: assigned.get(data.DN_ID) || [],
       received: db.receiptWarning ? null : (receipt ? receipt.kg : 0),
       receiptIds: receipt ? receipt.ids : [] });
   }
@@ -299,14 +456,20 @@ function filmSaveLocked_(payload) {
   const usedLines = new Set();
   const targetDetails = new Map();
   const detailRows = new Map();
+  const existingAssignments = new Map();
   for (const row of db.details.rows) {
     if (!row.data.ID_Chi_Tiet) continue;
     detailRows.set(row.data.ID_Chi_Tiet, detailRows.has(row.data.ID_Chi_Tiet) ? null : row);
+    if (oldLines.has(row.data.DN_ID)) {
+      if (!existingAssignments.has(row.data.DN_ID)) existingAssignments.set(row.data.DN_ID, []);
+      existingAssignments.get(row.data.DN_ID).push(row.data.ID_Chi_Tiet);
+    }
   }
 
   const materials = new Map();
   let highestMaterial = filmHighest_(db.materials, 'VL_ID', 'VL', 4);
   const masterWrites = [];
+  let nextMaterialRow = db.materials.sheet.getLastRow();
   const writes = [];
   for (const { data } of db.materials.rows) {
     if (!data['Độ Dày'] || !data['Khổ Nhựa']) continue;
@@ -315,7 +478,7 @@ function filmSaveLocked_(payload) {
     if (!current || (!current.VL_ID && data.VL_ID)) materials.set(key, data);
   }
   for (const line of payload.lines) {
-    if (!line || !Array.isArray(line.detailIds)) throw new Error('Dòng quy cách không hợp lệ.');
+    if (!line) throw new Error('Dòng quy cách không hợp lệ.');
     const suppliedId = filmText_(line.id);
     const old = oldLines.get(suppliedId);
     if (suppliedId && (!old || usedLines.has(suppliedId))) throw new Error('DN_ID không thuộc đơn hoặc bị trùng.');
@@ -342,14 +505,25 @@ function filmSaveLocked_(payload) {
       vl = 'VL' + String(++highestMaterial).padStart(4, '0');
       materials.set(key, { ...material, VL_ID: vl });
       const blank = matched && db.materials.rows.find(row => row.data === matched);
-      filmWrite_(masterWrites, db.materials, blank ? blank.index : null,
+      filmWrite_(masterWrites, db.materials, blank ? blank.index : nextMaterialRow++,
         blank ? { VL_ID: vl } : { ...material, VL_ID: vl });
     }
     if (old && old.receiptIds.length &&
         (old.VL_ID !== vl || old.Loai_Nhua !== resin || qty + 1e-8 < old.received)) {
       throw new Error(id + ' đã có phiếu nhận. Giữ quy cách và số kg đặt ít nhất bằng số kg đã nhận.');
     }
-    for (const detailId of line.detailIds) {
+    // Existing lines can save their spec without overwriting separately edited assignments.
+    const assignedIds = existingAssignments.get(id) || [];
+    if (old && line.originalIds !== undefined) {
+      if (!Array.isArray(line.originalIds)) throw new Error('Danh sách CTDH ban đầu không hợp lệ.');
+      const original = new Set(line.originalIds);
+      if (assignedIds.length !== original.size || assignedIds.some(id => !original.has(id))) {
+        throw new Error('CTDH của ' + id + ' đã thay đổi. Hãy mở lại đơn.');
+      }
+    }
+    const detailIds = old && line.detailIds === undefined ? assignedIds : line.detailIds;
+    if (!Array.isArray(detailIds)) throw new Error('Dòng quy cách không hợp lệ.');
+    for (const detailId of detailIds) {
       const detail = detailRows.get(detailId);
       if (!detail || targetDetails.has(detailId)) throw new Error('CTDH thiếu hoặc bị gán trùng.');
       const prior = detail.data.DN_ID;
@@ -396,7 +570,15 @@ function filmSaveLocked_(payload) {
   if (!orderId) props.setProperty(retryKey, token + ':' + poId);
   // The master is a separate workbook. A saved specification remains valid if
   // the operation batch fails, and the next attempt will match it by attributes.
-  if (masterWrites.length) Sheets.Spreadsheets.batchUpdate({ requests: masterWrites }, db.master.getId());
+  if (masterWrites.length) {
+    const extraRows = nextMaterialRow - db.materials.sheet.getMaxRows();
+    if (extraRows > 0) {
+      masterWrites.unshift({ appendDimension: {
+        sheetId: db.materials.sheet.getSheetId(), dimension: 'ROWS', length: extraRows
+      } });
+    }
+    Sheets.Spreadsheets.batchUpdate({ requests: masterWrites }, db.master.getId());
+  }
   Sheets.Spreadsheets.batchUpdate({ requests: writes }, db.operation.getId());
   return { id: poId };
 }
