@@ -53,7 +53,7 @@
     <div class="toolbar">
       <h1>Đặt Màng</h1>
       <button type="button" id="reload">Tải lại</button>
-      <button type="button" id="create" class="primary" disabled>+ Tạo đơn đặt</button>
+      <button type="button" id="create" class="primary" hidden disabled>+ Tạo đơn đặt</button>
     </div>
     <p id="message" role="status"></p>
     <p id="setup" class="notice"></p>
@@ -136,7 +136,9 @@
   function setBusy(value) {
     busy = value;
     $('reload').disabled = value;
-    $('create').disabled = value || !data || !!data.setup.length;
+    const canCreate = data?.permissions.create === true;
+    $('create').hidden = !canCreate;
+    $('create').disabled = value || !canCreate || !!data.setup.length;
     $('editorFields').disabled = value;
     for (const button of $('orders').querySelectorAll('button')) button.disabled = value;
   }
@@ -152,10 +154,11 @@
       message(error.message, true);
     }).withSuccessHandler(result => {
       data = result;
+      const { po: poColumns, supplier: supplierColumns } = data.fields;
       const supplier = $('supplierFilter').value;
-      const suppliers = new Map(data.suppliers.map(row => [row.Ma_NCC, row.Ten_NCC]));
+      const suppliers = new Map(data.suppliers.map(row => [row[supplierColumns.ID], row[supplierColumns.NAME]]));
       data.orders.forEach(order => {
-        if (order.Ma_NCC && !suppliers.has(order.Ma_NCC)) suppliers.set(order.Ma_NCC, order.Ma_NCC);
+        if (order[poColumns.SUPPLIER] && !suppliers.has(order[poColumns.SUPPLIER])) suppliers.set(order[poColumns.SUPPLIER], order[poColumns.SUPPLIER]);
       });
       options($('supplierFilter'), [['', 'Tất cả'], ...suppliers]);
       if (suppliers.has(supplier)) $('supplierFilter').value = supplier;
@@ -176,15 +179,16 @@
     $('editor').hidden = true;
     $('list').hidden = false;
     if (!data) return;
+    const { po: poColumns, line: lineColumns, supplier: supplierColumns } = data.fields;
     const search = $('search').value.trim().toLowerCase();
     const supplier = $('supplierFilter').value;
     const status = $('progressFilter').value;
     const from = $('dateFrom').value;
     const to = $('dateTo').value;
     const filtered = data.orders.filter(order => {
-      const terms = [order.PO_NVL_ID, ...order.lines.flatMap(line => [line.DN_ID, line.VL_ID, ...line.receiptIds])];
-      return (!supplier || order.Ma_NCC === supplier) && (!status || order.progress === status) &&
-        (!from || order.Ngay_Dat >= from) && (!to || (order.Ngay_Dat && order.Ngay_Dat <= to)) &&
+      const terms = [order[poColumns.ID], ...order.lines.flatMap(line => [line[lineColumns.ID], line[lineColumns.MATERIAL_ID], ...line.receiptIds])];
+      return (!supplier || order[poColumns.SUPPLIER] === supplier) && (!status || order.progress === status) &&
+        (!from || order[poColumns.DATE] >= from) && (!to || (order[poColumns.DATE] && order[poColumns.DATE] <= to)) &&
         terms.some(term => String(term).toLowerCase().includes(search));
     });
     const counts = [['Tổng đơn', filtered.length], ...statuses.map(status =>
@@ -197,13 +201,14 @@
     $('orders').replaceChildren();
     for (const order of filtered) {
       const row = node('tr');
-      const supplierName = data.suppliers.find(item => item.Ma_NCC === order.Ma_NCC);
-      const cells = [order.PO_NVL_ID + (order.legacy ? ' · Dòng cũ' : ''), order.Ngay_Dat,
-        supplierName ? supplierName.Ten_NCC : order.Ma_NCC, order.lines.length,
+      const supplierName = data.suppliers.find(item => item[supplierColumns.ID] === order[poColumns.SUPPLIER]);
+      const cells = [order[poColumns.ID] + (order.legacy ? ' · Dòng cũ' : ''), order[poColumns.DATE],
+        supplierName ? supplierName[supplierColumns.NAME] : order[poColumns.SUPPLIER], order.lines.length,
         kg(order.ordered), kg(order.received), order.progress];
       row.append(...cells.map(value => node('td', value)));
       const action = node('td');
-      const edit = !order.legacy && !data.setup.length && !data.receiptWarning && order.Trang_Thai !== 'Hủy';
+      const edit = data.permissions.edit === true && !order.legacy && !data.setup.length &&
+        data.canEditWithReceipts && order[poColumns.STATUS] !== 'Hủy';
       const button = node('button', edit ? 'Xem / Sửa' : 'Xem');
       button.type = 'button';
       button.onclick = () => loadEditor(order, !edit);
@@ -264,8 +269,9 @@
   }
 
   function loadEditor(order, viewOnly) {
+    const { line: lineColumns } = data.fields;
     if (busy) return;
-    const ids = order ? order.lines.filter(line => line.hasAssignmentColumn).map(line => line.DN_ID) : null;
+    const ids = order ? order.lines.filter(line => line.hasAssignmentColumn).map(line => line[lineColumns.ID]) : null;
     setBusy(true);
     message('Đang tải dữ liệu form…');
     google.script.run.withFailureHandler(error => {
@@ -283,31 +289,32 @@
   }
 
   function openEditor(order, viewOnly = false, assignments = new Map()) {
+    const { po: poColumns, line: lineColumns, supplier: supplierColumns, material: materialColumns } = data.fields;
     current = order;
     readOnly = viewOnly;
     token = crypto.randomUUID();
     lineForms = [];
     $('lines').replaceChildren();
-    const suppliers = data.suppliers.map(row => [row.Ma_NCC, row.Ma_NCC + ' · ' + row.Ten_NCC]);
-    if (order && order.Ma_NCC && !suppliers.some(([id]) => id === order.Ma_NCC)) {
-      suppliers.push([order.Ma_NCC, order.Ma_NCC]);
+    const suppliers = data.suppliers.map(row => [row[supplierColumns.ID], row[supplierColumns.ID] + ' · ' + row[supplierColumns.NAME]]);
+    if (order && order[poColumns.SUPPLIER] && !suppliers.some(([id]) => id === order[poColumns.SUPPLIER])) {
+      suppliers.push([order[poColumns.SUPPLIER], order[poColumns.SUPPLIER]]);
     }
     options($('supplier'), [['', 'Chọn nhà cung cấp'], ...suppliers]);
-    $('supplier').value = order ? order.Ma_NCC || '' : '';
-    $('orderDate').value = order ? order.Ngay_Dat || '' : data.today;
-    $('orderNote').value = order ? order.Ghi_Chu || '' : '';
+    $('supplier').value = order ? order[poColumns.SUPPLIER] || '' : '';
+    $('orderDate').value = order ? order[poColumns.DATE] || '' : data.today;
+    $('orderNote').value = order ? order[poColumns.NOTE] || '' : '';
     [$('supplier'), $('orderDate'), $('orderNote')].forEach(el => { el.disabled = readOnly; });
-    $('editorTitle').textContent = order ? order.PO_NVL_ID +
-      (order.Nguoi_Dat ? ' · ' + order.Nguoi_Dat : '') : 'Tạo đơn đặt màng';
+    $('editorTitle').textContent = order ? order[poColumns.ID] +
+      (order[poColumns.USER] ? ' · ' + order[poColumns.USER] : '') : 'Tạo đơn đặt màng';
     $('add').hidden = readOnly;
     $('save').hidden = readOnly;
     $('list').hidden = true;
     $('editor').hidden = false;
-    materialOptions = new Map(data.materials.filter(row => row['Độ Dày'] && row['Khổ Nhựa'])
-      .map(row => [row['Độ Dày'] + '*' + row['Khổ Nhựa'] + ' · ' + row.VL_ID, row]));
+    materialOptions = new Map(data.materials.filter(row => row[materialColumns.THICKNESS] && row[materialColumns.WIDTH])
+      .map(row => [row[materialColumns.THICKNESS] + '*' + row[materialColumns.WIDTH] + ' · ' + row[materialColumns.ID], row]));
     $('sizes').replaceChildren(...Array.from(materialOptions, ([value, row]) =>
-      new Option([row['Cấp Độ'], row['Màu Sắc'], row['Tĩnh Điện']].filter(Boolean).join(' · '), value)));
-    if (order) order.lines.forEach(line => addLine(line, assignments.get(line.DN_ID)));
+      new Option([row[materialColumns.GRADE], row[materialColumns.COLOR], row[materialColumns.ESD]].filter(Boolean).join(' · '), value)));
+    if (order) order.lines.forEach(line => addLine(line, assignments.get(line[lineColumns.ID])));
     else addLine();
     updateTotal();
     message('');
@@ -345,6 +352,7 @@
   }
 
   function addLine(line = {}, assignedEntries = []) {
+    const { line: lineColumns, material: materialColumns } = data.fields;
     const row = node('tr');
     const spec = line.material || {};
     const fields = {};
@@ -363,10 +371,10 @@
       row.append(cell);
       return el;
     };
-    input('resin', 'Loại nhựa', line.Loai_Nhua).setAttribute('list', 'resinTypes');
+    input('resin', 'Loại nhựa', line[lineColumns.RESIN]).setAttribute('list', 'resinTypes');
     fields.resin.required = true;
     const grade = input('grade', 'Cấp độ', '', 'select');
-    const oldGrade = spec['Cấp Độ'] || '';
+    const oldGrade = spec[materialColumns.GRADE] || '';
     const gradeValues = ['', ...grades];
     if (!gradeValues.includes(oldGrade)) gradeValues.push(oldGrade);
     options(grade, gradeValues.map(value => [value, value || '—']));
@@ -377,13 +385,13 @@
       options(color, colors.map(name => [name, name]));
       color.value = value || '';
     }
-    setColor(spec['Màu Sắc']);
+    setColor(spec[materialColumns.COLOR]);
     const esdSelect = input('esd', 'Tĩnh điện', '', 'select');
-    const oldEsd = spec['Tĩnh Điện'] || '';
+    const oldEsd = spec[materialColumns.ESD] || '';
     options(esdSelect, esd.some(([id]) => id === oldEsd) ? esd : [...esd, [oldEsd, oldEsd]]);
     esdSelect.value = oldEsd;
     const size = input('size', 'Quy cách',
-      spec['Độ Dày'] && spec['Khổ Nhựa'] ? spec['Độ Dày'] + ' × ' + spec['Khổ Nhựa'] : '');
+      spec[materialColumns.THICKNESS] && spec[materialColumns.WIDTH] ? spec[materialColumns.THICKNESS] + ' × ' + spec[materialColumns.WIDTH] : '');
     size.className = 'size';
     size.required = true;
     size.pattern = '[0-9]+([.,][0-9]+)?\\s*[*xX×]\\s*[0-9]+([.,][0-9]+)?';
@@ -391,13 +399,13 @@
     size.oninput = () => {
       const selected = materialOptions.get(size.value);
       if (!selected) return;
-      size.value = selected['Độ Dày'] + ' × ' + selected['Khổ Nhựa'];
-      if (gradeValues.includes(selected['Cấp Độ'])) grade.value = selected['Cấp Độ'];
-      setColor(selected['Màu Sắc']);
-      if (esd.some(([id]) => id === selected['Tĩnh Điện'])) esdSelect.value = selected['Tĩnh Điện'];
+      size.value = selected[materialColumns.THICKNESS] + ' × ' + selected[materialColumns.WIDTH];
+      if (gradeValues.includes(selected[materialColumns.GRADE])) grade.value = selected[materialColumns.GRADE];
+      setColor(selected[materialColumns.COLOR]);
+      if (esd.some(([id]) => id === selected[materialColumns.ESD])) esdSelect.value = selected[materialColumns.ESD];
     };
     size.onchange = size.oninput;
-    const price = input('price', 'Đơn giá (đ/kg)', line.Don_Gia ? quantityFormat.format(line.Don_Gia) : '');
+    const price = input('price', 'Đơn giá (đ/kg)', line[lineColumns.PRICE] ? quantityFormat.format(line[lineColumns.PRICE]) : '');
     price.inputMode = 'decimal';
     price.placeholder = 'VD 59.500';
     price.classList.toggle('priced', !!price.value);
@@ -412,7 +420,7 @@
       const value = priceValue(price.value);
       if (Number.isFinite(value)) price.value = quantityFormat.format(value);
     };
-    const qty = input('qty', 'Số lượng (kg)', line.So_Luong ? quantityFormat.format(line.So_Luong) : '');
+    const qty = input('qty', 'Số lượng (kg)', line[lineColumns.QTY] ? quantityFormat.format(line[lineColumns.QTY]) : '');
     qty.inputMode = 'decimal';
     qty.required = true;
     qty.placeholder = 'VD 1.250,5';
@@ -424,15 +432,15 @@
       const value = quantityValue(qty.value);
       if (Number.isFinite(value)) qty.value = quantityFormat.format(value);
     };
-    const note = input('note', 'Ghi chú dòng', line.Ghi_Chu, 'textarea');
+    const note = input('note', 'Ghi chú dòng', line[lineColumns.NOTE], 'textarea');
     note.className = 'note';
     note.rows = 2;
-    input('delivery', 'Ngày giao', line.DN_ID ? line.Ngay_Giao_Du_Kien : defaultDelivery, 'date');
-    const received = node('td', line.DN_ID ? kg(line.received) + ' kg' : '—');
+    input('delivery', 'Ngày giao', line[lineColumns.ID] ? line[lineColumns.DELIVERY] : defaultDelivery, 'date');
+    const received = node('td', line[lineColumns.ID] ? kg(line.received) + ' kg' : '—');
     for (const id of line.receiptIds || []) received.append(node('div', id));
     const removeCell = node('td');
-    const item = { id: line.DN_ID || '', row, assignmentRow, fields, assigned, originalIds };
-    if (!readOnly && !line.DN_ID) {
+    const item = { id: line[lineColumns.ID] || '', row, assignmentRow, fields, assigned, originalIds };
+    if (!readOnly && !line[lineColumns.ID]) {
       const remove = node('button', 'Bỏ');
       remove.type = 'button';
       remove.onclick = () => {
@@ -451,7 +459,7 @@
     const details = node('details');
     const summary = node('summary');
     const renderSummary = () => {
-      summary.textContent = [line.DN_ID, line.VL_ID, assigned.size ? 'Gán ' + assigned.size + ' CTDH' :
+      summary.textContent = [line[lineColumns.ID], line[lineColumns.MATERIAL_ID], assigned.size ? 'Gán ' + assigned.size + ' CTDH' :
         'Đặt cho đơn hàng'].filter(Boolean).join(' · ');
     };
     if (current) summary.textContent = 'Xem Đơn';
@@ -490,11 +498,12 @@
     }
 
     if (!current) {
-      showDraftPicker(createDetails);
+      if (data.permissions.assign === true) showDraftPicker(createDetails);
+      else assignmentRow.hidden = true;
     } else {
       content.append(...assignedEntries.map(entry => node('div', detailLabel(entry))));
       if (!assignedEntries.length) content.append(node('div', 'Chưa gán đơn.'));
-      if (!readOnly && (!item.id || line.canAssign)) {
+      if (!readOnly && data.permissions.assign === true && (!item.id || line.canAssign)) {
         if (assignedEntries.length) {
           const edit = node('button', 'Sửa/Bổ sung');
           edit.type = 'button';
@@ -534,7 +543,7 @@
       setBusy(false);
       message(error.message, true);
     }).withSuccessHandler(result => load('Đã lưu ' + result.id + '.')).saveFilmOrder({
-      id: current ? current.PO_NVL_ID : '', revision: current ? current.revision : '', token,
+      id: current ? current[data.fields.po.ID] : '', revision: current ? current.revision : '', token,
       supplier: $('supplier').value, date: $('orderDate').value, note: $('orderNote').value, lines
     });
   };

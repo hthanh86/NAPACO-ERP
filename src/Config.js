@@ -30,10 +30,13 @@ var CONFIG = {
     CUSTOMERS: '01_KHACH_HANG',
     PRODUCTS: '02_SAN_PHAM',
     EMPLOYEES: '07.NhanVien',
+    PERMISSIONS: '08.MaTranQuyen',
     FILM_PO: 'DAT_NHUA_PO',
     FILM_LINES: 'DAT_NHUA',
     FILM_MATERIALS: '04_ThongSoVatLieu',
+    FILM_MATERIALS_LEGACY: '01_04_ThongSoVatLieu',
     FILM_SUPPLIERS: '03.DM_NhaCungCap',
+    FILM_SUPPLIERS_LEGACY: '01_03_DM_NhaCungCap',
     FILM_RECEIPTS: 'KHO-FM-01A_NHAP_NVL',
     ORDERS: '01.DonHang',
     ORDER_DETAILS: '02.ChiTietDH',
@@ -120,6 +123,21 @@ var CONFIG = {
   // Toàn bộ logic Backend/Frontend chỉ gọi qua CONFIG.COLUMNS
   // ========================================================
   COLUMNS: {
+    FILM_PO: {
+      ID: 'PO_NVL_ID', DATE: 'Ngay_Dat', SUPPLIER: 'Ma_NCC', USER: 'Nguoi_Dat',
+      NOTE: 'Ghi_Chu', STATUS: 'Trang_Thai'
+    },
+    FILM_LINES: {
+      ID: 'DN_ID', RESIN: 'Loai_Nhua', MATERIAL_ID: 'VL_ID', QTY: 'So_Luong',
+      PRICE: 'Don_Gia', NOTE: 'Ghi_Chu', STATUS: 'Trang_Thai',
+      PO_ID: 'PO_NVL_ID', DELIVERY: 'Ngay_Giao_Du_Kien', DATE: 'Ngay_Dat', SUPPLIER: 'Ma_NCC'
+    },
+    FILM_MATERIALS: {
+      ID: 'VL_ID', GRADE: 'Cấp Độ', COLOR: 'Màu Sắc', ESD: 'Tĩnh Điện',
+      THICKNESS: 'Độ Dày', WIDTH: 'Khổ Nhựa', COLOR_CATALOG: 'DM_MAU_SAC'
+    },
+    FILM_SUPPLIERS: { ID: 'Ma_NCC', NAME: 'Ten_NCC', TYPE: 'Loai_Cung_Cap' },
+    FILM_RECEIPTS: { ID: 'N_NVL_ID', LINE_ID: 'DN_ID', QTY: 'So_KG_Nhan' },
     // Bảng 01_KHACH_HANG
     CUSTOMERS: {
       ID: 'Ma_KH',
@@ -199,8 +217,25 @@ var CONFIG = {
     }
   },
 
-  /* [MỚI - SPEC-ERP-LINEITEM-202611-01] Vai trò được phép Bulk Edit */
-  ALLOWED_ROLES_BULK_EDIT: ['Kinh doanh', 'QLSX', 'QC', 'Kho'],
+  EMPLOYEE_HEADER_ALIASES: {
+    ID: ['mã nv'], NAME: ['họ và tên', 'tên nv'],
+    DEPARTMENT: ['phòng ban'], STATUS: ['trạng thái']
+  },
+
+  // Danh mục mã dùng ở cột Ma_Chuc_Nang của 08.MaTranQuyen.
+  // Quyền của từng vai trò được cấu hình trong MASTER.
+  PERMISSIONS: Object.freeze({
+    ORDER_CREATE: 'ORDER_CREATE', // Lưu phiếu tạo đơn hàng
+    ORDER_EDIT: 'ORDER_EDIT', // Lưu chỉnh sửa thông tin đơn hàng và chi tiết từ danh sách
+    FILM_PO_VIEW: 'FILM_PO_VIEW',
+    FILM_PO_CREATE: 'FILM_PO_CREATE',
+    FILM_PO_EDIT: 'FILM_PO_EDIT',
+    FILM_PO_ASSIGN: 'FILM_PO_ASSIGN',
+    FILM_PO_CANCEL: 'FILM_PO_CANCEL', // Chưa có luồng hủy PO màng
+    NVL_RECEIVE: 'NVL_RECEIVE', // Chưa có luồng lập phiếu nhận NVL
+    NVL_STOCK_VIEW: 'NVL_STOCK_VIEW',
+    PRODUCTION_EDIT: 'PRODUCTION_EDIT' // Chưa áp dụng vào thao tác sản xuất
+  }),
 
   DEFAULT_DELIVERY_DAYS: 10,
   DEFAULT_STATUS_DETAIL: 'Chờ sản xuất',

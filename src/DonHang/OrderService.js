@@ -20,6 +20,40 @@
 
 const OrderService = {
 
+  readDatabaseTable_: function(sheet, name, schema, required) {
+    if (!sheet) throw new Error('Không tìm thấy bảng ' + name + '.');
+    const rows = sheet.getDataRange().getValues();
+    const normalize = value => String(value || '').trim().toLowerCase();
+    const candidates = rows.slice(0, 10).map(row => row.map(normalize));
+    const headerRow = candidates.findIndex(row => row.includes(normalize(schema.ID)));
+    const headers = candidates[headerRow] || [];
+    const columns = {};
+    for (const [key, label] of Object.entries(schema)) {
+      const normalized = normalize(label);
+      const index = headers.indexOf(normalized);
+      if (index !== headers.lastIndexOf(normalized)) {
+        throw new Error('Cột "' + label + '" bị trùng trong ' + name + '.');
+      }
+      if (index < 0 && required.includes(key)) {
+        throw new Error('Thiếu cột "' + label + '" trong ' + name + '.');
+      }
+      columns[key] = index;
+    }
+    return { sheet, rows, headerRow, columns };
+  },
+
+  appendDatabaseRows_: function(table, records) {
+    if (!records.length) return;
+    const keys = Object.keys(records[0]);
+    const width = Math.max(...keys.map(key => table.columns[key])) + 1;
+    const rows = records.map(record => {
+      const row = Array(width).fill('');
+      for (const key of keys) row[table.columns[key]] = record[key];
+      return row;
+    });
+    table.sheet.getRange(table.sheet.getLastRow() + 1, 1, rows.length, width).setValues(rows);
+  },
+
   /**
    * Mở kết nối tới File 01. DB MASTER từ ScriptProperties
    * @private
@@ -62,27 +96,27 @@ const OrderService = {
   /**
    * Đọc danh mục Master (Khách hàng, Sản phẩm, Nhân viên) và Xác thực người dùng kép
    */
-  getCatalogAndAuthData: function() {
-    const masterSS = this.getMasterSpreadsheet_();
+  getCatalogAndAuthData: function(masterSS = this.getMasterSpreadsheet_()) {
 
     // 1. Đọc bảng 01_KHACH_HANG: [Ma_KH, name, address, contacter, phone]
     const custSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.CUSTOMERS);
     if (!custSheet) throw new Error('Không tìm thấy bảng ' + CONFIG.SHEET_NAMES.CUSTOMERS);
-    const custValues = custSheet.getDataRange().getValues();
+    const { rows: custValues, headerRow: custHeader, columns: custCols } = this.readDatabaseTable_(
+      custSheet, CONFIG.SHEET_NAMES.CUSTOMERS, CONFIG.COLUMNS.CUSTOMERS, ['ID', 'NAME']);
     const customers = [];
     const customerByNameMap = {};
     const customerByIdMap = {};
 
-    for (let i = 1; i < custValues.length; i++) {
-      const maKH = String(custValues[i][0] || '').trim();
-      const name = String(custValues[i][1] || '').trim();
+    for (let i = custHeader + 1; i < custValues.length; i++) {
+      const maKH = String(custValues[i][custCols.ID] || '').trim();
+      const name = String(custValues[i][custCols.NAME] || '').trim();
       if (!maKH || !name) continue;
       const cusObj = {
         maKH: maKH,
         name: name,
-        address: String(custValues[i][2] || '').trim(),
-        contacter: String(custValues[i][3] || '').trim(),
-        phone: String(custValues[i][4] || '').trim()
+        address: String(custValues[i][custCols.ADDRESS] || '').trim(),
+        contacter: String(custValues[i][custCols.CONTACTER] || '').trim(),
+        phone: String(custValues[i][custCols.PHONE] || '').trim()
       };
       customers.push(cusObj);
       customerByNameMap[name.toLowerCase()] = cusObj;
@@ -521,6 +555,7 @@ const OrderService = {
 
     try {
       const masterSS = this.getMasterSpreadsheet_();
+      requirePermission_(readUserPermissions_(masterSS), CONFIG.PERMISSIONS.ORDER_CREATE);
       const operSS = this.getOperationSpreadsheet_();
 
       const custSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.CUSTOMERS);
@@ -532,14 +567,24 @@ const OrderService = {
         throw new Error("Không tìm thấy các bảng giao dịch 01.DonHang hoặc 02.ChiTietDH!");
       }
 
-      // 2. Tải bản đồ Khách hàng & Sản phẩm hiện có để kiểm tra cũ/mới
-      const custData = custSheet.getDataRange().getValues();
+      const names = CONFIG.SHEET_NAMES;
+      const schema = CONFIG.COLUMNS;
+      const productKeys = ['ID', 'CUSTOMER_ID', 'FILM', 'TYPE', 'CODE_CUST', 'NAME',
+        'CAVITY', 'STOCK', 'UNIT', 'PACKING', 'MOLD_PRICE', 'PRICE'];
+      const detailKeys = ['ID', 'ORDER_ID', 'PRODUCT_ID', 'QTY_ORDER', 'PRICE', 'QTY_RUN',
+        'QTY_DELIVERED', 'QTY_REMAINING', 'NOTE', 'DELIVERY_DATE', 'STAFF_ID', 'STATUS'];
+      const customerTable = this.readDatabaseTable_(custSheet, names.CUSTOMERS, schema.CUSTOMERS, ['ID', 'NAME']);
+      const productTable = this.readDatabaseTable_(prodSheet, names.PRODUCTS, schema.PRODUCTS, productKeys);
+      const orderTable = this.readDatabaseTable_(orderSheet, names.ORDERS, schema.ORDERS, Object.keys(schema.ORDERS));
+      const detailTable = this.readDatabaseTable_(detailSheet, names.ORDER_DETAILS, schema.ORDER_DETAILS, detailKeys);
+      const { rows: custData, columns: custCols } = customerTable;
+      const { rows: prodData, columns: prodCols } = productTable;
       const khMap = {}; // Tên KH (lowercase) -> Ma_KH
       let maxKhSeq = 0;
 
-      for (let i = 1; i < custData.length; i++) {
-        const ma = String(custData[i][0] || '').trim();
-        const ten = String(custData[i][1] || '').trim();
+      for (let i = customerTable.headerRow + 1; i < custData.length; i++) {
+        const ma = String(custData[i][custCols.ID] || '').trim();
+        const ten = String(custData[i][custCols.NAME] || '').trim();
         if (ma && ten) khMap[ten.toLowerCase()] = ma;
         
         // Trích xuất số lớn nhất từ các mã KH (VD: KH0214 -> 214)
@@ -550,14 +595,13 @@ const OrderService = {
         }
       }
 
-      const prodData = prodSheet.getDataRange().getValues();
       const prodMap = {}; // Tên SP + Mã KH -> SP_ID
       let maxSpSeq = 0;
       const prodRowIndexMap = {};
-      for (let j = 1; j < prodData.length; j++) {
-        const spId = String(prodData[j][0] || '').trim();
-        const cusId = String(prodData[j][1] || '').trim();
-        const spName = String(prodData[j][5] || '').trim().toLowerCase();
+      for (let j = productTable.headerRow + 1; j < prodData.length; j++) {
+        const spId = String(prodData[j][prodCols.ID] || '').trim();
+        const cusId = String(prodData[j][prodCols.CUSTOMER_ID] || '').trim();
+        const spName = String(prodData[j][prodCols.NAME] || '').trim().toLowerCase();
         if (spId && spName) {
           prodMap[spName + '__' + cusId] = spId;
           if (!prodMap[spName]) prodMap[spName] = spId;
@@ -582,6 +626,7 @@ const OrderService = {
       const detailRows = [];
       const newCustRows = [];
       const newProdRows = [];
+      const productUpdates = new Map();
 
       const todayStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "yyyy-MM-dd");
       const yymmdd = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "yyMMdd");
@@ -591,20 +636,20 @@ const OrderService = {
       let detailSeq = 1;
 
       // Quét đơn hàng hiện có để lấy sequence lớn nhất trong ngày
-      const existingOrders = orderSheet.getDataRange().getValues();
+      const existingOrders = orderTable.rows;
       const orderRegex = new RegExp(`^DH_${yymmdd}_(\\d+)$`, 'i');
-      for (let r = 1; r < existingOrders.length; r++) {
-        const match = String(existingOrders[r][0] || '').match(orderRegex);
+      for (let r = orderTable.headerRow + 1; r < existingOrders.length; r++) {
+        const match = String(existingOrders[r][orderTable.columns.ID] || '').match(orderRegex);
         if (match) {
           const num = parseInt(match[1], 10);
           if (num >= orderSeq) orderSeq = num + 1;
         }
       }
 
-      const existingDetails = detailSheet.getDataRange().getValues();
+      const existingDetails = detailTable.rows;
       const detailRegex = new RegExp(`^CT_${yymmdd}_(\\d+)$`, 'i');
-      for (let r = 1; r < existingDetails.length; r++) {
-        const match = String(existingDetails[r][0] || '').match(detailRegex);
+      for (let r = detailTable.headerRow + 1; r < existingDetails.length; r++) {
+        const match = String(existingDetails[r][detailTable.columns.ID] || '').match(detailRegex);
         if (match) {
           const num = parseInt(match[1], 10);
           if (num >= detailSeq) detailSeq = num + 1;
@@ -624,7 +669,7 @@ const OrderService = {
           currentMaxKh++;
           targetMaKH = 'KH' + String(currentMaxKh).padStart(4, '0');
           khMap[cusKey] = targetMaKH;
-          newCustRows.push([targetMaKH, cusName, '', '', '']);
+          newCustRows.push({ ID: targetMaKH, NAME: cusName });
         }
 
         // Tải file đính kèm PO lên Drive nếu có
@@ -668,7 +713,10 @@ const OrderService = {
         const soPO = grp.soPO || `PO-${yymmdd}-${cusName}`;
 
         // Header: [Ma_DH, MaKH, NgayDat, NgayGiaoDK, So_PO, File_PO]
-        headerRows.push([maDH, targetMaKH, todayStr, ngayGiaoDK, soPO, finalFileUrl]);
+        headerRows.push({
+          ID: maDH, CUSTOMER_ID: targetMaKH, ORDER_DATE: todayStr, DELIVERY_DATE: ngayGiaoDK,
+          PO_NUMBER: soPO, FILE_URL: finalFileUrl
+        });
 
         // Xử lý các dòng sản phẩm con
         const items = grp.items || [];
@@ -684,34 +732,25 @@ const OrderService = {
             currentMaxSp++;
             targetSpId = 'SP' + String(currentMaxSp).padStart(4, '0');
             prodMap[prodKey] = targetSpId;
-            newProdRows.push([
-              targetSpId,
-              targetMaKH,
-              item.mang || '',
-              item.type || '1',
-              item.codeSP || '',
-              prodName,
-              0, // cavity
-              0, // tonkho
-              item.unit || 'Cái',
-              '', '', '', // dai, rong, cao
-              '', // imageURL
-              item.donggoi || '',
-              item.giaKhuon || 0,
-              item.price || 0
-            ]);
+            newProdRows.push({
+              ID: targetSpId, CUSTOMER_ID: targetMaKH, FILM: item.mang || '', TYPE: item.type || '1',
+              CODE_CUST: item.codeSP || '', NAME: prodName, CAVITY: 0, STOCK: 0, UNIT: item.unit || 'Cái',
+              PACKING: item.donggoi || '', MOLD_PRICE: item.giaKhuon || 0, PRICE: item.price || 0
+            });
           } else {
             // Sản phẩm đã tồn tại -> Cập nhật lại thông số mới nhất vào bảng 02_SAN_PHAM
             const spRowIdx = prodRowIndexMap[targetSpId];
             if (spRowIdx) {
-              // Cột 3 (mang), Cột 4 (type), Cột 5 (Code_Sanpham), Cột 9 (donvi), Cột 14 (donggoi), Cột 15 (Gia Khuon), Cột 16 (dongia)
-              if (item.mang) prodSheet.getRange(spRowIdx, 3).setValue(item.mang);
-              if (item.type) prodSheet.getRange(spRowIdx, 4).setValue(item.type);
-              if (item.codeSP) prodSheet.getRange(spRowIdx, 5).setValue(item.codeSP);
-              if (item.unit) prodSheet.getRange(spRowIdx, 9).setValue(item.unit);
-              if (item.donggoi) prodSheet.getRange(spRowIdx, 14).setValue(item.donggoi);
-              if (Number(item.giaKhuon) > 0) prodSheet.getRange(spRowIdx, 15).setValue(Number(item.giaKhuon));
-              if (Number(item.price) > 0) prodSheet.getRange(spRowIdx, 16).setValue(Number(item.price));
+              const updates = {
+                FILM: item.mang, TYPE: item.type, CODE_CUST: item.codeSP, UNIT: item.unit,
+                PACKING: item.donggoi, MOLD_PRICE: Math.max(0, Number(item.giaKhuon)),
+                PRICE: Math.max(0, Number(item.price))
+              };
+              if (!productUpdates.has(spRowIdx)) productUpdates.set(spRowIdx, new Map());
+              const cells = productUpdates.get(spRowIdx);
+              for (const [key, value] of Object.entries(updates)) {
+                if (value) cells.set(prodCols[key], value);
+              }
             }
           }
 
@@ -723,20 +762,11 @@ const OrderService = {
           const maNV = grp.salesPerson ? String(grp.salesPerson).split(' - ')[0].trim() : '';
 
           // Line Item: [ID_Chi_Tiet, ID_DonHang, Ma_SP, So_Luong_Dat, Don_Gia, So_Luong_Da_Chay, SL_Da_Giao, SL_Con_Lai, Ghi_Chu, Ngay_Giao, Ma_NV, Trang_Thai]
-          detailRows.push([
-            idChiTiet,
-            maDH,
-            targetSpId,
-            slDat,
-            donGia,
-            0, // So_Luong_Da_Chay
-            0, // SL_Da_Giao
-            slDat, // SL_Con_Lai mặc định = So_Luong_Dat
-            item.note || grp.orderNote || '',
-            ngayGiao,
-            maNV,
-            'Chờ sản xuất'
-          ]);
+          detailRows.push({
+            ID: idChiTiet, ORDER_ID: maDH, PRODUCT_ID: targetSpId, QTY_ORDER: slDat, PRICE: donGia,
+            QTY_RUN: 0, QTY_DELIVERED: 0, QTY_REMAINING: slDat, NOTE: item.note || grp.orderNote || '',
+            DELIVERY_DATE: ngayGiao, STAFF_ID: maNV, STATUS: CONFIG.LINE_STATUS.NEW
+          });
         }
 
         createdOrders.push({
@@ -746,19 +776,28 @@ const OrderService = {
         });
       }
 
-      // 4. Batch Write nguyên tử (Atomic Commit)
-      if (newCustRows.length > 0) {
-        custSheet.getRange(custSheet.getLastRow() + 1, 1, newCustRows.length, newCustRows[0].length).setValues(newCustRows);
+      // 4. Gom các ô sản phẩm cũ vào một lần ghi, giữ nguyên các cột ngoài cập nhật.
+      const productRequests = [];
+      if (productUpdates.size) {
+        const sheetId = prodSheet.getSheetId();
+        for (const [row, cells] of productUpdates) {
+          for (const [columnIndex, value] of cells) {
+            const userEnteredValue = typeof value === 'number' ? { numberValue: value } : { stringValue: String(value) };
+            productRequests.push({ updateCells: {
+              start: { sheetId, rowIndex: row - 1, columnIndex },
+              rows: [{ values: [{ userEnteredValue }] }],
+              fields: 'userEnteredValue'
+            } });
+          }
+        }
       }
-      if (newProdRows.length > 0) {
-        prodSheet.getRange(prodSheet.getLastRow() + 1, 1, newProdRows.length, newProdRows[0].length).setValues(newProdRows);
+      if (productRequests.length) {
+        Sheets.Spreadsheets.batchUpdate({ requests: productRequests }, masterSS.getId());
       }
-      if (headerRows.length > 0) {
-        orderSheet.getRange(orderSheet.getLastRow() + 1, 1, headerRows.length, headerRows[0].length).setValues(headerRows);
-      }
-      if (detailRows.length > 0) {
-        detailSheet.getRange(detailSheet.getLastRow() + 1, 1, detailRows.length, detailRows[0].length).setValues(detailRows);
-      }
+      this.appendDatabaseRows_(customerTable, newCustRows);
+      this.appendDatabaseRows_(productTable, newProdRows);
+      this.appendDatabaseRows_(orderTable, headerRows);
+      this.appendDatabaseRows_(detailTable, detailRows);
 
       // 5. Dọn dẹp dòng dữ liệu nháp trên Sheet 'TAO DON'
       if (payload.sourceSpreadsheetId) {
@@ -809,7 +848,8 @@ const OrderService = {
     const page = Math.max(1, parseInt(params.page, 10) || 1);
     const pageSize = Math.max(1, parseInt(params.pageSize, 10) || 100);
 
-    const catalog = this.getCatalogAndAuthData();
+    const masterSS = this.getMasterSpreadsheet_();
+    const catalog = this.getCatalogAndAuthData(masterSS);
     const productType = viewMode === 'ALL_VIEWS'
       ? (String(params.productType || '').trim() === '2' ? '2' : '1')
       : '';
@@ -840,7 +880,7 @@ console.log("1. Tham số nhận từ Client:", JSON.stringify({
     const orderRows = orderSheet.getDataRange().getValues();
     const detailRows = detailSheet.getDataRange().getValues();
 
-    const moldMap = this.getMoldsMap_();
+    const moldMap = this.getMoldsMap_(masterSS);
 
     // =========================================================================
     // 1. [ĐƯA LÊN TRƯỚC] ÁNH XẠ HEADER ĐƠN HÀNG (01.DonHang) TẠO orderMap TRƯỚC
@@ -1321,11 +1361,12 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
     }
     if (!email) return '';
 
-    const rows = empSheet.getDataRange().getValues();
-    for (let i = 1; i < rows.length; i++) {
-      const maNV = String(rows[i][0] || '').trim();
-      const rowEmail = String(rows[i][4] || '').trim().toLowerCase();
-      const trangThai = String(rows[i][8] || '').trim();
+    const { rows, headerRow, columns } = this.readDatabaseTable_(empSheet, CONFIG.SHEET_NAMES.EMPLOYEES,
+      CONFIG.COLUMNS.EMPLOYEES, ['ID', 'EMAIL', 'STATUS']);
+    for (let i = headerRow + 1; i < rows.length; i++) {
+      const maNV = String(rows[i][columns.ID] || '').trim();
+      const rowEmail = String(rows[i][columns.EMAIL] || '').trim().toLowerCase();
+      const trangThai = String(rows[i][columns.STATUS] || '').trim();
       if (maNV && /^NV/i.test(maNV) && rowEmail === email && trangThai.toLowerCase().includes(CONFIG.EMPLOYEE_STATUS.ACTIVE.toLowerCase())) {
         return maNV;
       }
@@ -1385,25 +1426,27 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
    */
   updateExistingProductIfChanged_: function(prodSheet, matchedProd, item) {
     try {
+      const { columns } = this.readDatabaseTable_(prodSheet, CONFIG.SHEET_NAMES.PRODUCTS,
+        CONFIG.COLUMNS.PRODUCTS, ['ID', 'CODE_CUST', 'PRICE', 'MOLD_PRICE', 'FILM', 'PACKING']);
       const rIdx = matchedProd.rowIndex;
       if (item.codeSP && item.codeSP !== matchedProd.codeSP) {
-        prodSheet.getRange(rIdx, 5).setValue(item.codeSP);
+        prodSheet.getRange(rIdx, columns.CODE_CUST + 1).setValue(item.codeSP);
         matchedProd.codeSP = item.codeSP;
       }
       if (Number(item.price) > 0 && Number(item.price) !== matchedProd.price) {
-        prodSheet.getRange(rIdx, 16).setValue(Number(item.price));
+        prodSheet.getRange(rIdx, columns.PRICE + 1).setValue(Number(item.price));
         matchedProd.price = Number(item.price);
       }
       if (Number(item.giaKhuon) > 0 && Number(item.giaKhuon) !== matchedProd.giaKhuon) {
-        prodSheet.getRange(rIdx, 15).setValue(Number(item.giaKhuon));
+        prodSheet.getRange(rIdx, columns.MOLD_PRICE + 1).setValue(Number(item.giaKhuon));
         matchedProd.giaKhuon = Number(item.giaKhuon);
       }
       if (item.mang && item.mang !== matchedProd.mang) {
-        prodSheet.getRange(rIdx, 3).setValue(item.mang);
+        prodSheet.getRange(rIdx, columns.FILM + 1).setValue(item.mang);
         matchedProd.mang = item.mang;
       }
       if (item.donggoi && item.donggoi !== matchedProd.donggoi) {
-        prodSheet.getRange(rIdx, 14).setValue(item.donggoi);
+        prodSheet.getRange(rIdx, columns.PACKING + 1).setValue(item.donggoi);
         matchedProd.donggoi = item.donggoi;
       }
     } catch (e) {
@@ -1605,12 +1648,14 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
 
     // 1. Tạo bản đồ: Ma_KH -> Tên Khách Hàng
     const custSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.CUSTOMERS);
-    const custData = custSheet.getDataRange().getValues();
+    const customerTable = this.readDatabaseTable_(custSheet, CONFIG.SHEET_NAMES.CUSTOMERS,
+      CONFIG.COLUMNS.CUSTOMERS, ['ID', 'NAME']);
+    const { rows: custData, columns: custCols } = customerTable;
     const khMap = {};
     const allCustomerNames = [];
-    for (let i = 1; i < custData.length; i++) {
-      const ma = String(custData[i][0] || '').trim();
-      const ten = String(custData[i][1] || '').trim();
+    for (let i = customerTable.headerRow + 1; i < custData.length; i++) {
+      const ma = String(custData[i][custCols.ID] || '').trim();
+      const ten = String(custData[i][custCols.NAME] || '').trim();
       if (ma && ten) {
         khMap[ma] = ten;
         if (!allCustomerNames.includes(ten)) allCustomerNames.push(ten);
@@ -1622,13 +1667,17 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
     const empData = empSheet ? empSheet.getDataRange().getValues() : [];
     const salesStaffRows = [];
 
+    const employeeHeaders = CONFIG.COLUMNS.EMPLOYEES;
+    const employeeAliases = CONFIG.EMPLOYEE_HEADER_ALIASES;
+    const matchesEmployeeHeader = (key, label) => employeeHeaders[key].toLowerCase() === label ||
+      employeeAliases[key].includes(label);
     let empHeaderRowIdx = -1;
     let colMaNV = -1, colTenNV = -1, colPhongBan = -1, colTrangThai = -1;
 
     for (let r = 0; r < Math.min(empData.length, 10); r++) {
       for (let c = 0; c < empData[r].length; c++) {
         const val = String(empData[r][c] || '').trim().toLowerCase();
-        if (val === 'ma_nv' || val === 'mã nv') {
+        if (matchesEmployeeHeader('ID', val)) {
           empHeaderRowIdx = r;
           break;
         }
@@ -1640,10 +1689,10 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
       const empHeaders = empData[empHeaderRowIdx];
       for (let c = 0; c < empHeaders.length; c++) {
         const h = String(empHeaders[c] || '').trim().toLowerCase();
-        if (h === 'ma_nv' || h === 'mã nv') colMaNV = c;
-        if (h === 'name' || h === 'họ và tên' || h === 'tên nv') colTenNV = c;
-        if (h === 'phong_ban' || h === 'phòng ban') colPhongBan = c;
-        if (h === 'trang_thai' || h === 'trạng thái') colTrangThai = c;
+        if (matchesEmployeeHeader('ID', h)) colMaNV = c;
+        if (matchesEmployeeHeader('NAME', h)) colTenNV = c;
+        if (matchesEmployeeHeader('DEPARTMENT', h)) colPhongBan = c;
+        if (matchesEmployeeHeader('STATUS', h)) colTrangThai = c;
       }
 
       for (let k = empHeaderRowIdx + 1; k < empData.length; k++) {
@@ -1671,21 +1720,23 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
 
     // 3. Đọc Sản Phẩm và ghép ĐÚNG Khách Hàng sở hữu qua customer_id
     const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
-    const prodData = prodSheet.getDataRange().getValues();
+    const productTable = this.readDatabaseTable_(prodSheet, CONFIG.SHEET_NAMES.PRODUCTS,
+      CONFIG.COLUMNS.PRODUCTS, ['ID', 'NAME', 'CUSTOMER_ID', 'CODE_CUST', 'UNIT', 'PRICE']);
+    const { rows: prodData, columns: prodCols } = productTable;
     const cacheRows = [];
-    for (let j = 1; j < prodData.length; j++) {
-      const tenSP = String(prodData[j][5] || '').trim();
+    for (let j = productTable.headerRow + 1; j < prodData.length; j++) {
+      const tenSP = String(prodData[j][prodCols.NAME] || '').trim();
       if (!tenSP) continue;
 
-      const cusId = String(prodData[j][1] || '').trim();
+      const cusId = String(prodData[j][prodCols.CUSTOMER_ID] || '').trim();
       const tenKH = khMap[cusId] || cusId;
 
       cacheRows.push([
         tenSP,
         tenKH,
-        String(prodData[j][4] || '').trim(),
-        String(prodData[j][8] || 'Cái').trim() || 'Cái',
-        Number(prodData[j][15]) || 0
+        String(prodData[j][prodCols.CODE_CUST] || '').trim(),
+        String(prodData[j][prodCols.UNIT] || 'Cái').trim() || 'Cái',
+        Number(prodData[j][prodCols.PRICE]) || 0
       ]);
     }
 
@@ -1757,9 +1808,8 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
    * [MỚI - SPEC-ERP-LINEITEM-202611-01] Đọc bảng 05.Cong_Cu và tạo map Khuôn định hình theo SP_ID
    * @private
    */
-  getMoldsMap_: function() {
+  getMoldsMap_: function(masterSS = this.getMasterSpreadsheet_()) {
     try {
-      const masterSS = this.getMasterSpreadsheet_();
       const sheetName = (CONFIG.SHEET_NAMES && CONFIG.SHEET_NAMES.TOOLS) ? CONFIG.SHEET_NAMES.TOOLS : '05.Cong_Cu';
       const toolSheet = masterSS.getSheetByName(sheetName);
       if (!toolSheet) return {};
@@ -1832,37 +1882,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
       return { success: false, message: 'Không có dữ liệu mặt hàng nào được chọn.' };
     }
 
-    // 1. KIỂM TRA PHÂN QUYỀN SERVER-SIDE
-    const catalog = this.getCatalogAndAuthData();
-    const currentUser = catalog.currentUser;
-    const allowedRoles = CONFIG.ALLOWED_ROLES_BULK_EDIT || ['Kinh doanh', 'QLSX', 'QC', 'Kho'];
-
-    let hasPermission = false;
-    if (currentUser && currentUser.isAuthenticated) {
-      const uRole = String(currentUser.role || '').toLowerCase();
-      const uDept = String(currentUser.phongBan || '').toLowerCase();
-      const uAccess = String(currentUser.quyenTruyCap || '').toLowerCase();
-      if (uAccess.includes('admin') || uAccess.includes('manager')) {
-        hasPermission = true;
-      } else {
-        hasPermission = allowedRoles.some(r => {
-          const rLow = r.toLowerCase();
-          return uRole.includes(rLow) || uDept.includes(rLow);
-        });
-      }
-    } else {
-      try {
-        if (Session.getActiveUser().getEmail()) hasPermission = true;
-      } catch (e) {
-        hasPermission = false;
-      }
-    }
-
-    if (!hasPermission) {
-      return { success: false, message: 'Bạn không có quyền thực hiện thao tác này.' };
-    }
-
-    // 2. KHÓA HỆ THỐNG CHỐNG RACE CONDITION (TIMEOUT 30s)
+    // Khóa hệ thống trước khi kiểm tra quyền và ghi dữ liệu.
     const lock = LockService.getScriptLock();
     let hasLock = false;
     try {
@@ -1876,8 +1896,10 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
     }
 
     try {
-      const operSS = this.getOperationSpreadsheet_();
       const masterSS = this.getMasterSpreadsheet_();
+      requirePermission_(readUserPermissions_(masterSS), CONFIG.PERMISSIONS.ORDER_EDIT);
+      const catalog = this.getCatalogAndAuthData(masterSS);
+      const operSS = this.getOperationSpreadsheet_();
 
       const detailSheet = operSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
       const orderSheet = operSS.getSheetByName(CONFIG.SHEET_NAMES.ORDERS);
@@ -2522,7 +2544,8 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
       }
     }
 
-    detailSheet.getRange(2, Math.min(cZone, cPriority) + 1, batchVals.length, 2).setValues(batchVals);
+    detailSheet.getRange(2, cZone + 1, batchVals.length, 1).setValues(batchVals.map(([zone]) => [zone]));
+    detailSheet.getRange(2, cPriority + 1, batchVals.length, 1).setValues(batchVals.map(([, priority]) => [priority]));
     SpreadsheetApp.flush();
     return `Migration thành công: đã cập nhật ${batchVals.length} dòng dữ liệu.`;
   }

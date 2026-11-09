@@ -192,10 +192,11 @@ function test_generateNextIds_Backend() {
   const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
 
   // 1. Kiểm tra Khách hàng
-  const custData = custSheet.getDataRange().getValues();
+  const { rows: custData, headerRow: custHeader, columns: custCols } = OrderService.readDatabaseTable_(
+    custSheet, CONFIG.SHEET_NAMES.CUSTOMERS, CONFIG.COLUMNS.CUSTOMERS, ['ID']);
   let maxKh = 0;
-  for (let i = 1; i < custData.length; i++) {
-    const ma = String(custData[i][0] || '').trim();
+  for (let i = custHeader + 1; i < custData.length; i++) {
+    const ma = String(custData[i][custCols.ID] || '').trim();
     const m = ma.match(/KH(\d+)/i);
     if (m) {
       const n = parseInt(m[1], 10);
@@ -206,10 +207,11 @@ function test_generateNextIds_Backend() {
   console.log(`✅ [TEST-ID] Khách Hàng: Mã số lớn nhất hiện tại = KH${String(maxKh).padStart(4, '0')} -> Mã cho KH mới tiếp theo = ${nextKhId}`);
 
   // 2. Kiểm tra Sản phẩm
-  const prodData = prodSheet.getDataRange().getValues();
+  const { rows: prodData, headerRow: prodHeader, columns: prodCols } = OrderService.readDatabaseTable_(
+    prodSheet, CONFIG.SHEET_NAMES.PRODUCTS, CONFIG.COLUMNS.PRODUCTS, ['ID']);
   let maxSp = 0;
-  for (let j = 1; j < prodData.length; j++) {
-    const spId = String(prodData[j][0] || '').trim();
+  for (let j = prodHeader + 1; j < prodData.length; j++) {
+    const spId = String(prodData[j][prodCols.ID] || '').trim();
     const m = spId.match(/SP(\d+)/i);
     if (m) {
       const n = parseInt(m[1], 10);
