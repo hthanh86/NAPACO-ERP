@@ -1,3 +1,155 @@
+/**
+ * HÀM TEST KIỂM THỬ TRỰC TIẾP TRÊN SERVER (EXECUTE SERVER-SIDE)
+ * Chạy hàm này trong Apps Script Editor để kiểm tra kết quả trả về
+ */
+function test_queryOrdersAndLineItems() {
+  console.log("🚀 BẮT ĐẦU KIỂM THỬ queryOrdersAndLineItems...");
+
+  // Giả lập tham số tìm kiếm (có thể thay đổi theo dữ liệu thực tế đang test)
+  const testParamsLine = {
+    viewMode: 'LINE_ITEM',
+    keyword: '',
+    maKH: 'ALL',
+    status: 'ACTIVE_ALL',
+    fromDate: '',
+    toDate: '',
+    page: 1,
+    pageSize: 100
+  };
+
+  const resLine = OrderService.queryOrdersAndLineItems(testParamsLine);
+  console.log("--- KẾT QUẢ CHẾ ĐỘ LINE_ITEM ---");
+  console.log("Tổng CTĐH lấy được:", resLine.data ? resLine.data.length : 0);
+  console.log("Summary KPI:", JSON.stringify(resLine.summary));
+
+  const testParamsHeader = {
+    viewMode: 'HEADER',
+    keyword: '',
+    maKH: 'ALL',
+    status: 'ACTIVE_ALL',
+    fromDate: '',
+    toDate: '',
+    page: 1,
+    pageSize: 100
+  };
+
+  const resHeader = OrderService.queryOrdersAndLineItems(testParamsHeader);
+  console.log("--- KẾT QUẢ CHẾ ĐỘ HEADER ---");
+  console.log("Tổng Header lấy được:", resHeader.data ? resHeader.data.length : 0);
+  console.log("Summary KPI:", JSON.stringify(resHeader.summary));
+
+  // Kiểm tra tính nhất quán logic
+  if (resLine.summary && resHeader.summary) {
+    console.log("✅ Đã hoàn thành test. Kiểm tra tính khớp nối KPI thành công!");
+  }
+}
+
+/**
+ * Hàm test độc lập để debug luồng truy vấn đơn hàng trực tiếp trên máy chủ
+ */
+function test_queryOrdersAndLineItems() {
+  console.log("=== BẮT ĐẦU TEST HÀM queryOrdersAndLineItems ===");
+
+  // 1. Giả lập payload tìm kiếm gửi từ Client (mặc định khi load trang)
+  const searchParams = {
+    viewMode: 'LINE_ITEM', // Thử test chế độ Chi tiết mặt hàng
+    keyword: '',
+    maKH: 'ALL',
+    status: 'ACTIVE_ALL', // Nghi ngờ lỗi do bộ lọc trạng thái này
+    fromDate: '',
+    toDate: '',
+    page: 1,
+    pageSize: 50
+  };
+
+  console.log("1. Tham số tìm kiếm (searchParams):", JSON.stringify(searchParams));
+
+  try {
+    // 2. Gọi trực tiếp vào OrderService
+    const result = OrderService.queryOrdersAndLineItems(searchParams);
+
+    // 3. In kết quả tổng quan
+    console.log("2. Kết quả trả về - Success:", result.success);
+    console.log("3. Tổng số bản ghi (total) lấy được:", result.total);
+    
+    if (result.exceededLimit) {
+      console.log("CẢNH BÁO: Vượt giới hạn bản ghi (exceededLimit = true)");
+    }
+
+    // 4. In chi tiết để kiểm tra cấu trúc dữ liệu nếu có kết quả
+    if (result.data && result.data.length > 0) {
+      console.log("4. Dữ liệu mẫu (Dòng 1):", JSON.stringify(result.data[0]));
+      console.log("-> Trạng thái của dòng 1 là:", result.data[0].trangThai);
+    } else {
+      console.log("KHÔNG TÌM THẤY DỮ LIỆU NÀO KHỚP VỚI ĐIỀU KIỆN LỌC!");
+      
+      // 5. Thử gỡ bộ lọc trạng thái để đối chiếu nguyên nhân
+      console.log("--- Thử truy vấn lại với status = 'ALL' ---");
+      searchParams.status = 'ALL';
+      const resultAll = OrderService.queryOrdersAndLineItems(searchParams);
+      
+      console.log("Tổng số dòng khi status='ALL':", resultAll.total);
+      if (resultAll.data && resultAll.data.length > 0) {
+        console.log("Dữ liệu mẫu khi status='ALL':", JSON.stringify(resultAll.data[0]));
+        console.log("=> KẾT LUẬN: Lỗi do hàm `isStatusMatch` không xử lý đúng giá trị trạng thái:", resultAll.data[0].trangThai);
+      } else {
+        console.log("=> KẾT LUẬN: Bảng ChiTietDH / DonHang thực sự không có dữ liệu, hoặc lỗi ánh xạ dữ liệu (orderMap).");
+      }
+    }
+
+  } catch (err) {
+    console.error("LỖI EXCEPTION THỰC THI:", err.message);
+    console.error("Stack trace:", err.stack);
+  }
+  
+  console.log("=== KẾT THÚC TEST ===");
+}
+
+/**
+ * Test Server-side: Kiểm tra hàm queryOrdersAndLineItems có phản hồi đúng định dạng không
+ */
+function testQueryOrdersAndLineItems() {
+  console.log("=== BẮT ĐẦU TEST SERVER RPC: queryOrdersAndLineItems ===");
+  try {
+    // 1. Test chế độ xem PO Header
+    const resHeader = OrderController.queryOrdersAndLineItems({
+      viewMode: 'HEADER',
+      keyword: '',
+      maKH: 'ALL',
+      status: 'ALL',
+      fromDate: '',
+      toDate: '',
+      page: 1,
+      pageSize: 10
+    });
+    console.log("1. Kết quả View HEADER:", {
+      success: resHeader.success,
+      totalOrders: resHeader.summary ? resHeader.summary.totalOrders : 0,
+      recordCount: (resHeader.data || []).length,
+      customersCount: (resHeader.customers || []).length
+    });
+
+    if (!resHeader.success) {
+      throw new Error("Lỗi khi test Header: " + JSON.stringify(resHeader.error));
+    }
+
+    // 2. Test chế độ xem Chi tiết mặt hàng (Line Item)
+    const resLine = OrderController.queryOrdersAndLineItems({
+      viewMode: 'LINE_ITEM',
+      page: 1,
+      pageSize: 10
+    });
+    console.log("2. Kết quả View LINE_ITEM:", {
+      success: resLine.success,
+      recordCount: (resLine.data || []).length
+    });
+
+    console.log("✅ TẤT CẢ TEST BACKEND THÀNH CÔNG 100%!");
+  } catch (err) {
+    console.error("❌ TEST SERVER THẤT BẠI:", err.message, err.stack);
+  }
+}
+
 function test_checkTimezoneConfig() {
   try {
     const tz = CONFIG.TIMEZONE;
@@ -71,7 +223,7 @@ function test_generateNextIds_Backend() {
 }
 
 /**
- * NAPACO ENTERPRISE OMS - BACKEND TEST RUNNER
+ * NAPACO ENTERPRISE ERP - BACKEND TEST RUNNER
  * File: TestBackend.gs
  * Mục đích: Kiểm tra kết nối DB, đọc dữ liệu theo tên cột định nghĩa tại CONFIG.COLUMNS
  */

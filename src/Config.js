@@ -34,7 +34,7 @@ var CONFIG = {
     ORDER_DETAILS: '02.ChiTietDH',
     ORDER_WORKSPACE: 'TAO DON',
     CACHE_CATALOG: '_CACHE_DANH_MUC',
-    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Khai báo sheet Công cụ / Khuôn */
+    /* [MỚI - SPEC-ERP-LINEITEM-202611-01] Khai báo sheet Công cụ / Khuôn */
     TOOLS: '05.Cong_Cu'
   },
 
@@ -183,7 +183,7 @@ var CONFIG = {
       PRIORITY_ORDER: 'Thu_Tu_Uu_Tien'
     },
 
-    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Định nghĩa cột bảng Công cụ / Khuôn và danh sách quyền */
+    /* [MỚI - SPEC-ERP-LINEITEM-202611-01] Định nghĩa cột bảng Công cụ / Khuôn và danh sách quyền */
     TOOLS: {
       SP_ID: 'MaSP',
       TOOL_TYPE: 'LoaiCC',
@@ -193,7 +193,7 @@ var CONFIG = {
     }
   },
 
-  /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Vai trò được phép Bulk Edit */
+  /* [MỚI - SPEC-ERP-LINEITEM-202611-01] Vai trò được phép Bulk Edit */
   ALLOWED_ROLES_BULK_EDIT: ['Kinh doanh', 'QLSX', 'QC', 'Kho'],
 
   DEFAULT_DELIVERY_DAYS: 10,

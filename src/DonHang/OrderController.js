@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * NAPACO ENTERPRISE OMS - ORDER CONTROLLER (WEB APP & RPC ROUTER)
+ * NAPACO ENTERPRISE ERP - ORDER CONTROLLER (WEB APP & RPC ROUTER)
  * File: OrderController.gs
  * Tầng kiến trúc: Tầng 2 - Controller Layer
  * Nhiệm vụ:
@@ -27,12 +27,12 @@ function doGet(e) {
     if (view === 'create' || view === 'modal') {
       const sourceSheetId = params.sourceId || '';
       const initRes = OrderController.getOrderModalInitData(sourceSheetId);
-      const template = HtmlService.createTemplateFromFile('OrderModal');
+      const template = HtmlService.createTemplateFromFile('DonHang/OrderModal');
       const jsonStr = JSON.stringify(initRes.success ? initRes.data : {});
       template.initialDataJson = Utilities.base64Encode(Utilities.newBlob(jsonStr, 'application/json').getBytes());
 
       return template.evaluate()
-        .setTitle('NAPACO OMS - Tạo Phiếu Đơn Đặt Hàng Mới')
+        .setTitle('NAPACO ERP - Tạo Phiếu Đơn Đặt Hàng Mới')
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
@@ -41,18 +41,18 @@ function doGet(e) {
     let output;
     let title;
     if (view === 'index') {
-      const template = HtmlService.createTemplateFromFile('OrderIndex_View');
+      const template = HtmlService.createTemplateFromFile('DonHang/OrderIndex_View');
       template.appUrl = appUrl;
       output = template.evaluate();
-      title = 'NAPACO OMS - Đơn Hàng';
+      title = 'NAPACO ERP - Đơn Hàng';
     } else if (view === 'be') {
-      const template = HtmlService.createTemplateFromFile('OrderListBe_View');
+      const template = HtmlService.createTemplateFromFile('DonHang/OrderListBe_View');
       template.appUrl = appUrl;
       output = template.evaluate();
-      title = 'NAPACO OMS - Đơn Hàng Bế';
+      title = 'NAPACO ERP - Đơn Hàng Bế';
     } else {
       output = renderOrderListView_('1', appUrl);
-      title = 'NAPACO OMS - Đơn Hàng Định Hình';
+      title = 'NAPACO ERP - Đơn Hàng Định Hình';
     }
 
     return output
@@ -63,7 +63,7 @@ function doGet(e) {
   } catch (err) {
     return HtmlService.createHtmlOutput(
       '<div style="font-family:sans-serif;padding:24px;color:#991b1b;background:#fef2f2;border:1px solid #f87171;border-radius:8px;">' +
-      '<h3>⚠️ Lỗi khởi chạy ứng dụng NAPACO OMS</h3>' +
+      '<h3>⚠️ Lỗi khởi chạy ứng dụng NAPACO ERP</h3>' +
       '<p>' + String(err.message || err) + '</p></div>'
     );
   }
@@ -78,14 +78,14 @@ function renderOrderMenu_(appUrl, activeModule) {
     { id: 'film', group: 'Sản xuất', icon: '▤', label: 'Đặt Màng', url: '' },
     { id: 'forming-log', group: 'Sản xuất', icon: '▣', label: 'Nhật Ký Định Hình', url: '' }
   ];
-  const template = HtmlService.createTemplateFromFile('OrderMenu_View');
+  const template = HtmlService.createTemplateFromFile('DonHang/OrderMenu_View');
   template.links = links;
   template.activeModule = activeModule;
   return template.evaluate().getContent();
 }
 
 function renderOrderListView_(productType, appUrl) {
-  const template = HtmlService.createTemplateFromFile('OrderList_View');
+  const template = HtmlService.createTemplateFromFile('DonHang/OrderList_View');
   template.productType = productType;
   template.appUrl = appUrl;
   return template.evaluate();
@@ -207,7 +207,7 @@ const OrderController = {
     }
   },
 
-  /* [MỚI - SPEC-OMS-LINEITEM-202611-01] Controller tiếp nhận lệnh Bulk Edit */
+  /* [MỚI - SPEC-ERP-LINEITEM-202611-01] Controller tiếp nhận lệnh Bulk Edit */
   updateOrderLineItemsBulk: function(payload) {
     try {
       return OrderService.updateOrderLineItemsBulk(payload);
@@ -315,7 +315,7 @@ function queryOrdersAndLineItems(searchParams) {
 }
 
 /**
- * [MỚI - SPEC-OMS-LINEITEM-202611-01] Global RPC gọi Chỉnh sửa hàng loạt dòng mặt hàng
+ * [MỚI - SPEC-ERP-LINEITEM-202611-01] Global RPC gọi Chỉnh sửa hàng loạt dòng mặt hàng
  */
 function updateOrderLineItemsBulk(payload) {
   return OrderController.updateOrderLineItemsBulk(payload);
@@ -578,15 +578,15 @@ function openOrderModal(optSourceSpreadsheetId) {
   const base64Data = Utilities.base64Encode(Utilities.newBlob(jsonDataStr, 'application/json').getBytes());
 
   // 2. Nạp dữ liệu thẳng vào Template HTML (KHÔNG CẦN CHỜ RPC FALLBACK)
-  const template = HtmlService.createTemplateFromFile('OrderModal');
+  const template = HtmlService.createTemplateFromFile('DonHang/OrderModal');
   template.initialDataJson = base64Data;
 
   const htmlOutput = template.evaluate()
     .setWidth(1150)
     .setHeight(700)
-    .setTitle('NAPACO OMS - Tạo Đơn Hàng');
+    .setTitle('NAPACO ERP - Tạo Đơn Hàng');
 
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'NAPACO OMS - Phiếu Tạo Đơn Hàng');
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'NAPACO ERP - Phiếu Tạo Đơn Hàng');
 }
 
 // 3. Hàm xử lý onEdit tự động điền sản phẩm

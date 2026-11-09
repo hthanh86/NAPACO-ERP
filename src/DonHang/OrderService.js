@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * NAPACO ENTERPRISE OMS - ORDER SERVICE & REPOSITORY LAYER
+ * NAPACO ENTERPRISE ERP - ORDER SERVICE & REPOSITORY LAYER
  * File: OrderService.gs
  * Tầng kiến trúc: Tầng 2 & 3 - Business Logic & Data Repository
  * Nhiệm vụ:
@@ -1577,7 +1577,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
    * Cú pháp giữ nguyên chuẩn Object Literal bên trong OrderService
    */
   /**
- * NAPACO ENTERPRISE OMS - ORDER SERVICE
+ * NAPACO ENTERPRISE ERP - ORDER SERVICE
  * File: OrderService.gs
  * Target: Business Logic Tier
  */
@@ -1754,7 +1754,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
   },
 
   /**
-   * [MỚI - SPEC-OMS-LINEITEM-202611-01] Đọc bảng 05.Cong_Cu và tạo map Khuôn định hình theo SP_ID
+   * [MỚI - SPEC-ERP-LINEITEM-202611-01] Đọc bảng 05.Cong_Cu và tạo map Khuôn định hình theo SP_ID
    * @private
    */
   getMoldsMap_: function() {
@@ -1806,7 +1806,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
   },
 
   /**
-   * [MỚI - SPEC-OMS-LINEITEM-202611-01] Chỉnh sửa hàng loạt (Bulk Edit) với LockService và Batch Read/Write
+   * [MỚI - SPEC-ERP-LINEITEM-202611-01] Chỉnh sửa hàng loạt (Bulk Edit) với LockService và Batch Read/Write
    * @param {Object} payload { targetIds: string[], fieldsToUpdate: Object }
    */
   updateOrderLineItemsBulk: function(payload) {

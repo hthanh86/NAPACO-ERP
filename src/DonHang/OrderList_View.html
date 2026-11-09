@@ -4,7 +4,7 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <title>NAPACO OMS - Tra Cứu Đơn Hàng & Chi Tiết Mặt Hàng (Dual-View)</title>
+  <title>NAPACO ERP - Tra Cứu Đơn Hàng & Chi Tiết Mặt Hàng (Dual-View)</title>
     <!-- [MỚI - SPEC-LINE-DND-01] Thư viện kéo thả siêu nhẹ SortableJS (<15KB) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <style>
@@ -210,7 +210,7 @@
       }
     }
 
-    /* [MỚI - SPEC-OMS-LINEITEM-202611-01] CSS BỔ SUNG CHO LINE-ITEM & BULK EDIT */
+    /* [MỚI - SPEC-ERP-LINEITEM-202611-01] CSS BỔ SUNG CHO LINE-ITEM & BULK EDIT */
     .link-po {
       color: #2563eb;
       font-weight: 700;
@@ -847,13 +847,13 @@
       padding: 6px 8px;
       border-bottom: 1px solid #e2e8f0;
     }
-    .oms-shell .app-wrapper {
+    .erp-shell .app-wrapper {
       width: 100%;
       min-width: 0;
       padding: clamp(14px, 2.4vw, 30px);
     }
 
-    .oms-shell .top-bar {
+    .erp-shell .top-bar {
       padding: 18px 20px;
       border: 1px solid #dae3ef;
       background: #fff;
@@ -861,36 +861,36 @@
       box-shadow: 0 2px 5px #14223b08;
     }
 
-    .oms-workspace-label {
+    .erp-workspace-label {
       color: #46648b;
       font-size: 10px;
       font-weight: 800;
       letter-spacing: .12em;
     }
 
-    .oms-shell .brand-title { margin-top: 4px; font-size: clamp(20px, 2vw, 26px); }
-    .oms-shell .brand-sub { margin-top: 4px; color: #526781; }
-    .oms-shell .view-switcher { max-width: 100%; flex-wrap: wrap; background: #edf2f9; }
-    .oms-shell .view-btn { color: #364e6f; }
-    .oms-shell .view-btn.active { color: #1249ac; box-shadow: 0 1px 4px #16284a26; }
-    .oms-shell .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .oms-shell .kpi-card { border-color: #dae3ef; }
-    .oms-shell .kpi-value { overflow-wrap: anywhere; }
-    .oms-shell .filter-card { grid-template-columns: repeat(auto-fit, minmax(min(100%, 138px), 1fr)); }
-    .oms-shell .filter-group, .oms-shell .filter-control { min-width: 0; }
-    .oms-shell .table-card { min-width: 0; }
+    .erp-shell .brand-title { margin-top: 4px; font-size: clamp(20px, 2vw, 26px); }
+    .erp-shell .brand-sub { margin-top: 4px; color: #526781; }
+    .erp-shell .view-switcher { max-width: 100%; flex-wrap: wrap; background: #edf2f9; }
+    .erp-shell .view-btn { color: #364e6f; }
+    .erp-shell .view-btn.active { color: #1249ac; box-shadow: 0 1px 4px #16284a26; }
+    .erp-shell .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .erp-shell .kpi-card { border-color: #dae3ef; }
+    .erp-shell .kpi-value { overflow-wrap: anywhere; }
+    .erp-shell .filter-card { grid-template-columns: repeat(auto-fit, minmax(min(100%, 138px), 1fr)); }
+    .erp-shell .filter-group, .erp-shell .filter-control { min-width: 0; }
+    .erp-shell .table-card { min-width: 0; }
 
     @media (max-width: 650px) {
-      .oms-shell .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .oms-shell .top-bar { padding: 14px; }
-      .oms-shell .view-btn { padding: 7px 9px; }
+      .erp-shell .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .erp-shell .top-bar { padding: 14px; }
+      .erp-shell .view-btn { padding: 7px 9px; }
     }
   </style>
 </head>
 
 <? const isBe = typeof productType !== 'undefined' && productType === '2'; ?>
 <? const hasMenu = typeof appUrl !== 'undefined' && appUrl; ?>
-<body class="<?= hasMenu ? 'oms-shell' : '' ?>" data-product-type="<?= isBe ? '2' : '1' ?>">
+<body class="<?= hasMenu ? 'erp-shell' : '' ?>" data-product-type="<?= isBe ? '2' : '1' ?>">
   <? if (hasMenu) { ?>
     <?!= renderOrderMenu_(appUrl, isBe ? 'be' : 'list') ?>
   <? } ?>
@@ -898,7 +898,7 @@
     <!-- HEADER & CHUYỂN ĐỔI CHẾ ĐỘ XEM KÉP (DUAL-VIEW SWITCHER) -->
     <div class="top-bar">
       <div>
-        <div class="oms-workspace-label">ĐƠN HÀNG / <?= isBe ? 'TYPE 2' : 'TYPE 1' ?></div>
+        <div class="erp-workspace-label">ĐƠN HÀNG / <?= isBe ? 'TYPE 2' : 'TYPE 1' ?></div>
         <div class="brand-title"><?= isBe ? 'Đơn hàng Bế' : 'Đơn hàng Định Hình' ?></div>
         <div class="brand-sub">
           <?= isBe ? 'Line-Item và Kanban' : 'PO Header, Line-Item và Kanban' ?>
@@ -1045,14 +1045,14 @@
       </div>
     </div>
 
-    <!-- [MỚI - SPEC-OMS-LINEITEM-202611-01] FLOATING ACTION BAR -->
+    <!-- [MỚI - SPEC-ERP-LINEITEM-202611-01] FLOATING ACTION BAR -->
     <div id="floatingBulkBar" class="floating-bulk-bar">
       <span>Đã chọn <strong id="selectedLinesCount" style="color:#60a5fa;">0</strong> dòng</span>
       <button type="button" class="btn-bulk-clear" onclick="clearSelectedLines()">Bỏ chọn</button>
       <button type="button" class="btn-bulk-action" onclick="openBulkEditModal()">✏️ Chỉnh sửa hàng loạt</button>
     </div>
 
-    <!-- [MỚI - SPEC-OMS-LINEITEM-202611-01] MODAL CHỈNH SỬA HÀNG LOẠT -->
+    <!-- [MỚI - SPEC-ERP-LINEITEM-202611-01] MODAL CHỈNH SỬA HÀNG LOẠT -->
     <!-- [MỚI - VẤN ĐỀ 4 & 5] MODAL CHỈNH SỬA TỪNG SẢN PHẨM ĐÃ CHỌN (CAROUSEL STEPPER) -->
     <div id="bulkEditModal" class="custom-modal-overlay">
       <div class="custom-modal-content" style="width: 580px;">
@@ -1157,7 +1157,7 @@
     <!-- [MỚI - VẤN ĐỀ 6] CONTAINER CHỨA TOAST NOTIFICATION -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- [MỚI - SPEC-OMS-LINEITEM-202611-01] LIGHTBOX ALBUM ẢNH -->
+    <!-- [MỚI - SPEC-ERP-LINEITEM-202611-01] LIGHTBOX ALBUM ẢNH -->
     <div id="lightboxOverlay" class="lightbox-overlay" onclick="closeLightbox(event)">
       <div class="lightbox-content">
         <button type="button" class="lightbox-nav-btn lightbox-prev" onclick="prevLightboxImage(event)">❮</button>
@@ -1709,7 +1709,7 @@
       } else {
         countEl.textContent = records.length + ' dòng chi tiết mặt hàng';
         countEl.removeAttribute('title');
-        // [SPEC-OMS-LINEITEM-202611-01] CHẾ ĐỘ 2: LINE-ITEM VIEW CẬP NHẬT MỚI
+        // [SPEC-ERP-LINEITEM-202611-01] CHẾ ĐỘ 2: LINE-ITEM VIEW CẬP NHẬT MỚI
         thead.innerHTML =
           '<tr>' +
           '<th style="width:36px;text-align:center;"><input type="checkbox" id="chkSelectAllLines" onchange="toggleSelectAllLines(this)"></th>' +
@@ -1907,7 +1907,7 @@
     }
 
     /* ==========================================================================
-       [SPEC-OMS-LINEITEM-202611-01] CÁC HÀM XỬ LÝ CHECKBOX & BULK EDIT
+       [SPEC-ERP-LINEITEM-202611-01] CÁC HÀM XỬ LÝ CHECKBOX & BULK EDIT
        ========================================================================== */
     const selectedLineItemIds = new Set();
 
@@ -1988,7 +1988,7 @@
     }
 
     /* ==========================================================================
-       [SPEC-OMS-LINEITEM-202611-01] XỬ LÝ LIGHTBOX ALBUM ẢNH SẢN PHẨM
+       [SPEC-ERP-LINEITEM-202611-01] XỬ LÝ LIGHTBOX ALBUM ẢNH SẢN PHẨM
        ========================================================================== */
     let currentAlbum = [];
     let currentAlbumIndex = 0;
