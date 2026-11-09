@@ -16,6 +16,7 @@
  * Hỗ trợ tham số URL:
  *  - Không có tham số hoặc ?view=index: Mở trang Đơn Hàng.
  *  - ?view=list: Mở danh sách Định Hình (type 1).
+ *  - ?view=film: Mở phân hệ Đặt Màng.
  *  - ?view=be: Mở danh sách Bế (type 2).
  *  - ?view=create: Mở giao diện Tạo đơn hàng (OrderModal.html).
  */
@@ -45,6 +46,11 @@ function doGet(e) {
       template.appUrl = appUrl;
       output = template.evaluate();
       title = 'NAPACO ERP - Đơn Hàng';
+    } else if (view === 'film') {
+      const template = HtmlService.createTemplateFromFile('KHO_NVL/FilmOrder_View');
+      template.appUrl = appUrl;
+      output = template.evaluate();
+      title = 'NAPACO ERP - Đặt Màng';
     } else if (view === 'be') {
       const template = HtmlService.createTemplateFromFile('DonHang/OrderListBe_View');
       template.appUrl = appUrl;
@@ -75,7 +81,7 @@ function renderOrderMenu_(appUrl, activeModule) {
     { id: 'list', group: 'Đơn hàng', icon: '◫', label: 'Định Hình', url: appUrl + '?view=list' },
     { id: 'be', group: 'Đơn hàng', icon: '✂', label: 'Bế', url: appUrl + '?view=be' },
     // Điền URL web app của từng phân hệ khi có đường dẫn.
-    { id: 'film', group: 'Sản xuất', icon: '▤', label: 'Đặt Màng', url: '' },
+    { id: 'film', group: 'Sản xuất', icon: '▤', label: 'Đặt Màng', url: appUrl + '?view=film' },
     { id: 'forming-log', group: 'Sản xuất', icon: '▣', label: 'Nhật Ký Định Hình', url: '' }
   ];
   const template = HtmlService.createTemplateFromFile('DonHang/OrderMenu_View');

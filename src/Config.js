@@ -30,6 +30,11 @@ var CONFIG = {
     CUSTOMERS: '01_KHACH_HANG',
     PRODUCTS: '02_SAN_PHAM',
     EMPLOYEES: '07.NhanVien',
+    FILM_PO: 'DAT_NHUA_PO',
+    FILM_LINES: 'DAT_NHUA',
+    FILM_MATERIALS: '04_ThongSoVatLieu',
+    FILM_SUPPLIERS: '03.DM_NhaCungCap',
+    FILM_RECEIPTS: 'KHO-FM-01A_NHAP_NVL',
     ORDERS: '01.DonHang',
     ORDER_DETAILS: '02.ChiTietDH',
     ORDER_WORKSPACE: 'TAO DON',
@@ -165,6 +170,7 @@ var CONFIG = {
     // Bảng 02.ChiTietDH
     ORDER_DETAILS: {
       ID: 'ID_Chi_Tiet',
+      FILM_LINE_ID: 'DN_ID',
       ORDER_ID: 'ID_DonHang',
       PRODUCT_ID: 'Ma_SP',
       QTY_ORDER: 'So_Luong_Dat',
