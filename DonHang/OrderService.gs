@@ -112,6 +112,7 @@ const OrderService = {
     const cCusId = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.CUSTOMER_ID.toLowerCase());
     const cFilm = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.FILM.toLowerCase());
     const cType = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.TYPE.toLowerCase());
+    const productTypeById = cType === -1 ? null : new Map();
     const cCodeCust = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.CODE_CUST.toLowerCase());
     const cName = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.NAME.toLowerCase());
     const cCavity = pHdrs.indexOf(CONFIG.COLUMNS.PRODUCTS.CAVITY.toLowerCase());
@@ -127,15 +128,19 @@ const OrderService = {
     for (let j = prodHdrIdx + 1; j < prodValues.length; j++) {
       const row = prodValues[j];
       const spId = cSpId !== -1 ? String(row[cSpId] || '').trim() : '';
+      if (!spId) continue;
+      const type = cType !== -1 ? String(row[cType] || '').trim() : '';
+      if (productTypeById) productTypeById.set(spId.toUpperCase(), type);
+
       const nameNapaco = cName !== -1 ? String(row[cName] || '').trim() : '';
-      if (!spId || !nameNapaco) continue;
+      if (!nameNapaco) continue;
 
       const mangVal = cFilm !== -1 ? String(row[cFilm] || '').trim() : '';
       const prodObj = {
         spId: spId,
         customerId: cCusId !== -1 ? String(row[cCusId] || '').trim() : '',
         mang: mangVal,
-        type: cType !== -1 ? String(row[cType] || '').trim() : '',
+        type: type,
         codeSP: cCodeCust !== -1 ? String(row[cCodeCust] || '').trim() : '',
         prodName: nameNapaco,
         cavity: cCavity !== -1 ? (Number(row[cCavity]) || 0) : 0,
@@ -255,6 +260,7 @@ const OrderService = {
       customerByIdMap: customerByIdMap,
       products: products,
       productByIdMap: productByIdMap,
+      productTypeById: productTypeById,
       salesStaffList: finalSalesDropdown,
       employeeByIdMap: employeeByIdMap,
       currentUser: {
@@ -804,6 +810,10 @@ const OrderService = {
     const pageSize = Math.max(1, parseInt(params.pageSize, 10) || 100);
 
     const catalog = this.getCatalogAndAuthData();
+    const onlyTypeOne = viewMode === 'ALL_VIEWS';
+    if (onlyTypeOne && !catalog.productTypeById) {
+      throw new Error('Không tìm thấy cột ' + CONFIG.COLUMNS.PRODUCTS.TYPE + ' trong ' + CONFIG.SHEET_NAMES.PRODUCTS + '.');
+    }
     const opSS = this.getOperationSpreadsheet_();
     const orderSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDERS);
     const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
@@ -1033,6 +1043,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
 
     // Dùng cùng điều kiện lọc chi tiết cho cả Header và Line-Item.
       const validLines = allLineItems.filter(function(item) {
+        if (onlyTypeOne && catalog.productTypeById.get(item.maSP.toUpperCase()) !== '1') return false;
         if (maKHFilter && maKHFilter !== 'ALL' && item.maKH !== maKHFilter && item.khachHang !== maKHFilter) {
           return false;
         }
@@ -1097,18 +1108,16 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
       };
     };
 
-    const buildHeaderView = () => {
+    const buildHeaderView = (sharedLines, includeMissingHeaders = false) => {
+      const sourceLines = sharedLines || validLines;
       const itemsByOrder = new Map();
-      validLines.forEach(function (item) {
+      sourceLines.forEach(function (item) {
         if (!itemsByOrder.has(item.maDH)) itemsByOrder.set(item.maDH, []);
         itemsByOrder.get(item.maDH).push(item);
       });
       const filteredHeaders = [];
 
-      orderHeadersList.forEach(function(ord) {
-        if (!itemsByOrder.has(ord.maDH)) return;
-        // Tạo bản sao Header với danh sách items chỉ chứa các CTĐH khớp ngày giao
-        const matchedItemsForPO = itemsByOrder.get(ord.maDH);
+      function addHeader(ord, matchedItemsForPO) {
         let subTongSLDat = 0, subTongDaGiao = 0, subTongConLai = 0, subTongGiaTri = 0;
         matchedItemsForPO.forEach(function(it) {
           subTongSLDat += (Number(it.slDat) || 0);
@@ -1127,7 +1136,31 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         });
 
         filteredHeaders.push(cloneOrd);
+      }
+
+      orderHeadersList.forEach(function(ord) {
+        if (!itemsByOrder.has(ord.maDH)) return;
+        if (includeMissingHeaders && orderMap[ord.maDH] !== ord) return;
+        addHeader(ord, itemsByOrder.get(ord.maDH));
+        if (includeMissingHeaders) itemsByOrder.delete(ord.maDH);
       });
+
+      // Giữ dòng chi tiết trong kết quả chung kể cả khi thiếu bản ghi đầu đơn.
+      if (includeMissingHeaders) {
+        itemsByOrder.forEach(function(items, maDH) {
+          const first = items[0];
+          addHeader({
+            maDH: maDH,
+            maKH: first.maKH,
+            khachHang: first.khachHang,
+            soPO: first.soPO,
+            ngayDat: first.ngayDat,
+            trangThai: 'Thiếu đầu đơn',
+            tienDo: '---',
+            missingHeader: true
+          }, items);
+        });
+      }
 
       filteredHeaders.reverse();
       const total = filteredHeaders.length;
@@ -1145,13 +1178,15 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
       }
 
       const startIndex = (page - 1) * pageSize;
-      const pagedData = filteredHeaders.slice(startIndex, startIndex + pageSize);
+      const pagedData = sharedLines
+        ? filteredHeaders
+        : filteredHeaders.slice(startIndex, startIndex + pageSize);
 
       return {
         success: true,
         viewMode: 'HEADER',
         total: total,
-        summary: this.computeQueryMetrics_(null, validLines),
+        summary: this.computeQueryMetrics_(null, sourceLines),
         customers: catalog.customers,
         salesStaffList: catalog.salesStaffList,
         data: pagedData
@@ -1160,6 +1195,8 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
 
     if (viewMode === 'ALL_VIEWS') {
       const lineView = buildLineView();
+      const headerView = buildHeaderView(lineView.success ? lineView.data.slice().reverse() : null, true);
+      if (lineView.success && headerView.success) lineView.summary = headerView.summary;
       const kanbanView = lineView.success
         ? this.buildLineKanbanData_(detailRows, catalog, new Map(
             lineView.data.map(item => [item.idChiTiet, item])
@@ -1170,7 +1207,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         customers: catalog.customers,
         salesStaffList: catalog.salesStaffList,
         views: {
-          HEADER: buildHeaderView(),
+          HEADER: headerView,
           LINE_ITEM: lineView,
           KANBAN_LINE: kanbanView
         }
