@@ -830,6 +830,9 @@
       return maxD || fallbackDate;
     }
 
+    let pendingSaveId;
+    let pendingSaveContent;
+
     function handleSaveOrder() {
       const poCustomerMap = {};
 
@@ -935,6 +938,13 @@
           };
         })
       };
+
+      const content = JSON.stringify(payload);
+      if (pendingSaveContent !== content) {
+        pendingSaveContent = content;
+        pendingSaveId = crypto.randomUUID();
+      }
+      payload.requestId = pendingSaveId;
 
       google.script.run
         .withSuccessHandler(function(res) {

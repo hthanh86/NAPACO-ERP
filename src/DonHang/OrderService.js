@@ -20,9 +20,12 @@
 
 const OrderService = {
 
-  readDatabaseTable_: function(sheet, name, schema, required) {
+  readDatabaseTable_: function(sheet, name, schema, required, idsOnly = false) {
     if (!sheet) throw new Error('Không tìm thấy bảng ' + name + '.');
-    const rows = sheet.getDataRange().getValues();
+    const lastRow = idsOnly ? sheet.getLastRow() : 0;
+    const rows = idsOnly
+      ? (lastRow ? sheet.getRange(1, 1, Math.min(10, lastRow), sheet.getLastColumn()).getValues() : [])
+      : sheet.getDataRange().getValues();
     const normalize = value => String(value || '').trim().toLowerCase();
     const candidates = rows.slice(0, 10).map(row => row.map(normalize));
     const headerRow = candidates.findIndex(row => row.includes(normalize(schema.ID)));
@@ -39,19 +42,38 @@ const OrderService = {
       }
       columns[key] = index;
     }
-    return { sheet, rows, headerRow, columns };
+    const ids = idsOnly && lastRow > headerRow + 1
+      ? sheet.getRange(headerRow + 2, columns.ID + 1, lastRow - headerRow - 1, 1).getValues().flat()
+      : [];
+    return { sheet, rows, headerRow, columns, ids };
   },
 
-  appendDatabaseRows_: function(table, records) {
+  sheetCell_: function(value) {
+    if (value === '') return {};
+    if (typeof value === 'number') return { userEnteredValue: { numberValue: value } };
+    return { userEnteredValue: { stringValue: String(value) } };
+  },
+
+  appendDatabaseRows_: function(requests, table, records) {
     if (!records.length) return;
     const keys = Object.keys(records[0]);
     const width = Math.max(...keys.map(key => table.columns[key])) + 1;
     const rows = records.map(record => {
-      const row = Array(width).fill('');
-      for (const key of keys) row[table.columns[key]] = record[key];
-      return row;
+      const values = Array.from({ length: width }, () => ({}));
+      for (const key of keys) values[table.columns[key]] = this.sheetCell_(record[key]);
+      return { values };
     });
-    table.sheet.getRange(table.sheet.getLastRow() + 1, 1, rows.length, width).setValues(rows);
+    requests.push({ appendCells: { sheetId: table.sheet.getSheetId(), rows, fields: 'userEnteredValue' } });
+  },
+
+  queueCellChange_: function(requests, sheetId, rowIndex, columnIndex, row, value) {
+    if (row[columnIndex] === value) return;
+    row[columnIndex] = value;
+    requests.push({ updateCells: {
+      start: { sheetId, rowIndex, columnIndex },
+      rows: [{ values: [this.sheetCell_(value)] }],
+      fields: 'userEnteredValue'
+    } });
   },
 
   /**
@@ -191,6 +213,38 @@ const OrderService = {
     }
 
     // 3. [ĐÃ SỬA] Đọc bảng Nhân Viên tìm header động theo CONFIG.COLUMNS.EMPLOYEES
+    const { salesStaffList, employeeByIdMap, matchedEmployee, sessionEmail } = this.readOrderStaff_(masterSS);
+
+    const now = new Date();
+    const todayStr = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    const deliveryDateObj = new Date(now.getTime() + CONFIG.DEFAULT_DELIVERY_DAYS * 86400000);
+    const defaultDeliveryStr = Utilities.formatDate(deliveryDateObj, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+
+    return {
+      customers: customers,
+      customerByNameMap: customerByNameMap,
+      customerByIdMap: customerByIdMap,
+      products: products,
+      productByIdMap: productByIdMap,
+      productTypeById: productTypeById,
+      salesStaffList: salesStaffList,
+      employeeByIdMap: employeeByIdMap,
+      currentUser: {
+        email: sessionEmail,
+        isAuthenticated: Boolean(matchedEmployee),
+        isLockedReadonly: Boolean(matchedEmployee),
+        maNV: matchedEmployee ? matchedEmployee.maNV : '',
+        hoTen: matchedEmployee ? matchedEmployee.hoTen : '',
+        role: matchedEmployee ? matchedEmployee.role : '',
+        quyenTruyCap: matchedEmployee ? matchedEmployee.quyenTruyCap : '',
+        display: matchedEmployee ? matchedEmployee.display : ''
+      },
+      serverDate: todayStr,
+      defaultDeliveryDate: defaultDeliveryStr
+    };
+  },
+
+  readOrderStaff_: function(masterSS) {
     const empSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.EMPLOYEES);
     if (!empSheet) throw new Error('Không tìm thấy bảng ' + CONFIG.SHEET_NAMES.EMPLOYEES);
     const empValues = empSheet.getDataRange().getValues();
@@ -283,33 +337,7 @@ const OrderService = {
 
     const finalSalesDropdown = salesStaffList.length > 0 ? salesStaffList : allActiveStaffList;
 
-    const now = new Date();
-    const todayStr = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-    const deliveryDateObj = new Date(now.getTime() + CONFIG.DEFAULT_DELIVERY_DAYS * 86400000);
-    const defaultDeliveryStr = Utilities.formatDate(deliveryDateObj, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-
-    return {
-      customers: customers,
-      customerByNameMap: customerByNameMap,
-      customerByIdMap: customerByIdMap,
-      products: products,
-      productByIdMap: productByIdMap,
-      productTypeById: productTypeById,
-      salesStaffList: finalSalesDropdown,
-      employeeByIdMap: employeeByIdMap,
-      currentUser: {
-        email: sessionEmail,
-        isAuthenticated: Boolean(matchedEmployee),
-        isLockedReadonly: Boolean(matchedEmployee),
-        maNV: matchedEmployee ? matchedEmployee.maNV : '',
-        hoTen: matchedEmployee ? matchedEmployee.hoTen : '',
-        role: matchedEmployee ? matchedEmployee.role : '',
-        quyenTruyCap: matchedEmployee ? matchedEmployee.quyenTruyCap : '',
-        display: matchedEmployee ? matchedEmployee.display : ''
-      },
-      serverDate: todayStr,
-      defaultDeliveryDate: defaultDeliveryStr
-    };
+    return { salesStaffList: finalSalesDropdown, employeeByIdMap, matchedEmployee, sessionEmail };
   },
 
   /**
@@ -527,17 +555,18 @@ const OrderService = {
    * Bước 4: Quét & Upsert Sản phẩm mới (SPxxxx) vào '02_SAN_PHAM'
    * Bước 5: Upload file PO đính kèm (Base64 -> Blob) lên Drive 'ID_STORAGES'
    * Bước 6: Sinh mã Đơn hàng (DH_yymmdd_xx) & Chi tiết (CT_yymmdd_xx)
-   * Bước 7: Ghi theo lô đồng thời (Batch Write) kèm cơ chế Rollback nếu lỗi
+   * Bước 7: Ghi theo lô theo từng bảng tính
    * Bước 8: Xóa trắng dữ liệu vùng A8:I trên sheet 'TAO DON' & Giải phóng khóa
    */
   /**
-   * Lưu giao dịch đơn hàng liên tầng (ACID Transaction)
-   * Nơi duy nhất nắm giữ LockService độc quyền của hệ thống
+   * Lưu giao dịch đơn hàng theo lô riêng cho MASTER và Operation.
    */
   saveOrderTransaction: function(payload) {
     const isDebug = typeof CONFIG !== 'undefined' && Boolean(CONFIG.DEBUG_MODE);
     if (isDebug) console.log("⏱️ [ORDER_SERVICE] Bắt đầu tiến trình lưu đơn hàng...");
 
+    const requestId = String(payload && payload.requestId || '');
+    if (requestId && !/^[a-zA-Z0-9-]{16,64}$/.test(requestId)) throw new Error('Mã yêu cầu lưu không hợp lệ.');
     const lock = LockService.getScriptLock();
     const timeoutMs = (CONFIG && CONFIG.LOCK_TIMEOUT_MS) ? CONFIG.LOCK_TIMEOUT_MS : 30000;
     
@@ -555,8 +584,26 @@ const OrderService = {
 
     try {
       const masterSS = this.getMasterSpreadsheet_();
-      requirePermission_(readUserPermissions_(masterSS), CONFIG.PERMISSIONS.ORDER_CREATE);
+      const access = readUserPermissions_(masterSS);
+      requirePermission_(access, CONFIG.PERMISSIONS.ORDER_CREATE);
       const operSS = this.getOperationSpreadsheet_();
+      // Receipts are committed with the order rows. Keep a bounded retry history per user.
+      const receiptKey = 'NAPACO_ORDER_SAVE_' + access.userId;
+      const receipts = requestId ? operSS.createDeveloperMetadataFinder().withKey(receiptKey).find() : [];
+      const receipt = receipts.find(entry => entry.getValue().startsWith(requestId + '|'));
+      if (receipt) {
+        const [, day, first, count, details, customers, products] = receipt.getValue().split('|');
+        const createdOrders = Array.from({ length: Number(count) }, (_, index) => ({
+          maDH: 'DH_' + day + '_' + String(Number(first) + index).padStart(2, '0'),
+          soPO: payload.poGroups[index]?.soPO || '',
+          itemCount: payload.poGroups[index]?.items?.length || 0
+        }));
+        return {
+          success: true, createdOrders, newCustomerCount: Number(customers), newProductCount: Number(products),
+          message: 'Đã lưu thành công ' + count + ' đơn hàng gồm ' + details + ' chi tiết mặt hàng!'
+        };
+      }
+
 
       const custSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.CUSTOMERS);
       const prodSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.PRODUCTS);
@@ -575,8 +622,8 @@ const OrderService = {
         'QTY_DELIVERED', 'QTY_REMAINING', 'NOTE', 'DELIVERY_DATE', 'STAFF_ID', 'STATUS'];
       const customerTable = this.readDatabaseTable_(custSheet, names.CUSTOMERS, schema.CUSTOMERS, ['ID', 'NAME']);
       const productTable = this.readDatabaseTable_(prodSheet, names.PRODUCTS, schema.PRODUCTS, productKeys);
-      const orderTable = this.readDatabaseTable_(orderSheet, names.ORDERS, schema.ORDERS, Object.keys(schema.ORDERS));
-      const detailTable = this.readDatabaseTable_(detailSheet, names.ORDER_DETAILS, schema.ORDER_DETAILS, detailKeys);
+      const orderTable = this.readDatabaseTable_(orderSheet, names.ORDERS, schema.ORDERS, Object.keys(schema.ORDERS), true);
+      const detailTable = this.readDatabaseTable_(detailSheet, names.ORDER_DETAILS, schema.ORDER_DETAILS, detailKeys, true);
       const { rows: custData, columns: custCols } = customerTable;
       const { rows: prodData, columns: prodCols } = productTable;
       const khMap = {}; // Tên KH (lowercase) -> Ma_KH
@@ -627,6 +674,7 @@ const OrderService = {
       const newCustRows = [];
       const newProdRows = [];
       const productUpdates = new Map();
+      const attachments = [];
 
       const todayStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "yyyy-MM-dd");
       const yymmdd = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "yyMMdd");
@@ -636,20 +684,18 @@ const OrderService = {
       let detailSeq = 1;
 
       // Quét đơn hàng hiện có để lấy sequence lớn nhất trong ngày
-      const existingOrders = orderTable.rows;
       const orderRegex = new RegExp(`^DH_${yymmdd}_(\\d+)$`, 'i');
-      for (let r = orderTable.headerRow + 1; r < existingOrders.length; r++) {
-        const match = String(existingOrders[r][orderTable.columns.ID] || '').match(orderRegex);
+      for (const id of orderTable.ids) {
+        const match = String(id || '').match(orderRegex);
         if (match) {
           const num = parseInt(match[1], 10);
           if (num >= orderSeq) orderSeq = num + 1;
         }
       }
 
-      const existingDetails = detailTable.rows;
       const detailRegex = new RegExp(`^CT_${yymmdd}_(\\d+)$`, 'i');
-      for (let r = detailTable.headerRow + 1; r < existingDetails.length; r++) {
-        const match = String(existingDetails[r][detailTable.columns.ID] || '').match(detailRegex);
+      for (const id of detailTable.ids) {
+        const match = String(id || '').match(detailRegex);
         if (match) {
           const num = parseInt(match[1], 10);
           if (num >= detailSeq) detailSeq = num + 1;
@@ -672,41 +718,6 @@ const OrderService = {
           newCustRows.push({ ID: targetMaKH, NAME: cusName });
         }
 
-        // Tải file đính kèm PO lên Drive nếu có
-        /*let finalFileUrl = grp.existingFileUrl || '';
-        if (grp.fileData && grp.fileData.base64) {
-          try {
-            const folder = this.getStorageFolder_();
-            const decodedBytes = Utilities.base64Decode(grp.fileData.base64);
-            const fileName = `PO_${grp.soPO}_${cusName}_${yymmdd}`.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
-            const blob = Utilities.newBlob(decodedBytes, grp.fileData.mimeType || 'application/pdf', fileName);
-            const uploadedFile = folder.createFile(blob);
-            finalFileUrl = uploadedFile.getUrl();
-          } catch (fileErr) {
-            console.warn("⚠️ Không thể upload tệp PO:", fileErr.message);
-          }
-        }*/
-        // Tải file đính kèm PO lên Drive nếu có (Tên tệp = Số PO)
-        let finalFileUrl = grp.existingFileUrl || '';
-        if (grp.fileData && grp.fileData.base64) {
-          try {
-            const folder = this.getStorageFolder_();
-            const decodedBytes = Utilities.base64Decode(grp.fileData.base64);
-            const ext = (grp.fileData.fileName && grp.fileData.fileName.lastIndexOf('.') !== -1)
-              ? grp.fileData.fileName.substring(grp.fileData.fileName.lastIndexOf('.'))
-              : '.pdf';
-            // Tên tệp lưu trên Drive lấy chính xác theo Số PO
-            const safePoName = String(soPO).replace(/[\\/:*?"<>|]/g, '_');
-            const finalFileName = safePoName + ext;
-            
-            const blob = Utilities.newBlob(decodedBytes, grp.fileData.mimeType || 'application/pdf', finalFileName);
-            const uploadedFile = folder.createFile(blob);
-            finalFileUrl = uploadedFile.getUrl();
-          } catch (fileErr) {
-            console.warn("⚠️ Không thể upload tệp PO:", fileErr.message);
-          }
-        }
-
         // Sinh mã đơn hàng: DH_yymmdd_xx
         const maDH = `DH_${yymmdd}_` + String(orderSeq++).padStart(2, '0');
         const ngayGiaoDK = grp.ngayGiaoDK || todayStr;
@@ -715,8 +726,12 @@ const OrderService = {
         // Header: [Ma_DH, MaKH, NgayDat, NgayGiaoDK, So_PO, File_PO]
         headerRows.push({
           ID: maDH, CUSTOMER_ID: targetMaKH, ORDER_DATE: todayStr, DELIVERY_DATE: ngayGiaoDK,
-          PO_NUMBER: soPO, FILE_URL: finalFileUrl
+          PO_NUMBER: soPO, FILE_URL: grp.existingFileUrl || ''
         });
+
+        if (grp.fileData && grp.fileData.base64) {
+          attachments.push({ header: headerRows[headerRows.length - 1], file: grp.fileData });
+        }
 
         // Xử lý các dòng sản phẩm con
         const items = grp.items || [];
@@ -791,13 +806,45 @@ const OrderService = {
           }
         }
       }
-      if (productRequests.length) {
-        Sheets.Spreadsheets.batchUpdate({ requests: productRequests }, masterSS.getId());
+      if (attachments.length) {
+        const folder = this.getStorageFolder_();
+        for (const { header, file } of attachments) {
+          const bytes = Utilities.base64Decode(file.base64);
+          if (bytes.length > CONFIG.MAX_FILE_SIZE_BYTES) {
+            throw new Error('Tệp đính kèm vượt quá giới hạn của PO ' + header.PO_NUMBER + '.');
+          }
+          const extension = String(file.fileName || '').match(/\.[a-zA-Z0-9]+$/);
+          const name = String(header.PO_NUMBER).replace(/[\\/:*?"<>|]/g, '_') + (extension ? extension[0] : '.pdf');
+          header.FILE_URL = folder.createFile(Utilities.newBlob(bytes, file.mimeType || 'application/pdf', name)).getUrl();
+        }
       }
-      this.appendDatabaseRows_(customerTable, newCustRows);
-      this.appendDatabaseRows_(productTable, newProdRows);
-      this.appendDatabaseRows_(orderTable, headerRows);
-      this.appendDatabaseRows_(detailTable, detailRows);
+
+      const operationWrites = [];
+      this.appendDatabaseRows_(productRequests, customerTable, newCustRows);
+      this.appendDatabaseRows_(productRequests, productTable, newProdRows);
+      this.appendDatabaseRows_(operationWrites, orderTable, headerRows);
+      this.appendDatabaseRows_(operationWrites, detailTable, detailRows);
+      if (requestId && headerRows.length) {
+        // Leave room for retries of recent requests, including multiple open modals.
+        const oldest = receipts.map(entry => ({
+          id: entry.getId(), timestamp: Number(entry.getValue().split('|').pop())
+        })).sort((a, b) => a.timestamp - b.timestamp).slice(0, Math.max(0, receipts.length - 19));
+        for (const entry of oldest) {
+          operationWrites.push({ deleteDeveloperMetadata: { dataFilter: { developerMetadataLookup: {
+            metadataId: entry.id
+          } } } });
+        }
+        const first = orderSeq - headerRows.length;
+        operationWrites.push({ createDeveloperMetadata: { developerMetadata: {
+          metadataKey: receiptKey,
+          metadataValue: [requestId, yymmdd, first, headerRows.length, detailRows.length, newCustRows.length,
+            newProdRows.length, Date.now()].join('|'),
+          visibility: 'DOCUMENT',
+          location: { spreadsheet: true }
+        } } });
+      }
+      if (productRequests.length) Sheets.Spreadsheets.batchUpdate({ requests: productRequests }, masterSS.getId());
+      if (operationWrites.length) Sheets.Spreadsheets.batchUpdate({ requests: operationWrites }, operSS.getId());
 
       // 5. Dọn dẹp dòng dữ liệu nháp trên Sheet 'TAO DON'
       if (payload.sourceSpreadsheetId) {
@@ -806,13 +853,13 @@ const OrderService = {
           const wsSheet = clientSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_WORKSPACE || 'TAO DON');
           if (wsSheet && wsSheet.getLastRow() >= 8) {
             wsSheet.getRange('A8:I' + wsSheet.getLastRow()).clearContent();
+            SpreadsheetApp.flush();
           }
         } catch (wsErr) {
           console.warn("⚠️ Không thể xóa dòng nháp TAO DON:", wsErr.message);
         }
       }
 
-      SpreadsheetApp.flush();
       if (isDebug) console.log("✅ [ORDER_SERVICE] Lưu đơn hàng thành công!");
 
       return {
@@ -1898,7 +1945,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
     try {
       const masterSS = this.getMasterSpreadsheet_();
       requirePermission_(readUserPermissions_(masterSS), CONFIG.PERMISSIONS.ORDER_EDIT);
-      const catalog = this.getCatalogAndAuthData(masterSS);
+      const catalog = this.readOrderStaff_(masterSS);
       const operSS = this.getOperationSpreadsheet_();
 
       const detailSheet = operSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
@@ -1959,6 +2006,9 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         });
       });
 
+      const operationWrites = [];
+      const masterWrites = [];
+      const detailSheetId = detailSheet.getSheetId();
       const remainingIds = new Set(targetIds);
       const affectedOrdersMap = Object.create(null); // maDH -> ngayDat mới
       const affectedProductsMap = Object.create(null); // maSP -> { mang, giaKhuon, donvi }
@@ -2002,34 +2052,34 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
           // Cập nhật Số lượng đặt & Tính lại SL_Con_Lai
           if (fields.soLuongDat !== undefined && fields.soLuongDat !== null && fields.soLuongDat !== '') {
             const newSlDat = Number(fields.soLuongDat) || 0;
-            detailData[r][colSlDat] = newSlDat;
+            this.queueCellChange_(operationWrites, detailSheetId, r, colSlDat, detailData[r], newSlDat);
             const currentDaGiao = Number(detailData[r][colDaGiao]) || 0;
-            detailData[r][colConLai] = Math.max(0, newSlDat - currentDaGiao);
+            this.queueCellChange_(operationWrites, detailSheetId, r, colConLai, detailData[r], Math.max(0, newSlDat - currentDaGiao));
           }
 
           // Cập nhật Đơn giá
           if (fields.donGia !== undefined && fields.donGia !== null && fields.donGia !== '') {
-            detailData[r][colDonGia] = Number(fields.donGia) || 0;
+            this.queueCellChange_(operationWrites, detailSheetId, r, colDonGia, detailData[r], Number(fields.donGia) || 0);
           }
 
           // Cập nhật Ngày giao
           if (fields.ngayGiao !== undefined && fields.ngayGiao !== null && fields.ngayGiao !== '') {
-            detailData[r][colNgayGiao] = this.formatSheetDate_(fields.ngayGiao);
+            this.queueCellChange_(operationWrites, detailSheetId, r, colNgayGiao, detailData[r], this.formatSheetDate_(fields.ngayGiao));
           }
 
           /* [MỚI - Ý 3] Cập nhật Sales (Mã NV) */
           if (colStaff !== -1 && fields.maNV !== undefined && fields.maNV !== null && fields.maNV !== '') {
-            detailData[r][colStaff] = String(fields.maNV).trim();
+            this.queueCellChange_(operationWrites, detailSheetId, r, colStaff, detailData[r], String(fields.maNV).trim());
           }
 
           /* [MỚI - Ý 3] Cập nhật Trạng Thái dòng mặt hàng */
           if (colStatus !== -1 && fields.trangThai !== undefined && fields.trangThai !== null && fields.trangThai !== '') {
-            detailData[r][colStatus] = String(fields.trangThai).trim();
+            this.queueCellChange_(operationWrites, detailSheetId, r, colStatus, detailData[r], String(fields.trangThai).trim());
             /* [MỚI - SPEC-LINE-DND-01] Quy tắc Reset Blank khi Hoàn thành */
             const newStLow = String(fields.trangThai).trim().toLowerCase();
             if (newStLow.includes('hoàn thành') || newStLow.includes('xong') || newStLow.includes('kết thúc')) {
-              if (colZone !== -1) detailData[r][colZone] = '';
-              if (colPriority !== -1) detailData[r][colPriority] = '';
+              if (colZone !== -1) this.queueCellChange_(operationWrites, detailSheetId, r, colZone, detailData[r], '');
+              if (colPriority !== -1) this.queueCellChange_(operationWrites, detailSheetId, r, colPriority, detailData[r], '');
             }
           }
           const row = detailData[r];
@@ -2062,24 +2112,23 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         throw new Error('Không tìm thấy dòng mặt hàng: ' + Array.from(remainingIds).join(', '));
       }
 
-      // Chuẩn bị các bảng trước khi ghi để phát hiện mã hoặc cột bị thiếu.
-      const pendingWrites = [[detailSheet, detailData]];
-
       // 4. CẬP NHẬT HEADER BẢNG 01.DonHang
       const affectedDHKeys = Object.keys(affectedOrdersMap);
       if (affectedDHKeys.length > 0) {
-        const orderData = orderSheet.getDataRange().getValues();
-        const oHeaders = orderData[0].map(normalizeHeader);
-        const colMaDH = oHeaders.indexOf(normalizeHeader(headerColumns.ID));
-        const colNgayDat = oHeaders.indexOf(normalizeHeader(headerColumns.ORDER_DATE));
+        const { rows: orderData, headerRow, columns } = this.readDatabaseTable_(
+          orderSheet, orderSheet.getName(), headerColumns, ['ID', 'ORDER_DATE']);
+        const colMaDH = columns.ID;
+        const colNgayDat = columns.ORDER_DATE;
+        const orderSheetId = orderSheet.getSheetId();
 
         requireColumn(colMaDH, orderSheet, headerColumns.ID);
         requireColumn(colNgayDat, orderSheet, headerColumns.ORDER_DATE);
         const missingOrders = new Set(affectedDHKeys);
-        for (let ro = 1; ro < orderData.length; ro++) {
+        for (let ro = headerRow + 1; ro < orderData.length; ro++) {
           const oId = String(orderData[ro][colMaDH] || '').trim();
           if (affectedOrdersMap[oId]) {
-            orderData[ro][colNgayDat] = this.formatSheetDate_(affectedOrdersMap[oId]);
+            this.queueCellChange_(operationWrites, orderSheetId, ro, colNgayDat, orderData[ro],
+              this.formatSheetDate_(affectedOrdersMap[oId]));
             orderChanges.get(oId).ngayDat = orderData[ro][colNgayDat];
             missingOrders.delete(oId);
           }
@@ -2087,22 +2136,21 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         if (missingOrders.size) {
           throw new Error('Không tìm thấy đơn hàng: ' + Array.from(missingOrders).join(', '));
         }
-        pendingWrites.push([orderSheet, orderData]);
       }
 
       // 5. CẬP NHẬT MASTER 01_02_SAN_PHAM (Màng, Giá khuôn, Đơn vị tính)
       const affectedSPKeys = Object.keys(affectedProductsMap)
         .filter(id => Object.keys(affectedProductsMap[id]).length > 0);
       if (affectedSPKeys.length > 0) {
-        const prodData = prodSheet.getDataRange().getValues();
-        const pHeaders = prodData[0].map(normalizeHeader);
-        const colSpId = pHeaders.indexOf(normalizeHeader(productColumns.ID));
-        const colCodeCust = pHeaders.indexOf(normalizeHeader(productColumns.CODE_CUST));
-        const colFilm = pHeaders.indexOf(normalizeHeader(productColumns.FILM));
-        const colMoldPrice = pHeaders.indexOf(normalizeHeader(productColumns.MOLD_PRICE));
-        const colUnit = pHeaders.indexOf(normalizeHeader(productColumns.UNIT));
-        /* [MỚI - Ý 1] Tìm cột đơn giá trong Master Sản Phẩm */
-        const colPrice = pHeaders.indexOf(normalizeHeader(productColumns.PRICE || 'dongia'));
+        const { rows: prodData, headerRow, columns } = this.readDatabaseTable_(
+          prodSheet, prodSheet.getName(), productColumns, []);
+        const colSpId = columns.ID;
+        const colCodeCust = columns.CODE_CUST;
+        const colFilm = columns.FILM;
+        const colMoldPrice = columns.MOLD_PRICE;
+        const colUnit = columns.UNIT;
+        const colPrice = columns.PRICE;
+        const productSheetId = prodSheet.getSheetId();
 
         const requiredProductFields = {
           codeSP: [colCodeCust, productColumns.CODE_CUST],
@@ -2124,37 +2172,31 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         });
 
         if (colSpId !== -1) {
-          let prodChanged = false;
-          for (let rp = 1; rp < prodData.length; rp++) {
+          for (let rp = headerRow + 1; rp < prodData.length; rp++) {
             const pId = String(prodData[rp][colSpId] || '').trim();
             if (affectedProductsMap[pId]) {
               const spUpdates = affectedProductsMap[pId];
               requiredProductIds.delete(pId);
               const change = { maSP: pId };
               if (spUpdates.codeSP !== undefined && colCodeCust !== -1) {
-                prodData[rp][colCodeCust] = spUpdates.codeSP;
+                this.queueCellChange_(masterWrites, productSheetId, rp, colCodeCust, prodData[rp], spUpdates.codeSP);
                 change.codeSP = prodData[rp][colCodeCust];
-                prodChanged = true;
               }
               if (spUpdates.mang !== undefined && colFilm !== -1) {
-                prodData[rp][colFilm] = String(spUpdates.mang).trim();
+                this.queueCellChange_(masterWrites, productSheetId, rp, colFilm, prodData[rp], String(spUpdates.mang).trim());
                 change.mang = prodData[rp][colFilm];
-                prodChanged = true;
               }
               if (spUpdates.giaKhuon !== undefined && colMoldPrice !== -1) {
-                prodData[rp][colMoldPrice] = Number(spUpdates.giaKhuon) || 0;
+                this.queueCellChange_(masterWrites, productSheetId, rp, colMoldPrice, prodData[rp], Number(spUpdates.giaKhuon) || 0);
                 change.giaKhuon = prodData[rp][colMoldPrice];
-                prodChanged = true;
               }
               if (spUpdates.donvi !== undefined && colUnit !== -1) {
-                prodData[rp][colUnit] = String(spUpdates.donvi).trim();
+                this.queueCellChange_(masterWrites, productSheetId, rp, colUnit, prodData[rp], String(spUpdates.donvi).trim());
                 change.dvt = prodData[rp][colUnit];
-                prodChanged = true;
               }
               /* [MỚI - Ý 1] Ghi đè đơn giá mới vào bảng 01_02_SAN_PHAM */
               if (spUpdates.dongia !== undefined && colPrice !== -1) {
-                prodData[rp][colPrice] = Number(spUpdates.dongia) || 0;
-                prodChanged = true;
+                this.queueCellChange_(masterWrites, productSheetId, rp, colPrice, prodData[rp], Number(spUpdates.dongia) || 0);
               }
               if (Object.keys(change).length > 1) changes.products.push(change);
             }
@@ -2162,7 +2204,6 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
           if (requiredProductIds.size) {
             throw new Error('Không tìm thấy sản phẩm: ' + Array.from(requiredProductIds).join(', '));
           }
-          if (prodChanged) pendingWrites.push([prodSheet, prodData]);
         }
       }
 
@@ -2205,10 +2246,8 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         changes.orders.push(change);
       });
 
-      pendingWrites.forEach(([sheet, data]) => {
-        sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
-      });
-      SpreadsheetApp.flush();
+      if (operationWrites.length) Sheets.Spreadsheets.batchUpdate({ requests: operationWrites }, operSS.getId());
+      if (masterWrites.length) Sheets.Spreadsheets.batchUpdate({ requests: masterWrites }, masterSS.getId());
       return {
         success: true,
         updatedCount: updatedCount,

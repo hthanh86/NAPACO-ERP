@@ -100,6 +100,7 @@ var CONFIG = {
 
   /* [MỚI - Ý 5] Cấu hình số lượng bản ghi hiển thị tối đa */
   MAX_DISPLAY_RECORDS: 100,
+  MAX_FILE_SIZE_BYTES: 15 * 1024 * 1024,
 
   // 3. ĐỊNH NGHĨA TẬP TRUNG TÊN CỘT GIAO DIỆN 'TAO DON' (DÒNG 7)
   FORM_COLUMNS: {

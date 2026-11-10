@@ -111,7 +111,7 @@
   let materialOptions;
   let materialColors = [];
   let defaultDelivery;
-  let createDetails = [];
+  let newAssignmentChoices = null;
   let current;
   let lineForms = [];
   let token;
@@ -175,7 +175,7 @@
   }
 
   function showList() {
-    createDetails = [];
+    newAssignmentChoices = null;
     $('editor').hidden = true;
     $('list').hidden = false;
     if (!data) return;
@@ -282,10 +282,9 @@
       const delivery = new Date(result.today + 'T00:00:00Z');
       delivery.setUTCDate(delivery.getUTCDate() + 3);
       defaultDelivery = delivery.toISOString().slice(0, 10);
-      createDetails = result.choices || [];
       setBusy(false);
       openEditor(order, viewOnly, new Map(result.assignments || []));
-    }).getFilmOrderFormData(ids);
+    }).getFilmOrderFormData(ids, true);
   }
 
   function openEditor(order, viewOnly = false, assignments = new Map()) {
@@ -457,66 +456,69 @@
     const cell = node('td');
     cell.colSpan = 11;
     const details = node('details');
-    const summary = node('summary');
-    const renderSummary = () => {
-      summary.textContent = [line[lineColumns.ID], line[lineColumns.MATERIAL_ID], assigned.size ? 'Gán ' + assigned.size + ' CTDH' :
-        'Đặt cho đơn hàng'].filter(Boolean).join(' · ');
-    };
-    if (current) summary.textContent = 'Xem Đơn';
-    else renderSummary();
-    details.append(summary);
+    details.append(node('summary', 'Xem Đơn'));
     item.refreshChoices = () => {};
-    const content = node('div');
+    const content = node('div', 'Chưa gán đơn.');
     content.className = 'line-orders';
     details.append(content);
+
     function showDraftPicker(entries) {
       content.replaceChildren();
       const render = assignmentPicker(content, entries, assigned,
         entry => !lineForms.some(other => other !== item && other.assigned.has(entry.id)),
         () => {
           lineForms.forEach(other => { if (other !== item) other.refreshChoices(); });
-          if (!current) renderSummary();
         });
       item.refreshChoices = () => { if (details.open) render(); };
       details.ontoggle = item.refreshChoices;
       item.refreshChoices();
     }
 
-    function loadChoices() {
+    function loadDetails(edit) {
+      if (edit && !item.id && newAssignmentChoices) {
+        showDraftPicker(newAssignmentChoices);
+        return;
+      }
       const status = node('div', 'Đang tải CTDH…');
       status.setAttribute('role', 'status');
       content.replaceChildren(status);
-      google.script.run.withFailureHandler(error => {
+      const runner = google.script.run.withFailureHandler(error => {
+        if (!status.isConnected) return;
         status.textContent = error.message;
         const retry = node('button', 'Thử lại');
         retry.type = 'button';
-        retry.onclick = loadChoices;
+        retry.onclick = () => loadDetails(edit);
         content.append(retry);
       }).withSuccessHandler(entries => {
-        showDraftPicker([...assignedEntries, ...entries.filter(entry => !entry.assigned)]);
-      }).getFilmAssignmentOptions(item.id);
+        if (!status.isConnected) return;
+        if (edit) {
+          if (!item.id) newAssignmentChoices = entries;
+          // Keep the original snapshot for the server's concurrent-edit check.
+          showDraftPicker(entries.filter(entry => !entry.assigned || assigned.has(entry.id)));
+        } else {
+          content.replaceChildren(...entries.map(entry => node('div', detailLabel(entry))));
+          if (!entries.length) content.append(node('div', 'Chưa gán đơn.'));
+        }
+      });
+      if (edit) runner.getFilmAssignmentOptions(item.id);
+      else runner.getFilmAssignedDetails(item.id);
     }
 
-    if (!current) {
-      if (data.permissions.assign === true) showDraftPicker(createDetails);
-      else assignmentRow.hidden = true;
-    } else {
-      content.append(...assignedEntries.map(entry => node('div', detailLabel(entry))));
-      if (!assignedEntries.length) content.append(node('div', 'Chưa gán đơn.'));
-      if (!readOnly && data.permissions.assign === true && (!item.id || line.canAssign)) {
-        if (assignedEntries.length) {
-          const edit = node('button', 'Sửa/Bổ sung');
-          edit.type = 'button';
-          edit.onclick = loadChoices;
-          content.append(edit);
-        } else {
-          details.ontoggle = () => {
-            if (!details.open) return;
-            details.ontoggle = null;
-            loadChoices();
-          };
-        }
-      }
+    const canAssign = !readOnly && data.permissions.assign === true && (!item.id || line.canAssign);
+    if (canAssign) {
+      const edit = node('button', 'Sửa/Bổ sung');
+      edit.type = 'button';
+      edit.onclick = () => loadDetails(true);
+      details.append(edit);
+    }
+    if (item.id && line.hasAssignmentColumn) {
+      details.ontoggle = () => {
+        if (!details.open) return;
+        details.ontoggle = null;
+        if (assignedEntries.length) loadDetails(false);
+      };
+    } else if (!canAssign) {
+      details.hidden = true;
     }
     cell.append(details);
     assignmentRow.append(cell);

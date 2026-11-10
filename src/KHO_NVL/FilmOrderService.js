@@ -38,7 +38,7 @@ function getFilmOrders() {
   };
 }
 
-function filmDescribeDetails_(db, rows) {
+function filmDescribeDetails_(db, rows, summaryOnly = false) {
   const { ORDER_DETAILS: FilmDetail } = CONFIG.COLUMNS;
   if (!rows.length) return [];
   const names = CONFIG.SHEET_NAMES;
@@ -53,18 +53,20 @@ function filmDescribeDetails_(db, rows) {
     id: data[FilmDetail.ID],
     customer: customers.get(orders.get(data[FilmDetail.ORDER_ID])) || '',
     product: products.get(data[FilmDetail.PRODUCT_ID]) || '',
-    qty: data[FilmDetail.QTY_ORDER] || '',
-    delivery: data[FilmDetail.DELIVERY_DATE] || '',
-    assigned: !!data[FilmDetail.FILM_LINE_ID],
-    editable: data[FilmDetail.STATUS] === CONFIG.LINE_STATUS.NEW
+    ...(summaryOnly ? { orderId: data[FilmDetail.ORDER_ID] || '' } : {
+      qty: data[FilmDetail.QTY_ORDER] || '',
+      delivery: data[FilmDetail.DELIVERY_DATE] || '',
+      assigned: !!data[FilmDetail.FILM_LINE_ID],
+      editable: data[FilmDetail.STATUS] === CONFIG.LINE_STATUS.NEW
+    })
   }));
 }
 
-function filmDetails_(operation, headersOnly = false, include) {
+function filmDetails_(operation, headersOnly = false, include, summaryOnly = false) {
   const detail = CONFIG.COLUMNS.ORDER_DETAILS;
   return readSheetTable_(operation, [CONFIG.SHEET_NAMES.ORDER_DETAILS],
     [detail.ID, detail.STATUS], [detail.FILM_LINE_ID, detail.ORDER_ID, detail.PRODUCT_ID,
-      detail.QTY_ORDER, detail.DELIVERY_DATE], include, headersOnly);
+      ...(summaryOnly ? [] : [detail.QTY_ORDER, detail.DELIVERY_DATE])], include, headersOnly);
 }
 
 function filmAssignmentRows_(operation, lineId, includeAvailable) {
@@ -99,7 +101,7 @@ function filmAssertAssignmentLine_(operation, lineId) {
   }
 }
 
-function getFilmOrderFormData(lineIds) {
+function getFilmOrderFormData(lineIds, lazyDetails = false) {
   const { FILM_MATERIALS: FilmMaterial } = CONFIG.COLUMNS;
   const db = filmAccess_();
   if (lineIds === null) requirePermission_(db, CONFIG.PERMISSIONS.FILM_PO_CREATE);
@@ -109,26 +111,26 @@ function getFilmOrderFormData(lineIds) {
   const colors = [...new Set(material.rows.map(({ data }) => data[FilmMaterial.COLOR_CATALOG]).filter(Boolean))];
   const today = filmDate_(new Date());
   if (lineIds === null) {
-    const choices = db.permissions.get(CONFIG.PERMISSIONS.FILM_PO_ASSIGN) === true
+    const choices = !lazyDetails && db.permissions.get(CONFIG.PERMISSIONS.FILM_PO_ASSIGN) === true
       ? filmDescribeDetails_(db, filmAssignmentRows_(db.operation, '', true).rows) : [];
     return { today, colors, choices };
   }
-  return { today, colors, assignments: filmOrderAssignments_(db, lineIds) };
+  return { today, colors, assignments: filmOrderAssignments_(db, lineIds, lazyDetails) };
 }
 
 function getFilmOrderAssignments(lineIds) {
   return filmOrderAssignments_(filmAccess_(), lineIds);
 }
 
-function filmOrderAssignments_(db, lineIds) {
+function filmOrderAssignments_(db, lineIds, summaryOnly = false) {
   const { ORDER_DETAILS: FilmDetail } = CONFIG.COLUMNS;
   if (!Array.isArray(lineIds)) throw new Error('Danh sách quy cách không hợp lệ.');
   const ids = new Set(lineIds.map(sheetText_).filter(Boolean));
   if (!ids.size) return [];
   const { rows } = filmDetails_(db.operation, false, (cells, positions) =>
     !!sheetText_(cells[positions.get(FilmDetail.ID)]) &&
-    ids.has(sheetText_(cells[positions.get(FilmDetail.FILM_LINE_ID)])));
-  const entries = filmDescribeDetails_(db, rows);
+    ids.has(sheetText_(cells[positions.get(FilmDetail.FILM_LINE_ID)])), summaryOnly);
+  const entries = filmDescribeDetails_(db, rows, summaryOnly);
   const byLine = new Map();
   rows.forEach(({ data }, index) => {
     if (!byLine.has(data[FilmDetail.FILM_LINE_ID])) byLine.set(data[FilmDetail.FILM_LINE_ID], []);
@@ -284,16 +286,17 @@ function filmDatabase_({ master, operation, userId }, listOnly = false) {
     receipts, setup, receiptWarning, userId };
 }
 
-function filmOrders_(db) {
+function filmOrders_(db, onlyId = null) {
   const { FILM_PO: FilmPo, FILM_LINES: FilmLine, FILM_MATERIALS: FilmMaterial } = CONFIG.COLUMNS;
   const orders = new Map();
   const materialById = new Map(db.materials.rows.map(({ data }) => [data[FilmMaterial.ID], data]));
   for (const { data } of db.headers ? db.headers.rows : []) {
-    if (data[FilmPo.ID]) orders.set(data[FilmPo.ID], { ...data, lines: [] });
+    if (data[FilmPo.ID] && (!onlyId || data[FilmPo.ID] === onlyId)) orders.set(data[FilmPo.ID], { ...data, lines: [] });
   }
   for (const { data } of db.lines.rows) {
     if (!data[FilmLine.ID]) continue;
     const id = data[FilmLine.PO_ID] || data[FilmLine.ID];
+    if (onlyId && id !== onlyId) continue;
     if (!orders.has(id)) {
       orders.set(id, { [FilmPo.ID]: id, [FilmPo.DATE]: data[FilmLine.DATE], [FilmPo.SUPPLIER]: data[FilmLine.SUPPLIER],
         [FilmPo.STATUS]: data[FilmLine.STATUS], legacy: true, lines: [] });
@@ -432,7 +435,7 @@ function filmSaveLocked_(payload) {
     return { id: lastCreate[1] };
   }
 
-  const existing = orderId ? filmOrders_(db).find(order => order[FilmPo.ID] === orderId) : null;
+  const existing = orderId ? filmOrders_(db, orderId)[0] : null;
   if (orderId && (!existing || existing.legacy || existing[FilmPo.STATUS] === 'Hủy' ||
       existing.revision !== payload.revision)) {
     throw new Error('Đơn đã thay đổi hoặc không thể sửa. Hãy tải lại danh sách.');
@@ -453,6 +456,11 @@ function filmSaveLocked_(payload) {
   const dnSequence = filmSequence_(props, db.lines, FilmLine.ID, 'DN', day);
   const poId = orderId || poSequence.next();
   const oldLines = new Map(existing ? existing.lines.map(line => [line[FilmLine.ID], line]) : []);
+  const oldRows = new Map();
+  for (const row of db.lines.rows) {
+    const id = row.data[FilmLine.ID];
+    if (oldLines.has(id) && !oldRows.has(id)) oldRows.set(id, row);
+  }
   const usedLines = new Set();
   const targetDetails = new Map();
   const detailRows = new Map();
@@ -532,7 +540,7 @@ function filmSaveLocked_(payload) {
       }
       targetDetails.set(detailId, id);
     }
-    const priorRow = old && db.lines.rows.find(row => row.data[FilmLine.ID] === id);
+    const priorRow = oldRows.get(id);
     const data = {
       [FilmLine.ID]: id, [FilmLine.PO_ID]: poId, [FilmLine.RESIN]: resin, [FilmLine.MATERIAL_ID]: vl, [FilmLine.QTY]: qty,
       [FilmLine.PRICE]: filmNumber_(line.price, false, 'Đơn giá'),
