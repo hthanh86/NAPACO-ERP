@@ -53,6 +53,11 @@ function doGet(e) {
       template.appUrl = appUrl;
       output = template.evaluate();
       title = 'NAPACO ERP - Đặt Màng';
+    } else if (view === 'film-receive') {
+      const template = HtmlService.createTemplateFromFile('KHO_NVL/FilmReceipt_View');
+      template.appUrl = appUrl;
+      output = template.evaluate();
+      title = 'NAPACO ERP - Nhận Màng';
     } else {
       const productType = view === 'be' ? '2' : '1';
       output = renderOrderListView_(productType, appUrl, params);
@@ -81,6 +86,7 @@ function renderOrderMenu_(appUrl, activeModule) {
     { id: 'be', group: 'Đơn hàng', icon: '✂', label: 'Bế', url: appUrl + '?view=be' },
     // Điền URL web app của từng phân hệ khi có đường dẫn.
     { id: 'film', group: 'Sản xuất', icon: '▤', label: 'Đặt Màng', url: appUrl + '?view=film' },
+    { id: 'film-receive', group: 'Sản xuất', icon: '↓', label: 'Nhận Màng', url: appUrl + '?view=film-receive' },
     { id: 'forming-log', group: 'Sản xuất', icon: '▣', label: 'Nhật Ký Định Hình', url: '' }
   ];
   const template = HtmlService.createTemplateFromFile('DonHang/OrderMenu_View');

@@ -86,9 +86,9 @@
         </div>
         <div class="table-scroll">
           <table class="grid">
-            <thead><tr><th>Loại nhựa</th><th>Cấp độ</th><th>Màu sắc</th><th>Tĩnh điện</th><th>Quy cách</th><th>Đơn giá</th><th>Số lượng (kg)</th><th>Ghi chú</th><th>Ngày giao</th><th>Đã nhận</th><th></th></tr></thead>
+            <thead><tr><th>Loại nhựa</th><th>Cấp độ</th><th>Màu sắc</th><th>Tĩnh điện</th><th>Quy cách</th><th>Đơn giá</th><th>Số lượng (kg)</th><th>Ghi chú</th><th>Ngày giao</th><th>Đã nhận / Còn lại</th><th>Trạng thái</th><th></th></tr></thead>
             <tbody id="lines"></tbody>
-            <tfoot><tr><td colspan="11" id="total"></td></tr></tfoot>
+            <tfoot><tr><td colspan="12" id="total"></td></tr></tfoot>
           </table>
         </div>
         <datalist id="resinTypes"><option>PET</option><option>PP</option><option>PS</option><option>PVC</option><option>PE</option><option>HIPS</option></datalist>
@@ -435,8 +435,27 @@
     note.className = 'note';
     note.rows = 2;
     input('delivery', 'Ngày giao', line[lineColumns.ID] ? line[lineColumns.DELIVERY] : defaultDelivery, 'date');
-    const received = node('td', line[lineColumns.ID] ? kg(line.received) + ' kg' : '—');
-    for (const id of line.receiptIds || []) received.append(node('div', id));
+    const received = node('td');
+    function updateReceived() {
+      if (line.received == null) {
+        received.textContent = '—';
+        return;
+      }
+      const difference = (quantityValue(qty.value) || 0) - line.received;
+      received.replaceChildren(node('div', 'Đã nhận ' + kg(line.received) + ' KG'),
+        node('div', difference < -1e-8 ? 'Dư ' + kg(-difference) + ' KG'
+          : 'Còn lại ' + kg(Math.max(0, difference)) + ' KG'));
+      for (const id of line.receiptIds || []) received.append(node('div', id));
+    }
+    qty.addEventListener('input', updateReceived);
+    updateReceived();
+    row.append(received);
+    const status = input('status', 'Trạng thái nhận', '', 'select');
+    const currentStatus = line[lineColumns.STATUS] || data.lineStatuses[0];
+    const choices = data.lineStatuses.includes(currentStatus) ? data.lineStatuses : [currentStatus, ...data.lineStatuses];
+    options(status, choices.map(value => [value, value]));
+    status.value = currentStatus;
+    status.disabled = readOnly || !line[lineColumns.ID] || currentStatus === 'Hủy';
     const removeCell = node('td');
     const item = { id: line[lineColumns.ID] || '', row, assignmentRow, fields, assigned, originalIds };
     if (!readOnly && !line[lineColumns.ID]) {
@@ -451,10 +470,10 @@
       };
       removeCell.append(remove);
     }
-    row.append(received, removeCell);
+    row.append(removeCell);
 
     const cell = node('td');
-    cell.colSpan = 11;
+    cell.colSpan = 12;
     const details = node('details');
     details.append(node('summary', 'Xem Đơn'));
     item.refreshChoices = () => {};

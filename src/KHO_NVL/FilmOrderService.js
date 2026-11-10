@@ -1,3 +1,43 @@
+const FILM_RECEIPT_LINE_STATUS = Object.freeze({
+  WAITING: 'Chờ Nhận',
+  PARTIAL: 'Nhận một phần',
+  CLOSED: 'Đóng'
+});
+
+function filmReceivedStatus_(ordered, received) {
+  const status = FILM_RECEIPT_LINE_STATUS;
+  if (received <= 0) return status.WAITING;
+  return received + 1e-8 >= ordered ? status.CLOSED : status.PARTIAL;
+}
+
+function filmLineStatus_(stored, ordered, received) {
+  if (stored && stored.toLowerCase() === 'chờ nhận') return FILM_RECEIPT_LINE_STATUS.WAITING;
+  if (stored && stored.toLowerCase() !== 'chờ nhập') return stored;
+  return filmReceivedStatus_(ordered, received || 0);
+}
+
+function filmReceiptTotals_(incoming) {
+  const col = CONFIG.COLUMNS.FILM_RECEIPTS;
+  const totals = new Map();
+  const seen = new Set();
+  for (const { data } of incoming.rows) {
+    const id = data[col.ID];
+    const dn = data[col.LINE_ID];
+    const kg = Number(data[col.QTY]);
+    if (id && seen.has(id)) throw new Error('Mã phiếu nhận bị trùng: ' + id + '.');
+    if (id) seen.add(id);
+    if (!dn) continue;
+    if (!id || !data[col.QTY] || !Number.isFinite(kg) || kg < 0) {
+      throw new Error('Kiểm tra mã phiếu và số kg của các dòng kho có DN_ID.');
+    }
+    const linked = totals.get(dn) || { kg: 0, ids: [] };
+    linked.kg += kg;
+    linked.ids.push(id);
+    totals.set(dn, linked);
+  }
+  return totals;
+}
+
 function getFilmOrders() {
   const { FILM_PO: FilmPo, FILM_LINES: FilmLine, FILM_MATERIALS: FilmMaterial } = CONFIG.COLUMNS;
   const access = filmAccess_();
@@ -34,6 +74,7 @@ function getFilmOrders() {
       assign: access.permissions.get(CONFIG.PERMISSIONS.FILM_PO_ASSIGN) === true
     },
     canEditWithReceipts: !db.receiptWarning,
+    lineStatuses: Object.values(FILM_RECEIPT_LINE_STATUS),
     receiptWarning: canViewStock ? db.receiptWarning : ''
   };
 }
@@ -260,27 +301,14 @@ function filmDatabase_({ master, operation, userId }, listOnly = false) {
   }
   if (!details.positions.has(detail.FILM_LINE_ID)) setup.push(names.ORDER_DETAILS + ' thiếu cột ' + FilmDetail.FILM_LINE_ID + '.');
 
-  const receipts = new Map();
+  let receipts = new Map();
   let receiptWarning = '';
   try {
-    const incoming = readSheetTable_(operation, [names.FILM_RECEIPTS], Object.values(FilmReceipt));
-    const seen = new Set();
-    for (const { data: row } of incoming.rows) {
-      if (!row[FilmReceipt.LINE_ID]) continue;
-      const kg = Number(row[FilmReceipt.QTY]);
-      if (!row[FilmReceipt.ID] || seen.has(row[FilmReceipt.ID]) ||
-          !row[FilmReceipt.QTY] || !Number.isFinite(kg) || kg < 0) {
-        throw new Error('Kiểm tra mã phiếu và số kg của các dòng kho có DN_ID.');
-      }
-      seen.add(row[FilmReceipt.ID]);
-      const linked = receipts.get(row[FilmReceipt.LINE_ID]) || { kg: 0, ids: [] };
-      linked.kg += kg;
-      linked.ids.push(row[FilmReceipt.ID]);
-      receipts.set(row[FilmReceipt.LINE_ID], linked);
-    }
+    const incoming = readSheetTable_(operation, [names.FILM_RECEIPTS],
+      [FilmReceipt.ID, FilmReceipt.LINE_ID, FilmReceipt.QTY]);
+    receipts = filmReceiptTotals_(incoming);
   } catch (err) {
     receiptWarning = 'Chưa đọc được tiến độ nhận. ' + err.message;
-    receipts.clear();
   }
   return { master, operation, materials: material, suppliers, headers, lines, details,
     receipts, setup, receiptWarning, userId };
@@ -303,6 +331,7 @@ function filmOrders_(db, onlyId = null) {
     }
     const receipt = db.receipts.get(data[FilmLine.ID]);
     orders.get(id).lines.push({ ...data, material: materialById.get(data[FilmLine.MATERIAL_ID]) || {},
+      [FilmLine.STATUS]: filmLineStatus_(data[FilmLine.STATUS], Number(data[FilmLine.QTY]), receipt && receipt.kg),
       received: db.receiptWarning ? null : (receipt ? receipt.kg : 0),
       receiptIds: receipt ? receipt.ids : [] });
   }
@@ -380,9 +409,9 @@ function filmCell_(value, isDate) {
 }
 
 function filmWrite_(requests, table, rowIndex, data) {
-  const { FILM_PO: FilmPo, FILM_LINES: FilmLine } = CONFIG.COLUMNS;
+  const { FILM_PO: FilmPo, FILM_LINES: FilmLine, FILM_RECEIPTS: FilmReceipt } = CONFIG.COLUMNS;
   const sheetId = table.sheet.getSheetId();
-  const dateColumns = [FilmPo.DATE, FilmLine.DATE, FilmLine.DELIVERY];
+  const dateColumns = [FilmPo.DATE, FilmLine.DATE, FilmLine.DELIVERY, FilmReceipt.DATE, FilmReceipt.PRODUCTION_DATE];
   if (rowIndex === null) {
     const cells = Array.from({ length: Math.max(...table.positions.values()) + 1 }, () => ({}));
     for (const [name, value] of Object.entries(data)) {
@@ -517,8 +546,15 @@ function filmSaveLocked_(payload) {
         blank ? { [FilmMaterial.ID]: vl } : { ...material, [FilmMaterial.ID]: vl });
     }
     if (old && old.receiptIds.length &&
-        (old[FilmLine.MATERIAL_ID] !== vl || old[FilmLine.RESIN] !== resin || qty + 1e-8 < old.received)) {
-      throw new Error(id + ' đã có phiếu nhận. Giữ quy cách và số kg đặt ít nhất bằng số kg đã nhận.');
+        (old[FilmLine.MATERIAL_ID] !== vl || old[FilmLine.RESIN] !== resin ||
+          (qty !== Number(old[FilmLine.QTY]) && qty + 1e-8 < old.received))) {
+      throw new Error(id + ' đã có phiếu nhận. Giữ quy cách và khi đổi số kg đặt, nhập ít nhất bằng số kg đã nhận.');
+    }
+    const status = old ? (line.status === undefined ? old[FilmLine.STATUS] : sheetText_(line.status))
+      : FILM_RECEIPT_LINE_STATUS.WAITING;
+    if (old && status !== old[FilmLine.STATUS] &&
+        (old[FilmLine.STATUS] === 'Hủy' || !Object.values(FILM_RECEIPT_LINE_STATUS).includes(status))) {
+      throw new Error('Trạng thái dòng ' + id + ' không hợp lệ.');
     }
     // Existing lines can save their spec without overwriting separately edited assignments.
     const assignedIds = existingAssignments.get(id) || [];
@@ -545,7 +581,7 @@ function filmSaveLocked_(payload) {
       [FilmLine.ID]: id, [FilmLine.PO_ID]: poId, [FilmLine.RESIN]: resin, [FilmLine.MATERIAL_ID]: vl, [FilmLine.QTY]: qty,
       [FilmLine.PRICE]: filmNumber_(line.price, false, 'Đơn giá'),
       [FilmLine.DELIVERY]: filmInputDate_(line.delivery, false), [FilmLine.NOTE]: sheetText_(line.note),
-      [FilmLine.STATUS]: old ? old[FilmLine.STATUS] : 'Chờ nhập'
+      [FilmLine.STATUS]: old ? old[FilmLine.STATUS] : 'Chờ nhận'
     };
     if (db.lines.positions.has(FilmLine.DATE)) data[FilmLine.DATE] = date;
     if (db.lines.positions.has(FilmLine.SUPPLIER)) data[FilmLine.SUPPLIER] = supplier;

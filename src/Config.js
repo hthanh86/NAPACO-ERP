@@ -138,7 +138,11 @@ var CONFIG = {
       THICKNESS: 'Độ Dày', WIDTH: 'Khổ Nhựa', COLOR_CATALOG: 'DM_MAU_SAC'
     },
     FILM_SUPPLIERS: { ID: 'Ma_NCC', NAME: 'Ten_NCC', TYPE: 'Loai_Cung_Cap' },
-    FILM_RECEIPTS: { ID: 'N_NVL_ID', LINE_ID: 'DN_ID', QTY: 'So_KG_Nhan' },
+    FILM_RECEIPTS: {
+      ID: 'N_NVL_ID', DATE: 'Ngay_Nhan', PRODUCTION_DATE: 'Ngay_San_Xuat', LINE_ID: 'DN_ID',
+      ROLLS: 'So_Cuon_Nhan', QTY: 'So_KG_Nhan', LOCATION: 'Vi_Tri', STATUS: 'Trang_Thai',
+      USER: 'Nguoi_Nhap', IQC_ID: 'IQC_QC_ID', NOTE: 'Ghi_Chu'
+    },
     // Bảng 01_KHACH_HANG
     CUSTOMERS: {
       ID: 'Ma_KH',
@@ -233,7 +237,7 @@ var CONFIG = {
     FILM_PO_EDIT: 'FILM_PO_EDIT',
     FILM_PO_ASSIGN: 'FILM_PO_ASSIGN',
     FILM_PO_CANCEL: 'FILM_PO_CANCEL', // Chưa có luồng hủy PO màng
-    NVL_RECEIVE: 'NVL_RECEIVE', // Chưa có luồng lập phiếu nhận NVL
+    NVL_RECEIVE: 'NVL_RECEIVE',
     NVL_STOCK_VIEW: 'NVL_STOCK_VIEW',
     PRODUCTION_EDIT: 'PRODUCTION_EDIT' // Chưa áp dụng vào thao tác sản xuất
   }),
