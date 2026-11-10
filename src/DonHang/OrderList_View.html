@@ -889,6 +889,9 @@
 </head>
 
 <? const isBe = typeof productType !== 'undefined' && productType === '2'; ?>
+<? const savedIds = typeof createdOrderIds === 'undefined' ? '' : createdOrderIds;
+   const savedPO = typeof createdPO === 'undefined' ? '' : createdPO;
+   const otherType = typeof showOtherOrderType !== 'undefined' && showOtherOrderType; ?>
 <? const hasMenu = typeof appUrl !== 'undefined' && appUrl; ?>
 <body class="<?= hasMenu ? 'erp-shell' : '' ?>" data-product-type="<?= isBe ? '2' : '1' ?>">
   <? if (hasMenu) { ?>
@@ -922,6 +925,20 @@
       </div>
     </div>
 
+    <? if (savedIds) { ?>
+      <p id="savedOrderSummary" data-order-ids="<?= savedIds ?>" data-po="<?= savedPO ?>">
+        Đã lưu thành công · <?= savedIds.split(',').join(', ') ?>
+        <? if (otherType && hasMenu) {
+          const otherUrl = appUrl + '?view=' + (isBe ? 'list' : 'be') + '&orders=' +
+            encodeURIComponent(savedIds) + '&po=' + encodeURIComponent(savedPO) + '&mixed=1'; ?>
+          · <a href="<?= otherUrl ?>">Xem phần <?= isBe ? 'Định Hình' : 'Bế' ?></a>
+        <? } ?>
+        <? if (hasMenu) { ?>
+          · <a href="<?= appUrl ?>?view=create">Tạo đơn tiếp</a>
+        <? } ?>
+      </p>
+    <? } ?>
+
     <!-- THANH CHỈ SỐ KPI TỔNG QUAN -->
     <div class="kpi-grid">
       <div class="kpi-card">
@@ -946,7 +963,7 @@
     <div class="filter-card">
       <div class="filter-group">
         <label>Từ khóa tìm kiếm nhanh</label>
-        <input type="text" id="keywordInput" class="filter-control" placeholder="Gõ tên sản phẩm, mã đơn..."
+        <input type="text" id="keywordInput" class="filter-control" value="<?= savedIds ? (savedPO || savedIds) : '' ?>" placeholder="Gõ số PO, tên sản phẩm, mã đơn..."
           oninput="handleInstantFilter()">
       </div>
       <div class="filter-group">
@@ -1197,10 +1214,16 @@
       config: null
     };
 
-    document.addEventListener('DOMContentLoaded', function () {
+    function initOrderList() {
       switchViewMode(listState.viewMode);
       fetchOrderData();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initOrderList);
+    } else {
+      queueMicrotask(initOrderList);
+    }
 
     function switchViewMode(mode) {
       const btnHeader = document.getElementById('btnViewHeader');
@@ -1439,10 +1462,14 @@
       renderCurrentView();
 
       const custTarget = document.getElementById('customerFilterInput') || document.getElementById('customerFilter');
+      const keyword = document.getElementById('keywordInput').value.trim();
+      const saved = document.getElementById('savedOrderSummary');
+      const orderIds = saved && keyword === (saved.dataset.po || saved.dataset.orderIds) ? saved.dataset.orderIds : '';
       const searchParams = {
         viewMode: 'ALL_VIEWS',
         productType: document.body.dataset.productType,
-        keyword: document.getElementById('keywordInput').value.trim(),
+        keyword: orderIds ? '' : keyword,
+        orderIds: orderIds,
         maKH: custTarget ? custTarget.value.trim() : 'ALL',
         status: document.getElementById('statusFilter').value,
         fromDate: document.getElementById('fromDateFilter').value,
@@ -1545,7 +1572,9 @@
       const isKanban = mode === 'KANBAN_LINE';
       if (isKanban && listState.savingKanban) return;
 
-      const kw = document.getElementById('keywordInput').value.trim().toLowerCase();
+      const keyword = document.getElementById('keywordInput').value.trim();
+      const saved = document.getElementById('savedOrderSummary');
+      const kw = saved && keyword === (saved.dataset.po || saved.dataset.orderIds) ? '' : keyword.toLowerCase();
       const custKw = document.getElementById('customerFilterInput').value.trim().toLowerCase();
       const status = document.getElementById('statusFilter').value;
       const fromDate = document.getElementById('fromDateFilter').value;

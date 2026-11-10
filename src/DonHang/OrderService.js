@@ -48,6 +48,25 @@ const OrderService = {
     return { sheet, rows, headerRow, columns, ids };
   },
 
+  readOrderUnits_: function(rows, headerRow, unitColumn) {
+    const headers = rows[headerRow] || [];
+    const configColumn = headers.findIndex((value, index) =>
+      index > 0 && !String(headers[index - 1] || '').trim() &&
+      String(value || '').trim().toLowerCase() === 'danh sách đvt');
+    const body = rows.slice(headerRow + 1);
+    const units = new Map();
+    const add = value => {
+      const unit = String(value || '').trim();
+      if (unit && !units.has(unit.toLowerCase())) units.set(unit.toLowerCase(), unit);
+    };
+    if (configColumn >= 0) body.forEach(row => add(row[configColumn]));
+    if (!units.size) {
+      add(CONFIG.DEFAULT_UNIT || 'Cái');
+      body.forEach(row => add(row[unitColumn]));
+    }
+    return Array.from(units.values());
+  },
+
   sheetCell_: function(value) {
     if (value === '') return {};
     if (typeof value === 'number') return { userEnteredValue: { numberValue: value } };
@@ -225,6 +244,7 @@ const OrderService = {
       customerByNameMap: customerByNameMap,
       customerByIdMap: customerByIdMap,
       products: products,
+      orderUnits: this.readOrderUnits_(prodValues, prodHdrIdx, cUnit),
       productByIdMap: productByIdMap,
       productTypeById: productTypeById,
       salesStaffList: salesStaffList,
@@ -367,7 +387,10 @@ const OrderService = {
    * Quét vùng A8:I trên sheet 'TAO DON', gom nhóm theo (Khách hàng + Số PO),
    * tự động gán Ngày đặt = TODAY() và Ngày giao = TODAY() + 10 ngày.
    */
-  buildModalInitialData: function(optSourceSpreadsheetId) {
+  buildModalInitialData: function(optSourceSpreadsheetId, webEntry) {
+    if (webEntry) {
+      requirePermission_(readUserPermissions_(this.getMasterSpreadsheet_()), CONFIG.PERMISSIONS.ORDER_CREATE);
+    }
     const catalog = this.getCatalogAndAuthData();
     const todayStr = catalog.serverDate;
     const defaultDeliveryStr = catalog.defaultDeliveryDate;
@@ -375,9 +398,9 @@ const OrderService = {
 
     let wsSheet = null;
     try {
-      if (optSourceSpreadsheetId) {
+      if (!webEntry && optSourceSpreadsheetId) {
         wsSheet = SpreadsheetApp.openById(optSourceSpreadsheetId).getSheetByName(CONFIG.SHEET_NAMES.ORDER_WORKSPACE);
-      } else if (SpreadsheetApp.getActiveSpreadsheet()) {
+      } else if (!webEntry && SpreadsheetApp.getActiveSpreadsheet()) {
         wsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAMES.ORDER_WORKSPACE);
       }
     } catch (e) {
@@ -501,8 +524,8 @@ const OrderService = {
           spId: '',
           prodName: '',
           codeSP: '',
-          unit: CONFIG.DEFAULT_UNIT,
-          qty: 5000,
+          unit: webEntry ? catalog.orderUnits[0] : (CONFIG.DEFAULT_UNIT || 'Cái'),
+          qty: webEntry ? 0 : 5000,
           price: 0,
           giaKhuon: 0,
           mang: '',
@@ -520,6 +543,7 @@ const OrderService = {
 
     return {
       hasSourceSheet: Boolean(wsSheet),
+      orderUnits: catalog.orderUnits,
       poGroups: poGroupsList,
       salesStaffList: catalog.salesStaffList,
       currentUser: catalog.currentUser,
@@ -626,13 +650,17 @@ const OrderService = {
       const detailTable = this.readDatabaseTable_(detailSheet, names.ORDER_DETAILS, schema.ORDER_DETAILS, detailKeys, true);
       const { rows: custData, columns: custCols } = customerTable;
       const { rows: prodData, columns: prodCols } = productTable;
-      const khMap = {}; // Tên KH (lowercase) -> Ma_KH
+      const customerNamesById = new Map();
+      const khMap = Object.create(null); // Tên KH (lowercase) -> Ma_KH
       let maxKhSeq = 0;
 
       for (let i = customerTable.headerRow + 1; i < custData.length; i++) {
         const ma = String(custData[i][custCols.ID] || '').trim();
         const ten = String(custData[i][custCols.NAME] || '').trim();
-        if (ma && ten) khMap[ten.toLowerCase()] = ma;
+        if (ma && ten) {
+          khMap[ten.toLowerCase()] = ma;
+          customerNamesById.set(ma, ten.toLowerCase());
+        }
         
         // Trích xuất số lớn nhất từ các mã KH (VD: KH0214 -> 214)
         const matchKh = ma.match(/KH(\d+)/i);
@@ -642,9 +670,9 @@ const OrderService = {
         }
       }
 
-      const prodMap = {}; // Tên SP + Mã KH -> SP_ID
+      const prodMap = Object.create(null); // Tên SP + Mã KH -> SP_ID
       let maxSpSeq = 0;
-      const prodRowIndexMap = {};
+      const prodRowIndexMap = Object.create(null);
       for (let j = productTable.headerRow + 1; j < prodData.length; j++) {
         const spId = String(prodData[j][prodCols.ID] || '').trim();
         const cusId = String(prodData[j][prodCols.CUSTOMER_ID] || '').trim();
@@ -667,7 +695,13 @@ const OrderService = {
       let currentMaxKh = maxKhSeq;
       let currentMaxSp = maxSpSeq;
 
-      const poGroups = payload.poGroups || [];
+      const poGroups = payload.webOrder ? this.normalizeAndValidatePayload_(payload) : (payload.poGroups || []);
+      const allowedUnits = payload.webOrder
+        ? this.readOrderUnits_(prodData, productTable.headerRow, prodCols.UNIT).map(unit => unit.toLowerCase())
+        : [];
+      const salesCodes = payload.webOrder
+        ? new Set(this.readOrderStaff_(masterSS).salesStaffList.map(person => person.maNV))
+        : null;
       const createdOrders = [];
       const headerRows = [];
       const detailRows = [];
@@ -707,7 +741,11 @@ const OrderService = {
         const grp = poGroups[g];
         const cusName = String(grp.customerName || 'Khách lẻ').trim();
         const cusKey = cusName.toLowerCase();
-        let targetMaKH = khMap[cusKey];
+        const selectedCustomerId = payload.webOrder ? String(grp.customerId || '').trim() : '';
+        if (selectedCustomerId && customerNamesById.get(selectedCustomerId) !== cusKey) {
+          throw new Error('Thông tin khách hàng của PO "' + grp.soPO + '" đã thay đổi. Vui lòng tải lại trang.');
+        }
+        let targetMaKH = selectedCustomerId || khMap[cusKey];
 
         // Nếu là Khách Hàng mới -> Tự sinh mã KHxxxx
         // Nếu là Khách Hàng mới -> Lấy số lớn nhất hiện tại + 1
@@ -720,12 +758,17 @@ const OrderService = {
 
         // Sinh mã đơn hàng: DH_yymmdd_xx
         const maDH = `DH_${yymmdd}_` + String(orderSeq++).padStart(2, '0');
-        const ngayGiaoDK = grp.ngayGiaoDK || todayStr;
+        if (salesCodes && grp.salesPerson !== access.userId && !salesCodes.has(grp.salesPerson)) {
+          throw new Error('Nhân viên kinh doanh của PO "' + grp.soPO + '" không hợp lệ.');
+        }
+        const ngayGiaoDK = payload.webOrder
+          ? grp.items.reduce((latest, item) => item.ngayGiao > latest ? item.ngayGiao : latest, '')
+          : (grp.ngayGiaoDK || todayStr);
         const soPO = grp.soPO || `PO-${yymmdd}-${cusName}`;
 
         // Header: [Ma_DH, MaKH, NgayDat, NgayGiaoDK, So_PO, File_PO]
         headerRows.push({
-          ID: maDH, CUSTOMER_ID: targetMaKH, ORDER_DATE: todayStr, DELIVERY_DATE: ngayGiaoDK,
+          ID: maDH, CUSTOMER_ID: targetMaKH, ORDER_DATE: payload.webOrder ? grp.items[0].ngayDat : todayStr, DELIVERY_DATE: ngayGiaoDK,
           PO_NUMBER: soPO, FILE_URL: grp.existingFileUrl || ''
         });
 
@@ -739,7 +782,24 @@ const OrderService = {
           const item = items[it];
           const prodName = String(item.prodName || '').trim();
           const prodKey = prodName.toLowerCase() + '__' + targetMaKH;
-          let targetSpId = prodMap[prodKey] || prodMap[prodName.toLowerCase()];
+          const selectedSpId = payload.webOrder ? String(item.spId || '').trim() : '';
+          if (selectedSpId) {
+            const product = prodData[prodRowIndexMap[selectedSpId] - 1];
+            if (!product || String(product[prodCols.CUSTOMER_ID] || '').trim() !== targetMaKH ||
+                String(product[prodCols.NAME] || '').trim().toLowerCase() !== prodName.toLowerCase()) {
+              throw new Error('Sản phẩm "' + prodName + '" không khớp với danh mục của khách hàng "' + cusName + '".');
+            }
+          }
+          let targetSpId = selectedSpId || prodMap[prodKey];
+          if (!payload.webOrder && !targetSpId) targetSpId = prodMap[prodName.toLowerCase()];
+          if (payload.webOrder) {
+            const previousProduct = prodData[prodRowIndexMap[targetSpId] - 1];
+            const previousUnit = previousProduct ? String(previousProduct[prodCols.UNIT] || 'Cái').trim().toLowerCase() : '';
+            const unit = String(item.unit).trim().toLowerCase();
+            if (!allowedUnits.includes(unit) && unit !== previousUnit) {
+              throw new Error('Đơn PO "' + soPO + '" - Dòng #' + (it + 1) + ': Đơn vị tính không có trong danh sách.');
+            }
+          }
 
           // Nếu là Sản Phẩm mới -> Tự sinh mã SPxxxx
           // Nếu là Sản Phẩm mới -> Lấy số lớn nhất hiện tại + 1
@@ -773,7 +833,7 @@ const OrderService = {
           const idChiTiet = `CT_${yymmdd}_` + String(detailSeq++).padStart(2, '0');
           const slDat = Number(item.qty) || 0;
           const donGia = Number(item.price) || 0;
-          const ngayGiao = item.deliveryDate || item.ngayGiao || ngayGiaoDK;
+          const ngayGiao = payload.webOrder ? item.ngayGiao : (item.deliveryDate || item.ngayGiao || ngayGiaoDK);
           const maNV = grp.salesPerson ? String(grp.salesPerson).split(' - ')[0].trim() : '';
 
           // Line Item: [ID_Chi_Tiet, ID_DonHang, Ma_SP, So_Luong_Dat, Don_Gia, So_Luong_Da_Chay, SL_Da_Giao, SL_Con_Lai, Ghi_Chu, Ngay_Giao, Ma_NV, Trang_Thai]
@@ -890,6 +950,8 @@ const OrderService = {
     const maKHFilter = String(params.maKH || 'ALL').trim();
     /* [SỬA LỖI] Bỏ toLowerCase() để giữ nguyên hằng số nhóm ACTIVE_ALL / DONE_ALL */
     const statusFilter = String(params.status || 'ALL').trim();
+    const orderIds = new Set(String(params.orderIds || '').split(',')
+      .filter(id => /^DH_\d{6}_\d+$/.test(id)));
     const fromDate = String(params.fromDate || '').trim();
     const toDate = String(params.toDate || '').trim();
     const page = Math.max(1, parseInt(params.page, 10) || 1);
@@ -1157,6 +1219,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         }
         if (fromDate && item.ngayDat && item.ngayDat < fromDate) return false;
         if (toDate && item.ngayGiao && item.ngayGiao > toDate) return false;
+        if (orderIds.size && !orderIds.has(item.maDH)) return false;
         if (keyword) {
           const haystack = [
             item.idChiTiet, item.maDH, item.soPO, item.khachHang,
@@ -1352,7 +1415,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
       throw new Error('Phải có ít nhất 1 đơn hàng (PO) trong giao dịch!');
     }
 
-    const poCustomerCheck = {};
+    const poCustomerCheck = Object.create(null);
     for (let g = 0; g < rawGroups.length; g++) {
       const grp = rawGroups[g];
       const cusName = String(grp.customerName || '').trim();
@@ -1365,7 +1428,14 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
         throw new Error('Đơn PO #' + (g + 1) + ' (' + cusName + '): Số PO không được để trống!');
       }
 
+      if (payload.webOrder && !String(grp.salesPerson || '').trim()) {
+        throw new Error('Đơn PO "' + soPO + '": Vui lòng chọn nhân viên kinh doanh.');
+      }
+
       const poKey = soPO.toUpperCase();
+      if (payload.webOrder && poCustomerCheck[poKey]) {
+        throw new Error('Số PO "' + soPO + '" bị trùng trong cùng đợt lưu.');
+      }
       if (poCustomerCheck[poKey] && poCustomerCheck[poKey] !== cusName.toLowerCase()) {
         throw new Error('Số PO "' + soPO + '" đang bị gán trùng cho 2 khách hàng khác nhau trong cùng giao dịch!');
       }
@@ -1381,12 +1451,28 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
           throw new Error('Đơn PO "' + soPO + '" - Dòng #' + (i + 1) + ': Tên sản phẩm không được để trống!');
         }
         const qty = Number(it.qty);
-        if (isNaN(qty) || qty <= 0) {
+        if (!Number.isFinite(qty) || qty <= 0) {
           throw new Error('Đơn PO "' + soPO + '" - Dòng #' + (i + 1) + ' (' + it.prodName + '): Số lượng đặt phải lớn hơn 0!');
         }
         const price = Number(it.price);
-        if (isNaN(price) || price < 0) {
+        if (!Number.isFinite(price) || price < 0) {
           throw new Error('Đơn PO "' + soPO + '" - Dòng #' + (i + 1) + ' (' + it.prodName + '): Đơn giá không hợp lệ!');
+        }
+        if (payload.webOrder) {
+          const prefix = 'Đơn PO "' + soPO + '" - Dòng #' + (i + 1) + ': ';
+          if (!String(it.unit || '').trim()) throw new Error(prefix + 'Vui lòng chọn đơn vị tính.');
+          if (!Number.isFinite(Number(it.giaKhuon)) || Number(it.giaKhuon) < 0) {
+            throw new Error(prefix + 'Giá khuôn không hợp lệ.');
+          }
+          if (!['1', '2'].includes(String(it.type))) throw new Error(prefix + 'Loại gia công không hợp lệ.');
+          const isDate = value => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+            const date = new Date(value + 'T00:00:00Z');
+            return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+          };
+          if (!isDate(it.ngayDat) || !isDate(it.ngayGiao) || it.ngayGiao < it.ngayDat) {
+            throw new Error(prefix + 'Ngày đặt hoặc ngày giao không hợp lệ.');
+          }
         }
       }
     }

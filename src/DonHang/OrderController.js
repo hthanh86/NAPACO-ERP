@@ -25,11 +25,14 @@ function doGet(e) {
     const params = (e && e.parameter) ? e.parameter : {};
     const view = String(params.view || 'index').toLowerCase();
 
+    const appUrl = ScriptApp.getService().getUrl() || '';
     if (view === 'create' || view === 'modal') {
-      const sourceSheetId = params.sourceId || '';
-      const initRes = OrderController.getOrderModalInitData(sourceSheetId);
+      const webEntry = view === 'create' && !params.sourceId;
+      const initRes = OrderController.getOrderModalInitData(webEntry ? '' : params.sourceId || '', webEntry);
       const template = HtmlService.createTemplateFromFile('DonHang/OrderModal');
-      const jsonStr = JSON.stringify(initRes.success ? initRes.data : {});
+      template.orderWebUrl = appUrl;
+      template.orderWebEntry = webEntry;
+      const jsonStr = JSON.stringify(initRes.success ? initRes.data : { initError: initRes.error.message });
       template.initialDataJson = Utilities.base64Encode(Utilities.newBlob(jsonStr, 'application/json').getBytes());
 
       return template.evaluate()
@@ -38,7 +41,6 @@ function doGet(e) {
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
 
-    const appUrl = ScriptApp.getService().getUrl() || '';
     let output;
     let title;
     if (view === 'index') {
@@ -51,14 +53,10 @@ function doGet(e) {
       template.appUrl = appUrl;
       output = template.evaluate();
       title = 'NAPACO ERP - Đặt Màng';
-    } else if (view === 'be') {
-      const template = HtmlService.createTemplateFromFile('DonHang/OrderListBe_View');
-      template.appUrl = appUrl;
-      output = template.evaluate();
-      title = 'NAPACO ERP - Đơn Hàng Bế';
     } else {
-      output = renderOrderListView_('1', appUrl);
-      title = 'NAPACO ERP - Đơn Hàng Định Hình';
+      const productType = view === 'be' ? '2' : '1';
+      output = renderOrderListView_(productType, appUrl, params);
+      title = productType === '2' ? 'NAPACO ERP - Đơn Hàng Bế' : 'NAPACO ERP - Đơn Hàng Định Hình';
     }
 
     return output
@@ -78,6 +76,7 @@ function doGet(e) {
 function renderOrderMenu_(appUrl, activeModule) {
   const links = [
     { id: 'index', group: 'Đơn hàng', icon: '▦', label: 'Đơn Hàng', url: appUrl + '?view=index' },
+    { id: 'create', group: 'Đơn hàng', icon: '+', label: 'Tạo đơn hàng', url: appUrl + '?view=create' },
     { id: 'list', group: 'Đơn hàng', icon: '◫', label: 'Định Hình', url: appUrl + '?view=list' },
     { id: 'be', group: 'Đơn hàng', icon: '✂', label: 'Bế', url: appUrl + '?view=be' },
     // Điền URL web app của từng phân hệ khi có đường dẫn.
@@ -90,11 +89,22 @@ function renderOrderMenu_(appUrl, activeModule) {
   return template.evaluate().getContent();
 }
 
-function renderOrderListView_(productType, appUrl) {
+function renderOrderListView_(productType, appUrl, filters) {
   const template = HtmlService.createTemplateFromFile('DonHang/OrderList_View');
+  const params = filters || {};
   template.productType = productType;
+  template.createdOrderIds = String(params.orders || '').split(',')
+    .filter(id => /^DH_\d{6}_\d+$/.test(id)).join(',');
+  template.createdPO = String(params.po || '');
+  template.showOtherOrderType = String(params.mixed || '') === '1';
   template.appUrl = appUrl;
   return template.evaluate();
+}
+
+function getSavedOrderListPage(params) {
+  const filters = params || {};
+  const productType = filters.view === 'be' ? '2' : '1';
+  return renderOrderListView_(productType, ScriptApp.getService().getUrl() || '', filters).getContent();
 }
 
 /**
@@ -113,9 +123,9 @@ const OrderController = {
    * 1. Lấy dữ liệu khởi tạo cho OrderModal.html (bao gồm xác thực kép, danh mục & các dòng từ TAO DON)
    * @param {string=} optSourceSpreadsheetId ID bảng tính nguồn (nếu gọi từ Sheet TAO DON)
    */
-  getOrderModalInitData: function(optSourceSpreadsheetId) {
+  getOrderModalInitData: function(optSourceSpreadsheetId, webEntry) {
     try {
-      const data = OrderService.buildModalInitialData(optSourceSpreadsheetId);
+      const data = OrderService.buildModalInitialData(optSourceSpreadsheetId, webEntry);
       return {
         success: true,
         data: data
