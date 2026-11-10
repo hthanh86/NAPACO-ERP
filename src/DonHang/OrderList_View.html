@@ -847,6 +847,28 @@
       padding: 6px 8px;
       border-bottom: 1px solid #e2e8f0;
     }
+    .saved-order-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 16px;
+      margin: 0 0 12px;
+      padding: 12px 16px;
+      border: 1px solid #bbdfcb;
+      border-radius: 8px;
+      background: #effaf3;
+      color: #175737;
+    }
+    .saved-order-summary strong { overflow-wrap: anywhere; }
+    .saved-order-summary .next-order-link {
+      padding: 7px 12px;
+      border-radius: 6px;
+      background: #14673e;
+      color: #fff;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .saved-order-summary .next-order-link:hover { background: #104d30; }
     .erp-shell .app-wrapper {
       width: 100%;
       min-width: 0;
@@ -926,17 +948,17 @@
     </div>
 
     <? if (savedIds) { ?>
-      <p id="savedOrderSummary" data-order-ids="<?= savedIds ?>" data-po="<?= savedPO ?>">
-        Đã lưu thành công · <?= savedIds.split(',').join(', ') ?>
+      <div class="saved-order-summary" id="savedOrderSummary" data-order-ids="<?= savedIds ?>" data-po="<?= savedPO ?>">
+        <strong>Đã lưu thành công · <?= savedIds.split(',').join(', ') ?></strong>
+        <? if (hasMenu) { ?>
+          <a class="next-order-link" href="<?= appUrl ?>?view=create">+ Tạo đơn tiếp</a>
+        <? } ?>
         <? if (otherType && hasMenu) {
           const otherUrl = appUrl + '?view=' + (isBe ? 'list' : 'be') + '&orders=' +
             encodeURIComponent(savedIds) + '&po=' + encodeURIComponent(savedPO) + '&mixed=1'; ?>
-          · <a href="<?= otherUrl ?>">Xem phần <?= isBe ? 'Định Hình' : 'Bế' ?></a>
+          <a href="<?= otherUrl ?>">Xem phần <?= isBe ? 'Định Hình' : 'Bế' ?></a>
         <? } ?>
-        <? if (hasMenu) { ?>
-          · <a href="<?= appUrl ?>?view=create">Tạo đơn tiếp</a>
-        <? } ?>
-      </p>
+      </div>
     <? } ?>
 
     <!-- THANH CHỈ SỐ KPI TỔNG QUAN -->

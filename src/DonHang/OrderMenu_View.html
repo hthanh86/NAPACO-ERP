@@ -62,7 +62,27 @@
     text-decoration: none;
   }
   .erp-module-icon { flex: 0 0 19px; color: #a9b8ce; text-align: center; }
-  .erp-sidebar a.erp-module-link:hover { background: #213352; }
+  .erp-sidebar a.erp-module-link:hover, .erp-sidebar .erp-submenu-toggle:hover { background: #213352; }
+  .erp-sidebar .erp-submenu-toggle {
+    list-style: none;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .erp-submenu-toggle::-webkit-details-marker { display: none; }
+  .erp-submenu-chevron {
+    width: 7px;
+    height: 7px;
+    margin: 0 3px 0 auto;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+  }
+  .erp-submenu[open] .erp-submenu-chevron { transform: rotate(45deg); }
+  .erp-submenu-links {
+    margin-left: 19px;
+    padding-left: 9px;
+    border-left: 1px solid #405370;
+  }
   .erp-sidebar a[aria-current="page"] { background: #244d9a; color: #fff; font-weight: 700; }
   .erp-sidebar a[aria-current="page"] .erp-module-icon { color: #fff; }
   .erp-sidebar [aria-disabled="true"] { color: #a9b8ce; }
@@ -82,7 +102,7 @@
     font: inherit;
     cursor: pointer;
   }
-  .erp-sidebar a:focus-visible, .erp-menu-toggle:focus-visible {
+  .erp-sidebar a:focus-visible, .erp-submenu-toggle:focus-visible, .erp-menu-toggle:focus-visible {
     outline: 2px solid #a6c8ff;
     outline-offset: 2px;
   }
@@ -110,14 +130,27 @@
   </div>
   <nav class="erp-module-menu" id="erpModuleMenu" aria-label="Phân hệ">
     <? const groups = [...new Set(links.map(function(link) { return link.group; }))]; ?>
-    <? groups.forEach(function(group) { ?>
+    <? groups.forEach(function(group) {
+      const groupLinks = links.filter(function(link) { return link.group === group; });
+      const orderParent = groupLinks.find(function(link) { return link.id === 'index'; });
+    ?>
       <div class="erp-nav-group">
-        <div class="erp-nav-label"><?= group ?></div>
-        <? links.filter(function(link) { return link.group === group; }).forEach(function(link) { ?>
+        <? if (orderParent) { ?>
+          <details class="erp-submenu" <? if (groupLinks.some(function(link) { return link.id === activeModule; })) { ?>open<? } ?>>
+            <summary class="erp-module-link erp-submenu-toggle">
+              <span class="erp-module-icon" aria-hidden="true"><?= orderParent.icon ?></span>
+              <span><?= orderParent.label ?></span>
+              <span class="erp-submenu-chevron" aria-hidden="true"></span>
+            </summary>
+            <div class="erp-submenu-links">
+        <? } else { ?>
+          <div class="erp-nav-label"><?= group ?></div>
+        <? } ?>
+        <? groupLinks.forEach(function(link) { ?>
           <? if (link.url) { ?>
             <a class="erp-module-link" href="<?= link.url ?>" <? if (link.id === activeModule) { ?>aria-current="page"<? } ?>>
               <span class="erp-module-icon" aria-hidden="true"><?= link.icon ?></span>
-              <span><?= link.label ?></span>
+              <span><?= link.id === 'index' ? 'Tổng quan' : link.label ?></span>
             </a>
           <? } else { ?>
             <span class="erp-module-link" aria-disabled="true" title="Chưa cấu hình đường dẫn">
@@ -127,6 +160,10 @@
             </span>
           <? } ?>
         <? }); ?>
+        <? if (orderParent) { ?>
+            </div>
+          </details>
+        <? } ?>
       </div>
     <? }); ?>
   </nav>
