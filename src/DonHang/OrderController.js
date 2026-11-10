@@ -669,29 +669,72 @@ function searchUserDriveFiles(keyword) {
   try {
     const kw = String(keyword || '').trim();
     if (!kw) return { success: true, files: [] };
-    
-    // Tìm kiếm tệp không nằm trong thùng rác
-    const safeKw = kw.replace(/'/g, "\\'");
-    const query = "title contains '" + safeKw + "' and trashed = false";
-    const fileIterator = DriveApp.searchFiles(query);
-    
-    const results = [];
-    let count = 0;
-    while (fileIterator.hasNext() && count < 20) {
-      const file = fileIterator.next();
-      results.push({
-        id: file.getId(),
-        name: file.getName(),
-        url: file.getUrl(),
-        mimeType: file.getMimeType(),
-        size: file.getSize(),
-        updated: Utilities.formatDate(file.getLastUpdated(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy")
-      });
-      count++;
+
+    const fields = 'id,name,webViewLink,mimeType,size,modifiedTime,trashed,resourceKey';
+    const folderMime = 'application/vnd.google-apps.folder';
+    const link = kw.match(/^https:\/\/(drive|docs)\.google\.com(?:\/[^\s]*)?$/i);
+    let matches = [];
+    let incomplete = false;
+
+    if (link) {
+      const pathId = kw.match(/\/d\/([\w-]+)(?=[/?#]|$)/);
+      const queryId = kw.match(/[?&]id=([\w-]+)(?=[&#]|$)/);
+      const resourceKey = kw.match(/[?&]resourcekey=([\w-]+)(?=[&#]|$)/i);
+      const id = (pathId || queryId || [])[1];
+      if (!id) throw new Error('Vui lòng dán liên kết đến một tệp Drive cụ thể.');
+      if (resourceKey) {
+        const file = DriveApp.getFileByIdAndResourceKey(id, resourceKey[1]);
+        matches = [{
+          id, name: file.getName(), mimeType: file.getMimeType(), size: file.getSize(),
+          modifiedTime: file.getLastUpdated(), trashed: file.isTrashed(), webViewLink: kw
+        }];
+      } else {
+        matches = [Drive.Files.get(id, { supportsAllDrives: true, fields })];
+      }
+    } else {
+      const literal = value => "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+      const terms = kw.match(/[\p{L}\p{M}\p{N}]+/gu) || [];
+      const conditions = ['name contains ' + literal(kw), 'fullText contains ' + literal(kw)];
+      if (terms.length > 1 && terms.length <= 8) {
+        conditions.push('(' + terms.map(term => 'fullText contains ' + literal(term)).join(' and ') + ')');
+      }
+      const options = {
+        q: "trashed = false and mimeType != '" + folderMime + "' and (" + conditions.join(' or ') + ')',
+        corpora: 'allDrives',
+        spaces: 'drive',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        orderBy: 'modifiedTime desc',
+        pageSize: 20,
+        fields: 'nextPageToken,incompleteSearch,files(' + fields + ')'
+      };
+      do {
+        const page = Drive.Files.list(options);
+        matches.push(...(page.files || []));
+        incomplete = incomplete || Boolean(page.incompleteSearch);
+        options.pageToken = page.nextPageToken;
+      } while (options.pageToken && matches.length < 20);
     }
-    return { success: true, files: results };
+
+    const files = matches.filter(file => !file.trashed && file.mimeType !== folderMime).slice(0, 20).map(file => {
+      let url = file.webViewLink || 'https://drive.google.com/open?id=' + encodeURIComponent(file.id);
+      if (file.resourceKey && !/[?&]resourcekey=/i.test(url)) {
+        url += (url.includes('?') ? '&' : '?') + 'resourcekey=' + encodeURIComponent(file.resourceKey);
+      }
+      return {
+        id: file.id,
+        name: file.name,
+        url,
+        mimeType: file.mimeType,
+        size: Number(file.size) || 0,
+        updated: file.modifiedTime
+          ? Utilities.formatDate(new Date(file.modifiedTime), CONFIG.TIMEZONE, 'dd/MM/yyyy')
+          : ''
+      };
+    });
+    return { success: true, files, incomplete };
   } catch (err) {
-    console.error("❌ Lỗi searchUserDriveFiles:", err);
+    console.error('[searchUserDriveFiles]', err);
     return { success: false, error: err.message, files: [] };
   }
 }

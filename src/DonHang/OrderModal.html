@@ -243,7 +243,7 @@
       </div>
       <div class="drive-modal-body">
         <div class="drive-search-bar">
-          <input type="text" id="driveSearchKeyword" class="form-control" placeholder="Nhập tên tệp, số PO hoặc tên khách hàng..." onkeydown="if(event.key==='Enter') executeDriveSearch()">
+          <input type="text" id="driveSearchKeyword" class="form-control" placeholder="Nhập tên tệp, số PO hoặc dán liên kết Google Drive" onkeydown="if(event.key==='Enter') executeDriveSearch()">
           <button type="button" class="btn btn-primary" style="padding:6px 14px;" onclick="executeDriveSearch()">Tìm kiếm</button>
         </div>
         <div id="driveSearchStatus" style="font-size:12px;color:#64748b;display:none;"></div>
@@ -268,7 +268,8 @@
       currentUser: { isAuthenticated: false, isLockedReadonly: false, maNV: '', display: '' },
       serverDate: '',
       defaultDeliveryDate: '',
-      activeDriveTargetGIdx: null
+      activeDriveTargetGIdx: null,
+      driveSearchRequestId: 0
     };
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -724,11 +725,13 @@
     function closeDriveSearchModal() {
       document.getElementById('driveSearchModal').style.display = 'none';
       modalState.activeDriveTargetGIdx = null;
+      modalState.driveSearchRequestId++;
     }
 
     function executeDriveSearch() {
       const kw = document.getElementById('driveSearchKeyword').value.trim();
       if (!kw) return;
+      const requestId = ++modalState.driveSearchRequestId;
 
       const statusEl = document.getElementById('driveSearchStatus');
       const resultsEl = document.getElementById('driveSearchResults');
@@ -740,11 +743,17 @@
 
       google.script.run
         .withSuccessHandler(function(res) {
+          if (requestId !== modalState.driveSearchRequestId) return;
           if (res && res.success) {
-            statusEl.style.display = 'none';
+            statusEl.style.display = res.incomplete ? 'block' : 'none';
+            statusEl.textContent = res.incomplete
+              ? 'Drive chưa tìm được trong tất cả kho dùng chung. Bạn có thể dán liên kết tệp.'
+              : '';
             if (!res.files || res.files.length === 0) {
               statusEl.style.display = 'block';
-              statusEl.textContent = '🔍 Không tìm thấy tệp nào phù hợp với từ khóa: "' + kw + '"';
+              if (!res.incomplete) {
+                statusEl.textContent = 'Không tìm thấy tệp phù hợp. Bạn có thể dán liên kết Google Drive của tệp.';
+              }
               return;
             }
 
@@ -762,10 +771,11 @@
             window._cachedDriveSearchFiles = res.files;
           } else {
             statusEl.style.display = 'block';
-            statusEl.textContent = '❌ Lỗi tìm kiếm Drive: ' + (res.error || 'Không xác định');
+            statusEl.textContent = '❌ Lỗi tìm kiếm Drive: ' + (res?.error || 'Không xác định');
           }
         })
         .withFailureHandler(function(err) {
+          if (requestId !== modalState.driveSearchRequestId) return;
           statusEl.style.display = 'block';
           statusEl.textContent = '❌ Lỗi kết nối máy chủ: ' + err.message;
         })
