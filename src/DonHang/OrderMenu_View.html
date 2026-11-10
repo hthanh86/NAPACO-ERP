@@ -132,14 +132,15 @@
     <? const groups = [...new Set(links.map(function(link) { return link.group; }))]; ?>
     <? groups.forEach(function(group) {
       const groupLinks = links.filter(function(link) { return link.group === group; });
-      const orderParent = groupLinks.find(function(link) { return link.id === 'index'; });
+      const menuParent = groupLinks.find(function(link) { return link.id === 'index'; }) ||
+        (group === 'Nguyên Liệu' ? { icon: '▤', label: group } : null);
     ?>
       <div class="erp-nav-group">
-        <? if (orderParent) { ?>
+        <? if (menuParent) { ?>
           <details class="erp-submenu" <? if (groupLinks.some(function(link) { return link.id === activeModule; })) { ?>open<? } ?>>
             <summary class="erp-module-link erp-submenu-toggle">
-              <span class="erp-module-icon" aria-hidden="true"><?= orderParent.icon ?></span>
-              <span><?= orderParent.label ?></span>
+              <span class="erp-module-icon" aria-hidden="true"><?= menuParent.icon ?></span>
+              <span><?= menuParent.label ?></span>
               <span class="erp-submenu-chevron" aria-hidden="true"></span>
             </summary>
             <div class="erp-submenu-links">
@@ -160,7 +161,7 @@
             </span>
           <? } ?>
         <? }); ?>
-        <? if (orderParent) { ?>
+        <? if (menuParent) { ?>
             </div>
           </details>
         <? } ?>

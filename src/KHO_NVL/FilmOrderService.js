@@ -38,12 +38,80 @@ function filmReceiptTotals_(incoming) {
   return totals;
 }
 
-function getFilmOrders() {
+function getFilmOrders(filters = {}) {
   const { FILM_PO: FilmPo, FILM_LINES: FilmLine, FILM_MATERIALS: FilmMaterial } = CONFIG.COLUMNS;
-  const access = filmAccess_();
+  const access = filmAccess_(filters.create ? CONFIG.PERMISSIONS.FILM_PO_CREATE : CONFIG.PERMISSIONS.FILM_PO_VIEW);
   const db = filmDatabase_(access, true);
   const canViewStock = access.permissions.get(CONFIG.PERMISSIONS.NVL_STOCK_VIEW) === true;
-  const orders = filmOrders_(db);
+  const copyIds = filters.create ? [...new Set((Array.isArray(filters.copyIds) ? filters.copyIds : [])
+    .map(sheetText_).filter(Boolean))] : [];
+  if (copyIds.length > 99) throw new Error('Mỗi đơn tối đa 99 dòng quy cách.');
+  let orders = filters.create && !copyIds.length ? [] : filmOrders_(db, sheetText_(filters.orderId) || null, false);
+  let copyLines = [];
+  let copySupplier = '';
+  let mixedSuppliers = false;
+  let matchingLines = 0;
+  const lineStatuses = new Set(Object.values(FILM_RECEIPT_LINE_STATUS));
+  if (filters.create && copyIds.length) {
+    const selection = new Map();
+    const requested = new Set(copyIds);
+    for (const order of orders) {
+      for (const line of order.lines) {
+        const id = line[FilmLine.ID];
+        if (!requested.has(id)) continue;
+        if (selection.has(id)) throw new Error('DN_ID bị trùng: ' + id + '.');
+        const fields = [FilmLine.RESIN, FilmLine.MATERIAL_ID, FilmLine.QTY, FilmLine.PRICE, FilmLine.DELIVERY, FilmLine.NOTE];
+        const copy = Object.fromEntries(fields.filter(key => line[key] !== undefined).map(key => [key, line[key]]));
+        selection.set(id, { line: { ...copy, material: line.material }, supplier: order[FilmPo.SUPPLIER] || '' });
+      }
+    }
+    if (selection.size !== copyIds.length) throw new Error('Có quy cách đã chọn không còn trong database.');
+    const selected = copyIds.map(id => selection.get(id));
+    const suppliers = new Set(selected.map(entry => entry.supplier));
+    mixedSuppliers = suppliers.size > 1;
+    copySupplier = mixedSuppliers ? '' : selected[0].supplier;
+    copyLines = selected.map(entry => entry.line);
+    orders = [];
+  } else if (!filters.create && !filters.orderId) {
+    const supplierNames = new Map(db.suppliers.map(row =>
+      [row[CONFIG.COLUMNS.FILM_SUPPLIERS.ID], row[CONFIG.COLUMNS.FILM_SUPPLIERS.NAME]]));
+    const terms = sheetText_(filters.search).toLowerCase().split(/\s+/).filter(Boolean);
+    const getNames = groups => filmNamesByLine_(db,
+      new Set(groups.flatMap(order => order.lines.map(line => line[FilmLine.ID]))));
+    const searchNames = terms.length ? getNames(orders) : null;
+    let remaining = 1000;
+    orders = orders.flatMap(order => {
+      const statusFor = line => order[FilmPo.STATUS] === 'Hủy' ? 'Hủy' : line[FilmLine.STATUS];
+      order.lines.forEach(line => lineStatuses.add(statusFor(line)));
+      const day = order[FilmPo.DATE] || '';
+      const supplier = order[FilmPo.SUPPLIER];
+      if ((filters.supplier && supplier !== filters.supplier) || (filters.from && day < filters.from) ||
+          (filters.to && (!day || day > filters.to))) return [];
+      const matches = order.lines.filter(line => {
+        if (filters.status && statusFor(line) !== filters.status) return false;
+        if (!terms.length) return true;
+        const searchable = filmLineSearchText_(order, line, supplierNames.get(supplier),
+          searchNames.get(line[FilmLine.ID]) || [], canViewStock);
+        return terms.every(term => searchable.includes(term));
+      });
+      matchingLines += matches.length;
+      const lines = matches.slice(0, remaining);
+      remaining -= lines.length;
+      return lines.length ? [{ ...order, lines }] : [];
+    });
+    const names = searchNames || getNames(orders);
+    for (const order of orders) {
+      for (const line of order.lines) {
+        line.customerProducts = names.get(line[FilmLine.ID]) || [];
+        line.searchText = filmLineSearchText_(order, line, supplierNames.get(order[FilmPo.SUPPLIER]),
+          line.customerProducts, canViewStock);
+      }
+    }
+  } else if (filters.orderId && orders.length) {
+    // Compute the revision on the full order before adding permission-dependent display fields.
+    const order = orders[0];
+    order.revision = filmOrderRevision_(order);
+  }
   for (const order of orders) {
     for (const line of order.lines) {
       line.hasAssignmentColumn = db.details.positions.has(CONFIG.COLUMNS.ORDER_DETAILS.FILM_LINE_ID);
@@ -60,7 +128,8 @@ function getFilmOrders() {
     }
   }
   return {
-    orders,
+    orders, matchingLines, copyLines, copySupplier, mixedSuppliers,
+    filterStatuses: [...lineStatuses].filter(Boolean),
     fields: {
       po: FilmPo, line: FilmLine, material: FilmMaterial, supplier: CONFIG.COLUMNS.FILM_SUPPLIERS
     },
@@ -79,17 +148,57 @@ function getFilmOrders() {
   };
 }
 
+function filmLineSearchText_(order, line, supplierName, names, canViewStock) {
+  const { FILM_PO: po, FILM_LINES: col, FILM_MATERIALS: material } = CONFIG.COLUMNS;
+  const spec = line.material;
+  return [order[po.ID], order[po.SUPPLIER], supplierName, line[col.ID], line[col.MATERIAL_ID],
+    line[col.RESIN], line[col.NOTE], ...Object.values(spec), spec[material.THICKNESS] + '*' + spec[material.WIDTH],
+    ...names, ...(canViewStock ? line.receiptIds : [])].join(' ').toLowerCase();
+}
+
+function filmDetailNameIndex_(db, rows) {
+  const { ORDER_DETAILS: detail, ORDERS: order, CUSTOMERS: customer, PRODUCTS: product } = CONFIG.COLUMNS;
+  const names = CONFIG.SHEET_NAMES;
+  const ids = (key, entries) => new Set(entries.map(({ data }) => data[key]).filter(Boolean));
+  const index = (book, name, key, value, wanted) => wanted.size ? new Map(
+    readSheetTable_(book, [name], [key, value], [],
+      (cells, positions) => wanted.has(sheetText_(cells[positions.get(key)]))).rows
+      .map(({ data }) => [data[key], data[value]])) : new Map();
+  const orders = index(db.operation, names.ORDERS, order.ID, order.CUSTOMER_ID, ids(detail.ORDER_ID, rows));
+  const customers = index(db.master, names.CUSTOMERS, customer.ID, customer.NAME, new Set(orders.values()));
+  const products = index(db.master, names.PRODUCTS, product.ID, product.NAME, ids(detail.PRODUCT_ID, rows));
+  return { orders, customers, products };
+}
+
+function filmNamesByLine_(db, lineIds) {
+  const detail = CONFIG.COLUMNS.ORDER_DETAILS;
+  const names = new Map();
+  if (!lineIds.size) return names;
+  const { rows } = readSheetTable_(db.operation, [CONFIG.SHEET_NAMES.ORDER_DETAILS],
+    [detail.ID, detail.ORDER_ID, detail.PRODUCT_ID], [detail.FILM_LINE_ID],
+    (cells, positions) => positions.has(detail.FILM_LINE_ID) &&
+      lineIds.has(sheetText_(cells[positions.get(detail.FILM_LINE_ID)])) &&
+      !!sheetText_(cells[positions.get(detail.ID)]));
+  if (!rows.length) return names;
+
+  const { orders, customers, products } = filmDetailNameIndex_(db, rows);
+  for (const { data } of rows) {
+    const id = data[detail.FILM_LINE_ID];
+    const customerId = orders.get(data[detail.ORDER_ID]);
+    const productId = data[detail.PRODUCT_ID];
+    const label = [customers.get(customerId) || customerId, products.get(productId) || productId]
+      .filter(Boolean).join(' · ');
+    if (!label) continue;
+    if (!names.has(id)) names.set(id, new Set());
+    names.get(id).add(label);
+  }
+  return new Map([...names].map(([id, labels]) => [id, [...labels]]));
+}
+
 function filmDescribeDetails_(db, rows, summaryOnly = false) {
   const { ORDER_DETAILS: FilmDetail } = CONFIG.COLUMNS;
   if (!rows.length) return [];
-  const names = CONFIG.SHEET_NAMES;
-  const { ORDERS: order, CUSTOMERS: customer, PRODUCTS: product } = CONFIG.COLUMNS;
-  const index = (book, name, key, value) => new Map(
-    readSheetTable_(book, [name], [key, value]).rows
-      .filter(({ data }) => data[key]).map(({ data }) => [data[key], data[value]]));
-  const customers = index(db.master, names.CUSTOMERS, customer.ID, customer.NAME);
-  const orders = index(db.operation, names.ORDERS, order.ID, order.CUSTOMER_ID);
-  const products = index(db.master, names.PRODUCTS, product.ID, product.NAME);
+  const { orders, customers, products } = filmDetailNameIndex_(db, rows);
   return rows.map(({ data }) => ({
     id: data[FilmDetail.ID],
     customer: customers.get(orders.get(data[FilmDetail.ORDER_ID])) || '',
@@ -330,7 +439,7 @@ function filmDatabase_({ master, operation, userId }, listOnly = false) {
     receipts, setup, receiptWarning, userId };
 }
 
-function filmOrders_(db, onlyId = null) {
+function filmOrders_(db, onlyId = null, includeRevision = true) {
   const { FILM_PO: FilmPo, FILM_LINES: FilmLine, FILM_MATERIALS: FilmMaterial } = CONFIG.COLUMNS;
   const orders = new Map();
   const materialById = new Map(db.materials.rows.map(({ data }) => [data[FilmMaterial.ID], data]));
@@ -346,7 +455,7 @@ function filmOrders_(db, onlyId = null) {
         [FilmPo.STATUS]: data[FilmLine.STATUS], legacy: true, lines: [] });
     }
     const receipt = db.receipts.get(data[FilmLine.ID]);
-    orders.get(id).lines.push({ ...data, material: materialById.get(data[FilmLine.MATERIAL_ID]) || {},
+    orders.get(id).lines.push({ ...data, storedStatus: data[FilmLine.STATUS], material: materialById.get(data[FilmLine.MATERIAL_ID]) || {},
       [FilmLine.STATUS]: filmLineStatus_(data[FilmLine.STATUS], Number(data[FilmLine.QTY]), receipt && receipt.kg),
       received: db.receiptWarning ? null : (receipt ? receipt.kg : 0),
       receiptIds: receipt ? receipt.ids : [] });
@@ -358,11 +467,15 @@ function filmOrders_(db, onlyId = null) {
       order.lines.length && order.lines.every(line =>
         Number(line[FilmLine.QTY]) > 0 && line.received + 1e-8 >= Number(line[FilmLine.QTY])) ? 'Đã nhận đủ' :
       order.received > 0 ? 'Nhận một phần' : 'Chờ giao';
-    order.revision = Utilities.base64EncodeWebSafe(Utilities.computeDigest(
-      Utilities.DigestAlgorithm.SHA_256, JSON.stringify(order)));
+    if (includeRevision) order.revision = filmOrderRevision_(order);
     return order;
   }).sort((a, b) => (b[FilmPo.DATE] || '').localeCompare(a[FilmPo.DATE] || '') ||
     b[FilmPo.ID].localeCompare(a[FilmPo.ID]));
+}
+
+function filmOrderRevision_(order) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, JSON.stringify(order)));
 }
 
 function filmNumber_(value, positive, label) {
@@ -449,10 +562,53 @@ function saveFilmOrder(payload) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    return filmSaveLocked_(payload);
+    return payload?.statusChanges ? filmSaveStatusesLocked_(payload) : filmSaveLocked_(payload);
   } finally {
     lock.releaseLock();
   }
+}
+
+function filmSaveStatusesLocked_(payload) {
+  const { FILM_PO: po, FILM_LINES: col } = CONFIG.COLUMNS;
+  const names = CONFIG.SHEET_NAMES;
+  const { operation } = filmAccess_(CONFIG.PERMISSIONS.FILM_PO_EDIT);
+  const id = sheetText_(payload.id);
+  const changes = payload.statusChanges;
+  if (!id || !Array.isArray(changes) || !changes.length || changes.length > 99) {
+    throw new Error('Danh sách trạng thái cần cập nhật không hợp lệ.');
+  }
+  const orders = readSheetTable_(operation, [names.FILM_PO], [po.ID, po.STATUS],
+    [], (cells, positions) => sheetText_(cells[positions.get(po.ID)]) === id).rows;
+  if (orders.length !== 1 || orders[0].data[po.STATUS] === 'Hủy') {
+    throw new Error('Không thể sửa trạng thái của PO này.');
+  }
+  const table = readSheetTable_(operation, [names.FILM_LINES], [col.ID, col.PO_ID, col.STATUS],
+    [], (cells, positions) => sheetText_(cells[positions.get(col.PO_ID)]) === id);
+  const rows = new Map();
+  for (const row of table.rows) {
+    const dn = row.data[col.ID];
+    rows.set(dn, rows.has(dn) ? null : row);
+  }
+  const allowed = new Set(Object.values(FILM_RECEIPT_LINE_STATUS));
+  const used = new Set();
+  const requests = [];
+  for (const change of changes) {
+    const dn = sheetText_(change?.id);
+    const status = sheetText_(change?.status);
+    const row = rows.get(dn);
+    if (!dn || !row || used.has(dn) || !allowed.has(status) || row.data[col.STATUS] === 'Hủy') {
+      throw new Error('Dòng hoặc trạng thái không hợp lệ: ' + dn);
+    }
+    used.add(dn);
+    const current = row.data[col.STATUS];
+    if (current === status) continue;
+    if (current !== sheetText_(change.before)) {
+      throw new Error('Trạng thái của ' + dn + ' đã thay đổi. Hãy mở lại PO.');
+    }
+    filmWrite_(requests, table, row.index, { [col.STATUS]: status });
+  }
+  if (requests.length) Sheets.Spreadsheets.batchUpdate({ requests }, operation.getId());
+  return { id };
 }
 
 function filmSaveLocked_(payload) {

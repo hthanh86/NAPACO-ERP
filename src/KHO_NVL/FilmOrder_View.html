@@ -3,7 +3,7 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <title>NAPACO ERP - Đặt Màng</title>
+  <title>NAPACO ERP - Nguyên Liệu</title>
   <style>
     * { box-sizing: border-box; }
     body { font: 14px 'Segoe UI', Roboto, -apple-system, Arial, sans-serif; color: #0f172a; }
@@ -53,7 +53,11 @@
     .reference-columns li { margin-bottom: 8px; }
     .history-highlight { background: #fef08a; padding: 1px 4px; border-radius: 3px; }
     .calculated-kg { color: #b91c1c; }
-    #applyDelivery { display: block; margin-bottom: 4px; }
+    .delivery-actions { position: relative; height: 38px; overflow: hidden; }
+    #applyDelivery { position: absolute; top: 0; }
+    .po-heading th { background: #dbeafe; color: #1e3a5f; white-space: normal; }
+    .po-heading .toolbar { margin: 0; align-items: center; justify-content: space-between; }
+    .action-link { display: inline-block; padding: 6px 8px; border-radius: 5px; background: #2563eb; color: #fff; text-decoration: none; }
     @media (max-width: 840px) { .reference-columns { grid-template-columns: 1fr; } }
     .dimensions { display: grid; grid-template-columns: repeat(2, minmax(0, 210px)); gap: 8px 10px; margin-bottom: 12px; }
     .dimensions label { display: grid; gap: 4px; }
@@ -66,32 +70,34 @@
   </style>
 </head>
 <body class="erp-shell">
-  <?!= renderOrderMenu_(appUrl, 'film') ?>
-  <main>
+  <?!= renderOrderMenu_(appUrl, filmMode) ?>
+  <main id="filmPage" data-mode="<?= filmMode ?>" data-copy="<?= copyIds ?>">
     <div class="toolbar">
-      <h1>Đặt Màng</h1>
+      <h1 id="pageTitle">Màng Đã Đặt</h1>
       <button type="button" id="reload">Tải lại</button>
-      <button type="button" id="create" class="primary" hidden disabled>+ Tạo đơn đặt</button>
+      <a id="copyOrder" class="action-link" href="<?= appUrl ?>?view=film-create" hidden>Tạo đơn từ quy cách đã chọn</a>
+      <a id="filmListLink" href="<?= appUrl ?>?view=film" hidden>Màng Đã Đặt</a>
     </div>
     <p id="message" role="status"></p>
     <p id="setup" class="notice"></p>
-    <section id="list" class="panel">
+    <section id="list" class="panel" hidden>
       <div id="counts" class="chips"></div>
-      <div class="fields">
-        <label>Tìm đơn hoặc mã vật liệu<input id="search" type="search" placeholder="PO, DN, VL, phiếu kho"></label>
+      <form id="filmSearch" class="fields">
+        <label>Tìm đơn hoặc mã vật liệu<input id="search" type="search" placeholder="PO, DN, quy cách, khách hàng, sản phẩm"></label>
         <label>Nhà cung cấp<select id="supplierFilter"></select></label>
-        <label>Tiến độ<select id="progressFilter"></select></label>
+        <label>Trạng thái<select id="progressFilter"></select></label>
         <label>Từ ngày<input type="date" id="dateFrom"></label>
         <label>Đến ngày<input type="date" id="dateTo"></label>
-      </div>
+        <button id="searchButton" type="submit">Tìm kiếm</button>
+      </form>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Mã đơn</th><th>Ngày đặt</th><th>Nhà cung cấp</th><th>Quy cách</th><th>Đặt (kg)</th><th>Nhận (kg)</th><th>Tiến độ</th><th>Thao tác</th></tr></thead>
+          <thead><tr><th>Chọn</th><th>Khách hàng / Sản phẩm</th><th>Quy cách</th><th>Đặt (KG)</th><th>Đã nhận (KG)</th><th>Ngày giao</th><th>Trạng thái</th></tr></thead>
           <tbody id="orders"></tbody>
         </table>
       </div>
     </section>
-    <form id="editor" class="panel" hidden>
+    <form id="editor" class="panel" novalidate hidden>
       <fieldset id="editorFields" style="border:0;padding:0;margin:0;min-width:0">
         <div class="toolbar">
           <h2 id="editorTitle"></h2>
@@ -144,9 +150,12 @@
           <label>Nhà cung cấp<select id="supplier" required></select></label>
           <label class="order-note">Ghi chú chung<input id="orderNote"></label>
         </div>
-        <div class="table-scroll">
+        <div id="deliveryActions" class="delivery-actions">
+          <button id="applyDelivery" type="button" hidden>Áp dụng hết</button>
+        </div>
+        <div id="lineScroll" class="table-scroll">
           <table class="grid">
-            <thead><tr><th>STT</th><th>Loại nhựa</th><th>Cấp độ</th><th>Màu sắc</th><th>Tĩnh điện</th><th>Quy cách</th><th>Đơn giá</th><th>Số lượng (kg)</th><th>Ghi chú</th><th><button id="applyDelivery" type="button" hidden>Áp dụng hết</button>Ngày giao</th><th id="receivedHeading">Đã nhận / Còn lại</th><th id="statusHeading">Trạng thái</th><th></th></tr></thead>
+            <thead><tr><th>STT</th><th>Loại nhựa</th><th>Cấp độ</th><th>Màu sắc</th><th>Tĩnh điện</th><th>Quy cách</th><th>Đơn giá</th><th>Số lượng (kg)</th><th>Ghi chú</th><th id="deliveryHeading">Ngày giao</th><th id="receivedHeading">Đã nhận / Còn lại</th><th id="statusHeading">Trạng thái</th><th></th></tr></thead>
             <tbody id="lines"></tbody>
             <tfoot><tr><td colspan="13" id="total"></td></tr></tfoot>
           </table>
@@ -172,7 +181,13 @@
   </main>
 <script>
   const $ = id => document.getElementById(id);
-  const statuses = ['Chờ giao', 'Nhận một phần', 'Đã nhận đủ', 'Hủy', 'Chưa rõ'];
+  const createPage = $('filmPage').dataset.mode === 'film-create';
+  let requestedCopies = $('filmPage').dataset.copy.split(',').filter(Boolean);
+  const selectedLines = new Set();
+  const createUrl = $('copyOrder').href;
+  $('pageTitle').textContent = createPage ? 'Tạo Đơn Đặt Màng' : 'Màng Đã Đặt';
+  $('reload').hidden = $('close').hidden = createPage;
+  $('filmListLink').hidden = !createPage;
   const esd = [['', ''], ['10^6-10^9', '10^6-10^9'], ['10^9-10^11', '10^9-10^11']];
   let grades = [];
   let densities = new Map();
@@ -182,7 +197,9 @@
   let materialOptions;
   let materialColors = [];
   let defaultDelivery;
+  let originalHeader;
   let deliverySource;
+  let deliveryHideTimer;
   let newAssignmentChoices = null;
   let current;
   let lineForms = [];
@@ -208,42 +225,79 @@
   function setBusy(value) {
     busy = value;
     $('reload').disabled = value;
-    const canCreate = data?.permissions.create === true;
-    $('create').hidden = !canCreate;
-    $('create').disabled = value || !canCreate || !!data.setup.length;
+    $('searchButton').disabled = value;
     $('editorFields').disabled = value;
-    for (const button of $('orders').querySelectorAll('button')) button.disabled = value;
+    $('orders').inert = value;
+    updateCopyLink();
+  }
+
+  function updateCopyLink() {
+    const link = $('copyOrder');
+    link.hidden = createPage || busy || $('list').hidden || !data?.permissions.create || !selectedLines.size;
+    const url = new URL(createUrl);
+    url.searchParams.set('copy', [...selectedLines].join(','));
+    link.href = url.href;
+    link.textContent = 'Tạo đơn (' + selectedLines.size + ')';
   }
 
   function load(successMessage) {
     setBusy(true);
     message('Đang tải dữ liệu…');
+    const filters = createPage ? { create: true, copyIds: requestedCopies } : {
+      search: $('search').value, supplier: $('supplierFilter').value, status: $('progressFilter').value,
+      from: $('dateFrom').value, to: $('dateTo').value
+    };
     google.script.run.withFailureHandler(error => {
-      data = null;
-      $('orders').replaceChildren();
-      $('counts').replaceChildren();
       setBusy(false);
       message(error.message, true);
     }).withSuccessHandler(result => {
       data = result;
-      const { po: poColumns, supplier: supplierColumns } = data.fields;
-      const supplier = $('supplierFilter').value;
-      const suppliers = new Map(data.suppliers.map(row => [row[supplierColumns.ID], row[supplierColumns.NAME]]));
-      data.orders.forEach(order => {
-        if (order[poColumns.SUPPLIER] && !suppliers.has(order[poColumns.SUPPLIER])) suppliers.set(order[poColumns.SUPPLIER], order[poColumns.SUPPLIER]);
-      });
-      options($('supplierFilter'), [['', 'Tất cả'], ...suppliers]);
-      if (suppliers.has(supplier)) $('supplierFilter').value = supplier;
       $('setup').textContent = [data.setup.length ? 'Chỉ tra cứu. ' + data.setup.join(' ') : '',
         data.receiptWarning].filter(Boolean).join(' ');
       setBusy(false);
+      if (createPage) {
+        if (!data.setup.length) loadEditor(null, false, successMessage);
+        else message('Chưa thể tạo đơn khi cấu trúc dữ liệu chưa đầy đủ.', true);
+        return;
+      }
+      const { po: poColumns, supplier: supplierColumns } = data.fields;
+      const supplier = $('supplierFilter').value;
+      const status = $('progressFilter').value;
+      const suppliers = new Map(data.suppliers.map(row => [row[supplierColumns.ID], row[supplierColumns.NAME]]));
+      data.orders.forEach(order => {
+        const id = order[poColumns.SUPPLIER];
+        if (id && !suppliers.has(id)) suppliers.set(id, id);
+      });
+      if (supplier && !suppliers.has(supplier)) suppliers.set(supplier, supplier);
+      options($('supplierFilter'), [['', 'Tất cả'], ...suppliers]);
+      $('supplierFilter').value = supplier;
+      options($('progressFilter'), [['', 'Tất cả'], ...data.filterStatuses.map(value => [value, value])]);
+      if (data.filterStatuses.includes(status)) $('progressFilter').value = status;
+      selectedLines.clear();
       message(successMessage || '');
       showList();
-    }).getFilmOrders();
+    }).getFilmOrders(filters);
   }
 
   function kg(value) {
     return value == null ? '—' : number.format(value);
+  }
+
+  function openStoredOrder(id) {
+    if (busy) return;
+    setBusy(true);
+    message('Đang tải toàn bộ quy cách của PO…');
+    google.script.run.withFailureHandler(error => {
+      setBusy(false);
+      message(error.message, true);
+    }).withSuccessHandler(result => {
+      setBusy(false);
+      const order = result.orders[0];
+      if (!order) return message('Không tìm thấy PO.', true);
+      const edit = result.permissions.edit && !order.legacy && !result.setup.length &&
+        result.canEditWithReceipts && order[result.fields.po.STATUS] !== 'Hủy';
+      loadEditor(order, !edit);
+    }).getFilmOrders({ orderId: id });
   }
 
   function showList() {
@@ -252,50 +306,92 @@
     $('editor').hidden = true;
     $('list').hidden = false;
     if (!data) return;
-    const { po: poColumns, line: lineColumns, supplier: supplierColumns } = data.fields;
-    const search = $('search').value.trim().toLowerCase();
-    const supplier = $('supplierFilter').value;
-    const status = $('progressFilter').value;
+    const { po, line: col, material, supplier } = data.fields;
+    const supplierNames = new Map(data.suppliers.map(item => [item[supplier.ID], item[supplier.NAME]]));
+    const body = $('orders');
+    body.replaceChildren();
+    const terms = $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const selectedSupplier = $('supplierFilter').value;
+    const selectedStatus = $('progressFilter').value;
     const from = $('dateFrom').value;
     const to = $('dateTo').value;
-    const filtered = data.orders.filter(order => {
-      const terms = [order[poColumns.ID], ...order.lines.flatMap(line => [line[lineColumns.ID], line[lineColumns.MATERIAL_ID], ...line.receiptIds])];
-      return (!supplier || order[poColumns.SUPPLIER] === supplier) && (!status || order.progress === status) &&
-        (!from || order[poColumns.DATE] >= from) && (!to || (order[poColumns.DATE] && order[poColumns.DATE] <= to)) &&
-        terms.some(term => String(term).toLowerCase().includes(search));
-    });
-    const counts = [['Tổng đơn', filtered.length], ...statuses.map(status =>
-      [status, filtered.filter(order => order.progress === status).length])];
-    $('counts').replaceChildren(...counts.filter(([, count], i) => count || !i).map(([label, count]) => {
-      const chip = node('span', label + ' · ' + count);
-      chip.className = 'chip';
-      return chip;
-    }));
-    $('orders').replaceChildren();
-    for (const order of filtered) {
-      const row = node('tr');
-      const supplierName = data.suppliers.find(item => item[supplierColumns.ID] === order[poColumns.SUPPLIER]);
-      const cells = [order[poColumns.ID] + (order.legacy ? ' · Dòng cũ' : ''), order[poColumns.DATE],
-        supplierName ? supplierName[supplierColumns.NAME] : order[poColumns.SUPPLIER], order.lines.length,
-        kg(order.ordered), kg(order.received), order.progress];
-      row.append(...cells.map(value => node('td', value)));
-      const action = node('td');
-      const edit = data.permissions.edit === true && !order.legacy && !data.setup.length &&
-        data.canEditWithReceipts && order[poColumns.STATUS] !== 'Hủy';
+    let displayed = 0;
+    for (const order of data.orders) {
+      const day = order[po.DATE] || '';
+      if ((selectedSupplier && order[po.SUPPLIER] !== selectedSupplier) ||
+          (from && day < from) || (to && (!day || day > to))) continue;
+      const visibleLines = order.lines.filter(line => {
+        const status = order[po.STATUS] === 'Hủy' ? 'Hủy' : line[col.STATUS];
+        return (!selectedStatus || status === selectedStatus) &&
+          terms.every(term => line.searchText.includes(term));
+      });
+      if (!visibleLines.length) continue;
+      const group = node('tr');
+      group.className = 'po-heading';
+      const heading = node('th');
+      heading.colSpan = 7;
+      const toolbar = node('div');
+      toolbar.className = 'toolbar';
+      const id = order[po.ID];
+      toolbar.append(node('span', [id, supplierNames.get(order[po.SUPPLIER]) || order[po.SUPPLIER],
+        order[po.DATE], order.legacy ? 'Dòng cũ' : ''].filter(Boolean).join(' · ')));
+      const edit = data.permissions.edit && !order.legacy && !data.setup.length &&
+        data.canEditWithReceipts && order[po.STATUS] !== 'Hủy';
       const button = node('button', edit ? 'Xem / Sửa' : 'Xem');
       button.type = 'button';
-      button.onclick = () => loadEditor(order, !edit);
-      action.append(button);
-      row.append(action);
-      $('orders').append(row);
+      button.onclick = () => openStoredOrder(id);
+      toolbar.append(button);
+      heading.append(toolbar);
+      group.append(heading);
+      body.append(group);
+      for (const line of visibleLines) {
+        displayed++;
+        const row = node('tr');
+        const lineId = line[col.ID];
+        const checkCell = node('td');
+        if (data.permissions.create) {
+          const check = node('input');
+          check.type = 'checkbox';
+          check.checked = selectedLines.has(lineId);
+          check.setAttribute('aria-label', 'Chọn quy cách ' + lineId);
+          check.onchange = () => {
+            if (check.checked && selectedLines.size >= 99) {
+              check.checked = false;
+              return message('Mỗi đơn tối đa 99 dòng quy cách.', true);
+            }
+            if (check.checked) selectedLines.add(lineId);
+            else selectedLines.delete(lineId);
+            updateCopyLink();
+          };
+          checkCell.append(check);
+        }
+        const spec = line.material;
+        const size = [spec[material.THICKNESS], spec[material.WIDTH]].filter(Boolean).join('*');
+        const customerProduct = node('td');
+        customerProduct.append(...(line.customerProducts.length ? line.customerProducts : ['Chưa gán đơn'])
+          .map(label => node('div', label)));
+        const dn = node('small', lineId);
+        dn.className = 'muted';
+        customerProduct.append(dn);
+        row.append(checkCell, customerProduct, ...[
+          [line[col.RESIN], spec[material.GRADE], spec[material.COLOR], spec[material.ESD], size].filter(Boolean).join(' · '),
+          kg(line[col.QTY]), kg(line.received), line[col.DELIVERY], order[po.STATUS] === 'Hủy' ? 'Hủy' : line[col.STATUS]]
+          .map(value => node('td', value)));
+        body.append(row);
+      }
     }
-    if (!filtered.length) {
-      const cell = node('td', 'Không có đơn phù hợp.');
-      cell.colSpan = 8;
+    const loaded = data.orders.reduce((sum, order) => sum + order.lines.length, 0);
+    const count = 'Hiển thị ' + kg(displayed) + ' / ' + kg(loaded) + ' quy cách đã tải';
+    $('counts').textContent = count + (data.matchingLines > loaded ? ' (' + kg(data.matchingLines) + ' kết quả trong database)' : '') +
+      '. Bấm Tìm kiếm để tra toàn bộ dữ liệu.';
+    if (!displayed) {
+      const cell = node('td', 'Không có quy cách phù hợp.');
+      cell.colSpan = 7;
       const row = node('tr');
       row.append(cell);
-      $('orders').append(row);
+      body.append(row);
     }
+    updateCopyLink();
   }
 
   function detailLabel(entry) {
@@ -341,7 +437,7 @@
     return render;
   }
 
-  function loadEditor(order, viewOnly) {
+  function loadEditor(order, viewOnly, successMessage) {
     const { line: lineColumns } = data.fields;
     if (busy) return;
     const ids = order ? order.lines.filter(line => line.hasAssignmentColumn).map(line => line[lineColumns.ID]) : null;
@@ -360,12 +456,14 @@
       defaultDelivery = delivery.toISOString().slice(0, 10);
       setBusy(false);
       openEditor(order, viewOnly, new Map(result.assignments || []));
+      if (successMessage) message(successMessage);
     }).getFilmOrderFormData(ids, true);
   }
 
   function openEditor(order, viewOnly = false, assignments = new Map()) {
     const { po: poColumns, line: lineColumns, supplier: supplierColumns, material: materialColumns } = data.fields;
     current = order;
+    newAssignmentChoices = null;
     readOnly = viewOnly;
     token = crypto.randomUUID();
     lineForms = [];
@@ -379,26 +477,30 @@
       suppliers.push([order[poColumns.SUPPLIER], order[poColumns.SUPPLIER]]);
     }
     options($('supplier'), [['', 'Chọn nhà cung cấp'], ...suppliers]);
-    $('supplier').value = order ? order[poColumns.SUPPLIER] || '' : '';
+    $('supplier').value = order ? order[poColumns.SUPPLIER] || '' : data.copySupplier || '';
     $('orderDate').value = order ? order[poColumns.DATE] || '' : data.today;
     $('orderNote').value = order ? order[poColumns.NOTE] || '' : '';
+    originalHeader = filmHeaderValues();
     [$('supplier'), $('orderDate'), $('orderNote')].forEach(el => { el.disabled = readOnly; });
     $('editorTitle').textContent = order ? order[poColumns.ID] +
       (order[poColumns.USER] ? ' · ' + order[poColumns.USER] : '') : 'Tạo đơn đặt màng';
     $('add').hidden = readOnly;
     $('save').hidden = readOnly;
     $('list').hidden = true;
+    updateCopyLink();
     $('editor').hidden = false;
     materialOptions = new Map(data.materials.filter(row => row[materialColumns.THICKNESS] && row[materialColumns.WIDTH])
       .map(row => [row[materialColumns.THICKNESS] + '*' + row[materialColumns.WIDTH] + ' · ' + row[materialColumns.ID], row]));
     $('sizes').replaceChildren(...Array.from(materialOptions, ([value, row]) =>
       new Option([row[materialColumns.GRADE], row[materialColumns.COLOR], row[materialColumns.ESD]].filter(Boolean).join(' · '), value)));
     if (order) order.lines.forEach(line => addLine(line, assignments.get(line[lineColumns.ID])));
+    else if (data.copyLines?.length) data.copyLines.forEach(line => addLine(line));
     else addLine();
     resetFilmReference(!order && !viewOnly);
     updateTotal();
-    message('');
-    $('close').focus();
+    message(!order && data.mixedSuppliers ? 'Các quy cách thuộc nhiều nhà cung cấp. Chọn nhà cung cấp cho PO mới.' :
+      !order && data.copySupplier && !$('supplier').value ? 'Chọn nhà cung cấp đang hoạt động cho PO mới.' : '');
+    if (!createPage) $('close').focus();
   }
 
   function priceValue(value) {
@@ -507,7 +609,9 @@
       const value = priceValue(price.value);
       if (Number.isFinite(value)) price.value = quantityFormat.format(value);
     };
-    const qty = input('qty', 'Số lượng (kg)', line[lineColumns.QTY] ? quantityFormat.format(line[lineColumns.QTY]) : '');
+    const initialQty = line[lineColumns.QTY];
+    const qty = input('qty', 'Số lượng (kg)', initialQty ? quantityFormat.format(
+      line[lineColumns.ID] ? initialQty : Math.round(initialQty)) : '');
     qty.inputMode = 'decimal';
     qty.required = true;
     qty.placeholder = 'VD 1.250';
@@ -522,10 +626,13 @@
     const note = input('note', 'Ghi chú dòng', line[lineColumns.NOTE], 'textarea');
     note.className = 'note';
     note.rows = 2;
-    const delivery = input('delivery', 'Ngày giao', line[lineColumns.ID] ? line[lineColumns.DELIVERY] : defaultDelivery, 'date');
+    const delivery = input('delivery', 'Ngày giao', line[lineColumns.DELIVERY] ?? defaultDelivery, 'date');
     if (!readOnly) {
       for (const event of ['focus', 'click', 'input', 'change']) {
         delivery.addEventListener(event, () => selectDeliverySource(delivery));
+      }
+      for (const event of ['pointerleave', 'blur']) {
+        delivery.addEventListener(event, () => scheduleDeliveryHide(delivery));
       }
     }
     const received = node('td');
@@ -571,7 +678,7 @@
         row.remove();
         assignmentRow.remove();
         lineForms = lineForms.filter(entry => entry !== item);
-        if (deliverySource === delivery) selectDeliverySource(null);
+        if (deliverySource === delivery || lineForms.length < 2) selectDeliverySource(null);
         refreshLineNumbers();
         lineForms.forEach(entry => entry.refreshChoices());
         updateTotal();
@@ -649,6 +756,8 @@
     }
     cell.append(details);
     assignmentRow.append(cell);
+    item.originalFields = Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]));
+    item.storedStatus = line.storedStatus;
     lineForms.push(item);
     refreshLineNumbers();
     $('lines').append(row, assignmentRow);
@@ -926,41 +1035,94 @@
     if (lineNumber) $('calculation').append(' · Đã áp dụng vào dòng ' + lineNumber + '.');
   };
 
-  function selectDeliverySource(input) {
-    deliverySource = input?.value ? input : null;
-    $('applyDelivery').hidden = !deliverySource;
-    if (deliverySource) $('applyDelivery').title = 'Áp dụng ngày ' + deliverySource.value + ' cho mọi dòng';
+  function positionDeliveryAction() {
+    if (!deliverySource) return;
+    const heading = $('deliveryHeading').getBoundingClientRect();
+    const strip = $('deliveryActions').getBoundingClientRect();
+    const button = $('applyDelivery');
+    button.hidden = heading.right <= strip.left || heading.left >= strip.right;
+    button.style.left = Math.max(0, heading.left - strip.left) + 'px';
   }
 
-  $('applyDelivery').onclick = () => {
+  function selectDeliverySource(input) {
+    clearTimeout(deliveryHideTimer);
+    deliverySource = input?.value && lineForms.length >= 2 ? input : null;
+    $('applyDelivery').hidden = !deliverySource;
+    if (deliverySource) {
+      $('applyDelivery').title = 'Áp dụng ngày ' + deliverySource.value + ' cho mọi dòng';
+      positionDeliveryAction();
+    }
+  }
+
+  function scheduleDeliveryHide(input) {
+    if (!deliverySource || (input && input !== deliverySource)) return;
+    clearTimeout(deliveryHideTimer);
+    // Allow the pointer or focus to move from the date input to the action above the table.
+    deliveryHideTimer = setTimeout(() => selectDeliverySource(null), 450);
+  }
+
+  const deliveryButton = $('applyDelivery');
+  deliveryButton.onpointerenter = deliveryButton.onfocus = () => clearTimeout(deliveryHideTimer);
+  deliveryButton.onpointerleave = deliveryButton.onblur = () => scheduleDeliveryHide();
+  deliveryButton.onclick = () => {
     if (!deliverySource?.value || readOnly) return;
     for (const { fields } of lineForms) fields.delivery.value = deliverySource.value;
+    selectDeliverySource(null);
   };
+  $('lineScroll').addEventListener('scroll', positionDeliveryAction);
+  new ResizeObserver(positionDeliveryAction).observe($('deliveryActions'));
+
+  function filmHeaderValues() {
+    return { supplier: $('supplier').value, date: $('orderDate').value, note: $('orderNote').value };
+  }
+
+  function hasAssignmentChanges(item) {
+    return item.assigned.size !== item.originalIds.length || item.originalIds.some(id => !item.assigned.has(id));
+  }
+
+  function statusOnlyChanges(header) {
+    if (!current || lineForms.length !== current.lines.length ||
+        Object.keys(header).some(key => header[key] !== originalHeader[key]) ||
+        lineForms.some(item => !item.id || hasAssignmentChanges(item) ||
+          Object.entries(item.fields).some(([key, input]) => key !== 'status' && input.value !== item.originalFields[key]))) return [];
+    return lineForms.filter(item => item.fields.status.value !== item.originalFields.status)
+      .map(item => ({ id: item.id, before: item.storedStatus, status: item.fields.status.value }));
+  }
 
   $('editor').onsubmit = event => {
     event.preventDefault();
     if (busy || readOnly) return;
     if (!lineForms.length) return message('Thêm ít nhất một quy cách.', true);
-    const lines = lineForms.map(item => {
-      const fields = Object.fromEntries(Object.entries(item.fields).map(([key, input]) => [key, input.value]));
-      const [thickness, width] = fields.size.split(/[*x×]/i);
-      const changed = item.assigned.size !== item.originalIds.length ||
-        item.originalIds.some(id => !item.assigned.has(id));
-      return { ...fields, qty: orderKg(fields.qty, item.id), price: priceValue(fields.price), thickness, width, id: item.id,
-        ...((!item.id || changed) && { detailIds: Array.from(item.assigned), originalIds: item.originalIds }) };
-    });
+    const header = filmHeaderValues();
+    const statusChanges = statusOnlyChanges(header);
+    const payload = { id: current ? current[data.fields.po.ID] : '' };
+    if (statusChanges.length) {
+      payload.statusChanges = statusChanges;
+    } else {
+      if (!$('editor').reportValidity()) return;
+      const lines = lineForms.map(item => {
+        const fields = Object.fromEntries(Object.entries(item.fields).map(([key, input]) => [key, input.value]));
+        const [thickness, width] = fields.size.split(/[*x×]/i);
+        return { ...fields, qty: orderKg(fields.qty, item.id), price: priceValue(fields.price), thickness, width, id: item.id,
+          ...((!item.id || hasAssignmentChanges(item)) && { detailIds: Array.from(item.assigned), originalIds: item.originalIds }) };
+      });
+      Object.assign(payload, header, { revision: current ? current.revision : '', token, lines });
+    }
     setBusy(true);
-    message('Đang lưu đơn…');
+    message(statusChanges.length ? 'Đang lưu trạng thái…' : 'Đang lưu đơn…');
     google.script.run.withFailureHandler(error => {
       setBusy(false);
       message(error.message, true);
-    }).withSuccessHandler(result => load('Đã lưu ' + result.id + '.')).saveFilmOrder({
-      id: current ? current[data.fields.po.ID] : '', revision: current ? current.revision : '', token,
-      supplier: $('supplier').value, date: $('orderDate').value, note: $('orderNote').value, lines
-    });
+    }).withSuccessHandler(result => {
+      requestedCopies = [];
+      load('Đã lưu ' + result.id + '.');
+    }).saveFilmOrder(payload);
   };
   $('reload').onclick = () => load();
-  $('create').onclick = () => loadEditor(null, false);
+  for (const id of ['search', 'supplierFilter', 'progressFilter', 'dateFrom', 'dateTo']) {
+    $(id).oninput = () => { if (!busy && !$('list').hidden) showList(); };
+  }
+  $('filmSearch').onsubmit = event => { event.preventDefault(); if (!busy) load(); };
   $('close').onclick = () => { message(''); showList(); };
   $('add').onclick = () => {
     if (lineForms.length < 99) addLine();
@@ -971,10 +1133,6 @@
       event.preventDefault();
       $('editor').requestSubmit();
     }
-  });
-  options($('progressFilter'), [['', 'Tất cả'], ...statuses.map(status => [status, status])]);
-  ['search', 'supplierFilter', 'progressFilter', 'dateFrom', 'dateTo'].forEach(id => {
-    $(id).oninput = () => { if (!$('list').hidden) showList(); };
   });
   load();
 </script>

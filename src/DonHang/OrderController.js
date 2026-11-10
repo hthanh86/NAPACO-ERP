@@ -48,11 +48,13 @@ function doGet(e) {
       template.appUrl = appUrl;
       output = template.evaluate();
       title = 'NAPACO ERP - Đơn Hàng';
-    } else if (view === 'film') {
+    } else if (view === 'film' || view === 'film-create') {
       const template = HtmlService.createTemplateFromFile('KHO_NVL/FilmOrder_View');
       template.appUrl = appUrl;
+      template.filmMode = view;
+      template.copyIds = String(params.copy || '').slice(0, 4500);
       output = template.evaluate();
-      title = 'NAPACO ERP - Đặt Màng';
+      title = view === 'film-create' ? 'NAPACO ERP - Tạo Đơn Đặt Màng' : 'NAPACO ERP - Màng Đã Đặt';
     } else if (view === 'film-receive') {
       const template = HtmlService.createTemplateFromFile('KHO_NVL/FilmReceipt_View');
       template.appUrl = appUrl;
@@ -85,8 +87,9 @@ function renderOrderMenu_(appUrl, activeModule) {
     { id: 'list', group: 'Đơn hàng', icon: '◫', label: 'Định Hình', url: appUrl + '?view=list' },
     { id: 'be', group: 'Đơn hàng', icon: '✂', label: 'Bế', url: appUrl + '?view=be' },
     // Điền URL web app của từng phân hệ khi có đường dẫn.
-    { id: 'film', group: 'Sản xuất', icon: '▤', label: 'Đặt Màng', url: appUrl + '?view=film' },
-    { id: 'film-receive', group: 'Sản xuất', icon: '↓', label: 'Nhận Màng', url: appUrl + '?view=film-receive' },
+    { id: 'film-create', group: 'Nguyên Liệu', icon: '+', label: 'Tạo Đơn', url: appUrl + '?view=film-create' },
+    { id: 'film', group: 'Nguyên Liệu', icon: '▤', label: 'Màng Đã Đặt', url: appUrl + '?view=film' },
+    { id: 'film-receive', group: 'Nguyên Liệu', icon: '↓', label: 'Nhận Màng', url: appUrl + '?view=film-receive' },
     { id: 'forming-log', group: 'Sản xuất', icon: '▣', label: 'Nhật Ký Định Hình', url: '' }
   ];
   const template = HtmlService.createTemplateFromFile('DonHang/OrderMenu_View');

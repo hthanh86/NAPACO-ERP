@@ -7,13 +7,14 @@ function filmReceiptAccess_() {
   return { ...access, master, operation: SpreadsheetApp.openById(env.ID_OPERATION) };
 }
 
-function filmReceiptTables_(operation) {
+function filmReceiptTables_(operation, forSave = true) {
   const { FILM_PO: po, FILM_LINES: line, FILM_RECEIPTS: receipt } = CONFIG.COLUMNS;
   const names = CONFIG.SHEET_NAMES;
   const orders = readSheetTable_(operation, [names.FILM_PO], [po.ID, po.STATUS, po.SUPPLIER]);
   const lines = readSheetTable_(operation, [names.FILM_LINES],
     [line.ID, line.PO_ID, line.MATERIAL_ID, line.RESIN, line.QTY, line.STATUS]);
-  const incoming = readSheetTable_(operation, [names.FILM_RECEIPTS], Object.values(receipt));
+  const incoming = readSheetTable_(operation, [names.FILM_RECEIPTS],
+    forSave ? Object.values(receipt) : [receipt.ID, receipt.LINE_ID, receipt.QTY]);
   return { orders, lines, incoming, totals: filmReceiptTotals_(incoming) };
 }
 
@@ -29,7 +30,7 @@ function filmReceivableLine_(line, order, received) {
 function getFilmReceiptLines() {
   const { FILM_PO: po, FILM_LINES: line, FILM_MATERIALS: material, FILM_SUPPLIERS: supplier } = CONFIG.COLUMNS;
   const { master, operation } = filmReceiptAccess_();
-  const db = filmReceiptTables_(operation);
+  const db = filmReceiptTables_(operation, false);
   const orders = new Map(db.orders.rows.map(({ data }) => [data[po.ID], data]));
   const materials = new Map(filmMaterials_(master).rows.map(({ data }) => [data[material.ID], data]));
   const names = CONFIG.SHEET_NAMES;
@@ -51,6 +52,8 @@ function getFilmReceiptLines() {
         spec[material.COLOR], spec[material.ESD], size].filter(Boolean).join(' · ')
     });
   }
+  const namesByLine = filmNamesByLine_({ master, operation }, new Set(lines.map(line => line.id)));
+  for (const line of lines) line.customerProducts = namesByLine.get(line.id) || [];
   return { lines, today: filmDate_(new Date()) };
 }
 

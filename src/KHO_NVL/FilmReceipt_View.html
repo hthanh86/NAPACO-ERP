@@ -70,10 +70,10 @@
       </div>
     </section>
     <section id="list" class="panel" hidden>
-      <label>Tìm quy cách<input id="search" type="search" placeholder="Mã PO, DN, nhà cung cấp, quy cách"></label>
+      <label>Tìm quy cách<input id="search" type="search" placeholder="PO, DN, quy cách, khách hàng, sản phẩm"></label>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>DN</th><th>Quy cách</th><th>Trạng thái</th><th>Đặt (KG)</th><th>Đã nhận (KG)</th><th>Còn lại / Dư (KG)</th><th></th></tr></thead>
+          <thead><tr><th>Khách hàng / Sản phẩm</th><th>Quy cách</th><th>Trạng thái</th><th>Đặt (KG)</th><th>Đã nhận (KG)</th><th>Còn lại / Dư (KG)</th><th></th></tr></thead>
           <tbody id="lines"></tbody>
         </table>
       </div>
@@ -144,12 +144,13 @@
   }
 
   function render() {
-    const query = $('search').value.trim().toLowerCase();
+    const terms = $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const body = $('lines');
     body.replaceChildren();
     const groups = new Map();
     for (const line of data.lines) {
-      if (![line.id, line.po, line.supplier, line.spec].join(' ').toLowerCase().includes(query)) continue;
+      const searchable = [line.id, line.po, line.supplier, line.spec, ...line.customerProducts].join(' ').toLowerCase();
+      if (!terms.every(term => searchable.includes(term))) continue;
       if (!groups.has(line.po)) groups.set(line.po, []);
       groups.get(line.po).push(line);
     }
@@ -162,7 +163,16 @@
       heading.append(cell);
       for (const line of lines) {
         const row = body.insertRow();
-        [line.id, line.spec, line.status, format.format(line.ordered),
+        const customerProduct = row.insertCell();
+        for (const label of line.customerProducts.length ? line.customerProducts : ['Chưa gán đơn']) {
+          const name = document.createElement('div');
+          name.textContent = label;
+          customerProduct.append(name);
+        }
+        const dn = document.createElement('small');
+        dn.textContent = line.id;
+        customerProduct.append(dn);
+        [line.spec, line.status, format.format(line.ordered),
           format.format(line.received)].forEach(value => { row.insertCell().textContent = value; });
         const difference = line.ordered - line.received;
         const excess = difference < -1e-8;
