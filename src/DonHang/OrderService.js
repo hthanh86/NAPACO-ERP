@@ -48,7 +48,8 @@ const OrderService = {
     return { sheet, rows, headerRow, columns, ids };
   },
 
-  readOrderUnits_: function(rows, headerRow, unitColumn) {
+  readOrderUnits_: function(masterSS, rows, headerRow, unitColumn) {
+    const configured = readErpSettings_(masterSS).get(CONFIG.COLUMNS.SETTINGS.UNITS) || [];
     const headers = rows[headerRow] || [];
     const configColumn = headers.findIndex((value, index) =>
       index > 0 && !String(headers[index - 1] || '').trim() &&
@@ -59,7 +60,8 @@ const OrderService = {
       const unit = String(value || '').trim();
       if (unit && !units.has(unit.toLowerCase())) units.set(unit.toLowerCase(), unit);
     };
-    if (configColumn >= 0) body.forEach(row => add(row[configColumn]));
+    configured.forEach(add);
+    if (!units.size && configColumn >= 0) body.forEach(row => add(row[configColumn]));
     if (!units.size) {
       add(CONFIG.DEFAULT_UNIT || 'Cái');
       body.forEach(row => add(row[unitColumn]));
@@ -244,7 +246,7 @@ const OrderService = {
       customerByNameMap: customerByNameMap,
       customerByIdMap: customerByIdMap,
       products: products,
-      orderUnits: this.readOrderUnits_(prodValues, prodHdrIdx, cUnit),
+      orderUnits: this.readOrderUnits_(masterSS, prodValues, prodHdrIdx, cUnit),
       productByIdMap: productByIdMap,
       productTypeById: productTypeById,
       salesStaffList: salesStaffList,
@@ -697,7 +699,7 @@ const OrderService = {
 
       const poGroups = payload.webOrder ? this.normalizeAndValidatePayload_(payload) : (payload.poGroups || []);
       const allowedUnits = payload.webOrder
-        ? this.readOrderUnits_(prodData, productTable.headerRow, prodCols.UNIT).map(unit => unit.toLowerCase())
+        ? this.readOrderUnits_(masterSS, prodData, productTable.headerRow, prodCols.UNIT).map(unit => unit.toLowerCase())
         : [];
       const salesCodes = payload.webOrder
         ? new Set(this.readOrderStaff_(masterSS).salesStaffList.map(person => person.maNV))

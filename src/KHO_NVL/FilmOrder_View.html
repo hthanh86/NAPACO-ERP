@@ -44,6 +44,24 @@
     summary { cursor: pointer; color: #1e40af; }
     details > input { margin-top: 5px; }
     tfoot td { border: 0; padding-top: 12px; font-weight: 700; }
+    .reference-panel { margin-bottom: 14px; }
+    .reference-panel > summary { font-weight: 600; }
+    .reference-content { margin-top: 12px; }
+    .reference-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+    .reference-columns > section { min-width: 0; }
+    .reference-columns h3 { margin: 0 0 10px; }
+    .reference-columns li { margin-bottom: 8px; }
+    .history-highlight { background: #fef08a; padding: 1px 4px; border-radius: 3px; }
+    .calculated-kg { color: #b91c1c; }
+    #applyDelivery { display: block; margin-bottom: 4px; }
+    @media (max-width: 840px) { .reference-columns { grid-template-columns: 1fr; } }
+    .dimensions { display: grid; grid-template-columns: repeat(2, minmax(0, 210px)); gap: 8px 10px; margin-bottom: 12px; }
+    .dimensions label { display: grid; gap: 4px; }
+    .dimensions input { width: 100%; }
+    dialog { width: min(900px, 95vw); max-height: 90vh; border: 1px solid #cbd5e1; border-radius: 8px; }
+    dialog::backdrop { background: #0f172a66; }
+    .link-button { border: 0; padding: 0; color: #1d4ed8; text-decoration: underline; background: transparent; }
+    .excess { color: #b91c1c; font-weight: 600; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -79,6 +97,48 @@
           <h2 id="editorTitle"></h2>
           <button type="button" id="close">Về danh sách</button>
         </div>
+        <details id="referencePanel" class="panel reference-panel" hidden>
+          <summary>Tra sản phẩm và tính kg đặt màng</summary>
+          <div class="reference-content reference-columns">
+            <section>
+              <h3>Tính theo công thức</h3>
+              <div class="fields" id="moldChoice" hidden>
+                <label>Khuôn định hình<select id="referenceMold"></select></label>
+              </div>
+              <div class="dimensions">
+                <label>Rộng khuôn (mm)<input id="moldWidth" inputmode="decimal"></label>
+                <label>Dài khuôn (mm)<input id="moldLength" inputmode="decimal"></label>
+                <label>Khổ màng (mm)<input id="filmWidth" inputmode="decimal"></label>
+                <label>Dài màng (mm)<input id="filmLength" inputmode="decimal"></label>
+              </div>
+              <div class="fields">
+                <label>Cavity<input id="moldCavity" inputmode="numeric"></label>
+                <label>Số sản phẩm cần làm<input id="productQty" inputmode="numeric"></label>
+                <label>Loại nhựa<input id="calcResin" list="resinTypes"></label>
+                <label>Tỷ trọng<input id="calcDensity" inputmode="decimal" list="densityOptions"></label>
+                <label>Độ dày (mm)<input id="calcThickness" inputmode="decimal"></label>
+                <label>NG (%)<input id="calcNg" inputmode="decimal" list="ngOptions" value="3"></label>
+                <datalist id="densityOptions"></datalist>
+                <datalist id="ngOptions"><option value="3">3%</option><option value="5">5%</option></datalist>
+              </div>
+              <p id="calculation" role="status"></p>
+              <div class="fields">
+                <label>Áp dụng vào dòng số<select id="referenceTarget"></select></label>
+                <button type="button" id="applyCalculation" class="primary" disabled>Áp dụng quy cách đã tính</button>
+              </div>
+            </section>
+            <section>
+              <div class="fields">
+                <label>Sản phẩm<input id="referenceProduct" list="referenceProducts" placeholder="Gõ tên hoặc mã sản phẩm" autocomplete="off"></label>
+                <datalist id="referenceProducts"></datalist>
+              </div>
+              <p id="referenceMessage" role="status"></p>
+              <h3>Lịch sử đặt màng</h3>
+              <div id="productHistory"></div>
+            </section>
+          </div>
+        </details>
+        <h2>Thông tin đặt màng</h2>
         <div class="fields">
           <label>Ngày đặt<input id="orderDate" type="date" required></label>
           <label>Nhà cung cấp<select id="supplier" required></select></label>
@@ -86,12 +146,12 @@
         </div>
         <div class="table-scroll">
           <table class="grid">
-            <thead><tr><th>Loại nhựa</th><th>Cấp độ</th><th>Màu sắc</th><th>Tĩnh điện</th><th>Quy cách</th><th>Đơn giá</th><th>Số lượng (kg)</th><th>Ghi chú</th><th>Ngày giao</th><th>Đã nhận / Còn lại</th><th>Trạng thái</th><th></th></tr></thead>
+            <thead><tr><th>STT</th><th>Loại nhựa</th><th>Cấp độ</th><th>Màu sắc</th><th>Tĩnh điện</th><th>Quy cách</th><th>Đơn giá</th><th>Số lượng (kg)</th><th>Ghi chú</th><th><button id="applyDelivery" type="button" hidden>Áp dụng hết</button>Ngày giao</th><th id="receivedHeading">Đã nhận / Còn lại</th><th id="statusHeading">Trạng thái</th><th></th></tr></thead>
             <tbody id="lines"></tbody>
-            <tfoot><tr><td colspan="12" id="total"></td></tr></tfoot>
+            <tfoot><tr><td colspan="13" id="total"></td></tr></tfoot>
           </table>
         </div>
-        <datalist id="resinTypes"><option>PET</option><option>PP</option><option>PS</option><option>PVC</option><option>PE</option><option>HIPS</option></datalist>
+        <datalist id="resinTypes"></datalist>
         <datalist id="sizes"></datalist>
         <div class="toolbar">
           <button type="button" id="add">+ Thêm quy cách</button>
@@ -99,18 +159,30 @@
         </div>
       </fieldset>
     </form>
+    <dialog id="receiptDialog" aria-labelledby="receiptTitle">
+      <div class="toolbar"><h2 id="receiptTitle">Lịch sử nhận màng</h2><button type="button" id="closeReceipt">Đóng</button></div>
+      <p id="receiptMessage" role="status"></p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Ngày nhận</th><th>Mã phiếu</th><th>Số cuộn</th><th>KG</th><th>Trạng thái</th></tr></thead>
+          <tbody id="receiptHistory"></tbody>
+        </table>
+      </div>
+    </dialog>
   </main>
 <script>
   const $ = id => document.getElementById(id);
   const statuses = ['Chờ giao', 'Nhận một phần', 'Đã nhận đủ', 'Hủy', 'Chưa rõ'];
   const esd = [['', ''], ['10^6-10^9', '10^6-10^9'], ['10^9-10^11', '10^9-10^11']];
-  const grades = ['NS', 'A+', '90%', 'A', 'A2', 'B'];
+  let grades = [];
+  let densities = new Map();
   const quantityFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 20 });
   const number = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 });
   let data;
   let materialOptions;
   let materialColors = [];
   let defaultDelivery;
+  let deliverySource;
   let newAssignmentChoices = null;
   let current;
   let lineForms = [];
@@ -176,6 +248,7 @@
 
   function showList() {
     newAssignmentChoices = null;
+    referenceRequest++;
     $('editor').hidden = true;
     $('list').hidden = false;
     if (!data) return;
@@ -279,6 +352,9 @@
       message(error.message, true);
     }).withSuccessHandler(result => {
       materialColors = result.colors;
+      grades = result.grades;
+      densities = new Map(result.densities);
+      $('resinTypes').replaceChildren(...result.resins.map(value => new Option(value, value)));
       const delivery = new Date(result.today + 'T00:00:00Z');
       delivery.setUTCDate(delivery.getUTCDate() + 3);
       defaultDelivery = delivery.toISOString().slice(0, 10);
@@ -293,6 +369,10 @@
     readOnly = viewOnly;
     token = crypto.randomUUID();
     lineForms = [];
+    deliverySource = null;
+    $('applyDelivery').hidden = true;
+    $('receivedHeading').hidden = $('statusHeading').hidden = !order;
+    $('total').colSpan = order ? 13 : 11;
     $('lines').replaceChildren();
     const suppliers = data.suppliers.map(row => [row[supplierColumns.ID], row[supplierColumns.ID] + ' · ' + row[supplierColumns.NAME]]);
     if (order && order[poColumns.SUPPLIER] && !suppliers.some(([id]) => id === order[poColumns.SUPPLIER])) {
@@ -315,6 +395,7 @@
       new Option([row[materialColumns.GRADE], row[materialColumns.COLOR], row[materialColumns.ESD]].filter(Boolean).join(' · '), value)));
     if (order) order.lines.forEach(line => addLine(line, assignments.get(line[lineColumns.ID])));
     else addLine();
+    resetFilmReference(!order && !viewOnly);
     updateTotal();
     message('');
     $('close').focus();
@@ -335,12 +416,17 @@
     return /^\d+(?:[.,]\d+)?$/.test(text) ? Number(text.replace(',', '.')) : NaN;
   }
 
+  function orderKg(value, existing) {
+    const amount = quantityValue(value);
+    return existing ? amount : Math.round(amount);
+  }
+
   function updateTotal() {
     let sum = 0;
     let cost = 0;
     let priced = false;
-    for (const { fields } of lineForms) {
-      const qty = quantityValue(fields.qty.value) || 0;
+    for (const { fields, id } of lineForms) {
+      const qty = orderKg(fields.qty.value, id) || 0;
       const price = priceValue(fields.price.value);
       sum += qty;
       cost += qty * (Number(price) || 0);
@@ -353,6 +439,8 @@
   function addLine(line = {}, assignedEntries = []) {
     const { line: lineColumns, material: materialColumns } = data.fields;
     const row = node('tr');
+    const numberCell = node('td');
+    row.append(numberCell);
     const spec = line.material || {};
     const fields = {};
     const assignmentRow = node('tr');
@@ -422,30 +510,46 @@
     const qty = input('qty', 'Số lượng (kg)', line[lineColumns.QTY] ? quantityFormat.format(line[lineColumns.QTY]) : '');
     qty.inputMode = 'decimal';
     qty.required = true;
-    qty.placeholder = 'VD 1.250,5';
+    qty.placeholder = 'VD 1.250';
     qty.oninput = () => {
-      qty.setCustomValidity(quantityValue(qty.value) > 0 ? '' : 'Nhập số lượng lớn hơn 0.');
+      qty.setCustomValidity(orderKg(qty.value, line[lineColumns.ID]) > 0 ? '' : 'Nhập số lượng lớn hơn 0 kg sau khi làm tròn.');
       updateTotal();
     };
     qty.onblur = () => {
-      const value = quantityValue(qty.value);
+      const value = orderKg(qty.value, line[lineColumns.ID]);
       if (Number.isFinite(value)) qty.value = quantityFormat.format(value);
     };
     const note = input('note', 'Ghi chú dòng', line[lineColumns.NOTE], 'textarea');
     note.className = 'note';
     note.rows = 2;
-    input('delivery', 'Ngày giao', line[lineColumns.ID] ? line[lineColumns.DELIVERY] : defaultDelivery, 'date');
+    const delivery = input('delivery', 'Ngày giao', line[lineColumns.ID] ? line[lineColumns.DELIVERY] : defaultDelivery, 'date');
+    if (!readOnly) {
+      for (const event of ['focus', 'click', 'input', 'change']) {
+        delivery.addEventListener(event, () => selectDeliverySource(delivery));
+      }
+    }
     const received = node('td');
+    received.hidden = !current;
     function updateReceived() {
       if (line.received == null) {
         received.textContent = '—';
         return;
       }
       const difference = (quantityValue(qty.value) || 0) - line.received;
-      received.replaceChildren(node('div', 'Đã nhận ' + kg(line.received) + ' KG'),
-        node('div', difference < -1e-8 ? 'Dư ' + kg(-difference) + ' KG'
-          : 'Còn lại ' + kg(Math.max(0, difference)) + ' KG'));
-      for (const id of line.receiptIds || []) received.append(node('div', id));
+      const excess = difference < -1e-8;
+      const amount = node('span', kg(excess ? -difference : Math.max(0, difference)));
+      if (excess) {
+        amount.className = 'excess';
+        amount.title = 'Giao dư';
+      }
+      const receivedKg = node(line.receiptIds?.length ? 'button' : 'span', kg(line.received));
+      if (line.receiptIds?.length) {
+        receivedKg.type = 'button';
+        receivedKg.className = 'link-button';
+        receivedKg.title = 'Xem lịch sử nhận màng';
+        receivedKg.onclick = () => openReceiptHistory(line[lineColumns.ID]);
+      }
+      received.replaceChildren(receivedKg, ' - ', amount);
     }
     qty.addEventListener('input', updateReceived);
     updateReceived();
@@ -455,9 +559,11 @@
     const choices = data.lineStatuses.includes(currentStatus) ? data.lineStatuses : [currentStatus, ...data.lineStatuses];
     options(status, choices.map(value => [value, value]));
     status.value = currentStatus;
+    status.parentElement.hidden = !current;
     status.disabled = readOnly || !line[lineColumns.ID] || currentStatus === 'Hủy';
     const removeCell = node('td');
-    const item = { id: line[lineColumns.ID] || '', row, assignmentRow, fields, assigned, originalIds };
+    const item = { id: line[lineColumns.ID] || '', key: String(++referenceLineKey), numberCell, setColor,
+      row, assignmentRow, fields, assigned, originalIds };
     if (!readOnly && !line[lineColumns.ID]) {
       const remove = node('button', 'Bỏ');
       remove.type = 'button';
@@ -465,6 +571,8 @@
         row.remove();
         assignmentRow.remove();
         lineForms = lineForms.filter(entry => entry !== item);
+        if (deliverySource === delivery) selectDeliverySource(null);
+        refreshLineNumbers();
         lineForms.forEach(entry => entry.refreshChoices());
         updateTotal();
       };
@@ -473,7 +581,7 @@
     row.append(removeCell);
 
     const cell = node('td');
-    cell.colSpan = 12;
+    cell.colSpan = current ? 13 : 11;
     const details = node('details');
     details.append(node('summary', 'Xem Đơn'));
     item.refreshChoices = () => {};
@@ -542,9 +650,292 @@
     cell.append(details);
     assignmentRow.append(cell);
     lineForms.push(item);
+    refreshLineNumbers();
     $('lines').append(row, assignmentRow);
     updateTotal();
   }
+
+  let receiptRequest = 0;
+  $('closeReceipt').onclick = () => $('receiptDialog').close();
+
+  function openReceiptHistory(id) {
+    const request = ++receiptRequest;
+    $('receiptTitle').textContent = 'Lịch sử nhận màng · ' + id;
+    $('receiptHistory').replaceChildren();
+    $('receiptMessage').textContent = 'Đang tải…';
+    $('receiptDialog').showModal();
+    google.script.run.withFailureHandler(error => {
+      if (request === receiptRequest) $('receiptMessage').textContent = error.message;
+    }).withSuccessHandler(entries => {
+      if (request !== receiptRequest) return;
+      $('receiptMessage').textContent = entries.length ? '' : 'Chưa có phiếu nhận.';
+      for (const entry of entries) {
+        const row = $('receiptHistory').insertRow();
+        [entry.date, entry.id, entry.rolls, kg(entry.kg), entry.status]
+          .forEach(value => { row.insertCell().textContent = value; });
+      }
+    }).getFilmReceiptHistory(id);
+  }
+
+  let products;
+  let referenceRequest = 0;
+  let referenceLineKey = 0;
+  let selectedProduct = '';
+  let molds = [];
+  const referencePanel = $('referencePanel');
+  const productLabels = new Map();
+  const decimal = value => {
+    const text = String(value).trim().replace(',', '.');
+    return /^\d+(?:\.\d+)?$/.test(text) ? Number(text) : NaN;
+  };
+
+  function refreshLineNumbers() {
+    const target = $('referenceTarget');
+    const selected = target.value;
+    options(target, lineForms.map((item, index) => {
+      item.numberCell.textContent = String(index + 1);
+      return [item.key, String(index + 1)];
+    }));
+    if (lineForms.some(item => item.key === selected)) target.value = selected;
+    updateCalculation();
+  }
+
+  function refreshProductChoices() {
+    const query = $('referenceProduct').value.trim().toLowerCase();
+    const matches = [...productLabels].filter(([label]) => label.toLowerCase().includes(query)).slice(0, 50);
+    $('referenceProducts').replaceChildren(...matches.map(([label]) => new Option(label, label)));
+  }
+
+  function refreshDensity(reset) {
+    const values = densities.get($('calcResin').value.trim().toUpperCase()) || [];
+    $('densityOptions').replaceChildren(...values.map(value => new Option(String(value), String(value))));
+    if (reset) $('calcDensity').value = values[0] ?? '';
+  }
+
+  function chooseMold() {
+    const key = $('referenceMold').value;
+    const mold = key === '' ? null : molds[Number(key)];
+    $('moldLength').value = mold?.length || '';
+    $('moldWidth').value = mold?.width || '';
+    $('moldCavity').value = mold?.cavity || '';
+    updateFilmDimension('moldWidth', 'filmWidth', 40);
+    updateFilmDimension('moldLength', 'filmLength', 60);
+    updateCalculation();
+  }
+
+  function renderProductHistory(entries) {
+    const section = $('productHistory');
+    section.replaceChildren();
+    if (!entries.length) {
+      section.append(node('p', 'Chưa tìm thấy lịch sử qua các chi tiết đơn hàng đã gán.'));
+      return;
+    }
+    const list = node('ul');
+    const col = data.fields.supplier;
+    for (const entry of entries) {
+      const vendor = data.suppliers.find(row => row[col.ID] === entry.supplier);
+      const size = entry.thickness && entry.width ? entry.thickness + '*' + entry.width : '';
+      const row = node('li', [entry.date, entry.id, vendor?.[col.NAME] || entry.supplier,
+        entry.resin, entry.grade, entry.color, entry.esd].filter(Boolean).join(' · '));
+      if (size) {
+        const spec = node('span', size);
+        spec.className = 'history-highlight';
+        row.append(' · ', spec);
+      }
+      if (entry.qty) row.append(' · ' + kg(entry.qty) + ' KG');
+      if (entry.price) {
+        const price = node('span', kg(entry.price) + ' đ/kg');
+        price.className = 'history-highlight';
+        row.append(' · ', price);
+      }
+      row.append(' ');
+      const copy = node('button', 'Sao chép');
+      copy.type = 'button';
+      copy.disabled = !size;
+      copy.onclick = () => {
+        const lineNumber = applyToLine({ ...entry, qtyToOrder: entry.qty });
+        if (!lineNumber) return;
+        $('calcResin').value = entry.resin;
+        $('calcThickness').value = entry.thickness;
+        refreshDensity(true);
+        updateCalculation();
+        $('referenceMessage').textContent = 'Đã sao chép quy cách ' + entry.id + ' vào dòng ' + lineNumber + '.';
+      };
+      row.append(copy);
+      list.append(row);
+    }
+    section.append(list);
+  }
+
+  function loadProductReference(id) {
+    const request = ++referenceRequest;
+    $('productHistory').replaceChildren();
+    molds = [];
+    $('moldChoice').hidden = true;
+    options($('referenceMold'), []);
+    chooseMold();
+    $('referenceMessage').textContent = id ? 'Đang tải khuôn và lịch sử…' : '';
+    if (!id) return;
+    google.script.run.withFailureHandler(error => {
+      if (request === referenceRequest) $('referenceMessage').textContent = error.message;
+    }).withSuccessHandler(result => {
+      if (request !== referenceRequest) return;
+      molds = result.molds;
+      options($('referenceMold'), molds.map((mold, index) =>
+        [String(index), [mold.code || 'Khuôn ' + (index + 1), mold.status].filter(Boolean).join(' · ')]));
+      $('moldChoice').hidden = molds.length <= 1;
+      if (molds.length) $('referenceMold').value = '0';
+      chooseMold();
+      renderProductHistory(result.history);
+      $('referenceMessage').textContent = molds.length ? '' : 'Chưa có khuôn định hình. Có thể nhập kích thước và cavity bằng tay.';
+    }).getFilmProductReference(id);
+  }
+
+  function filmCalculation(filmLength, filmWidth, cavity, qty, thickness, density, ng) {
+    if (![filmLength, filmWidth, thickness, density].every(value => Number.isFinite(value) && value > 0) ||
+        !Number.isSafeInteger(cavity) || cavity <= 0 || !Number.isSafeInteger(qty) || qty <= 0 ||
+        !Number.isFinite(ng) || ng < 0 || ng > 100) return null;
+    const sheets = Math.ceil(qty / cavity);
+    const weight = thickness * (filmLength * filmWidth / 1000000) * density;
+    const total = weight * sheets * (1 + ng / 100);
+    if (!Number.isFinite(total) || total <= 0) return null;
+    return { filmLength, filmWidth, sheets, weight, kg: Math.round(total / 10) * 10 };
+  }
+
+  function updateCalculation() {
+    const result = filmCalculation(decimal($('filmLength').value), decimal($('filmWidth').value),
+      decimal($('moldCavity').value), quantityValue($('productQty').value), decimal($('calcThickness').value),
+      decimal($('calcDensity').value), decimal($('calcNg').value.replace(/%$/, '')));
+    if (result) {
+      const amount = node('strong', kg(result.kg) + ' KG');
+      amount.className = 'calculated-kg';
+      $('calculation').replaceChildren('Màng ' + kg(result.filmLength) + '*' + kg(result.filmWidth) +
+        ' mm · ' + kg(result.sheets) + ' tấm · ' + quantityFormat.format(Number(result.weight.toPrecision(8))) +
+        ' kg/tấm · Cần đặt ', amount);
+    } else {
+      $('calculation').textContent = 'Nhập khổ màng, dài màng, cavity, số sản phẩm, độ dày, tỷ trọng và NG để tính số kg.';
+    }
+    $('applyCalculation').disabled = !result || !result.kg || !$('calcResin').value.trim() || !$('referenceTarget').value;
+    return result;
+  }
+
+  function applyToLine(entry) {
+    const index = lineForms.findIndex(item => item.key === $('referenceTarget').value);
+    if (index < 0) return null;
+    const { fields, setColor } = lineForms[index];
+    fields.resin.value = entry.resin;
+    fields.size.value = entry.thickness + '*' + entry.width;
+    for (const key of ['grade', 'esd']) {
+      const value = entry[key];
+      if (value === undefined) continue;
+      if (!Array.from(fields[key].options).some(option => option.value === value)) {
+        fields[key].add(new Option(value, value));
+      }
+      fields[key].value = value;
+    }
+    if (entry.color !== undefined) setColor(entry.color);
+    if (entry.price !== undefined) {
+      fields.price.value = entry.price === '' ? '' : quantityFormat.format(entry.price);
+      fields.price.oninput();
+    }
+    if (entry.note !== undefined) fields.note.value = entry.note;
+    if (entry.delivery !== undefined) fields.delivery.value = entry.delivery;
+    if (entry.qtyToOrder !== undefined) {
+      fields.qty.value = entry.qtyToOrder === '' ? '' : quantityFormat.format(Math.round(entry.qtyToOrder));
+      fields.qty.oninput();
+    }
+    return index + 1;
+  }
+
+  function updateFilmDimension(moldId, filmId, allowance) {
+    const size = decimal($(moldId).value);
+    $(filmId).value = size > 0 ? String(Number((size + allowance).toFixed(10))) : '';
+  }
+
+  function resetFilmReference(visible) {
+    referenceRequest++;
+    referencePanel.open = false;
+    referencePanel.hidden = !visible;
+    selectedProduct = '';
+    $('referenceProduct').value = '';
+    $('productHistory').replaceChildren();
+    $('referenceMessage').textContent = '';
+    $('moldChoice').hidden = true;
+    options($('referenceMold'), []);
+    molds = [];
+    for (const id of ['productQty', 'calcResin', 'calcThickness']) $(id).value = '';
+    $('calcNg').value = '3';
+    refreshDensity(true);
+    chooseMold();
+  }
+
+  referencePanel.ontoggle = () => {
+    if (!referencePanel.open || products) return;
+    const request = ++referenceRequest;
+    $('referenceMessage').textContent = 'Đang tải danh mục sản phẩm…';
+    google.script.run.withFailureHandler(error => {
+      if (request === referenceRequest) $('referenceMessage').textContent = error.message;
+    }).withSuccessHandler(entries => {
+      if (request !== referenceRequest) return;
+      products = entries;
+      for (const product of products) {
+        const label = [product.name, product.id, product.code].filter(Boolean).join(' · ');
+        productLabels.set(label, product.id);
+      }
+      $('referenceMessage').textContent = '';
+      refreshProductChoices();
+    }).getFilmProducts();
+  };
+  function selectReferenceProduct(id) {
+    if (id === selectedProduct) return;
+    selectedProduct = id;
+    loadProductReference(id);
+  }
+
+  $('referenceProduct').oninput = () => {
+    refreshProductChoices();
+    if (!products) return;
+    const value = $('referenceProduct').value.trim();
+    selectReferenceProduct(productLabels.get(value) ||
+      products.find(product => product.id.toLowerCase() === value.toLowerCase())?.id || '');
+  };
+  $('referenceProduct').onchange = () => {
+    if (selectedProduct || !products) return;
+    const value = $('referenceProduct').value.trim().toLowerCase();
+    if (!value) return;
+    const matches = products.filter(product => [product.name, product.code].some(text => text.toLowerCase() === value));
+    if (matches.length === 1) selectReferenceProduct(matches[0].id);
+  };
+  $('referenceMold').onchange = chooseMold;
+  $('moldWidth').oninput = () => { updateFilmDimension('moldWidth', 'filmWidth', 40); updateCalculation(); };
+  $('moldLength').oninput = () => { updateFilmDimension('moldLength', 'filmLength', 60); updateCalculation(); };
+  $('calcResin').onchange = () => { refreshDensity(true); updateCalculation(); };
+  $('calcResin').oninput = updateCalculation;
+  $('productQty').onblur = () => {
+    const value = quantityValue($('productQty').value);
+    if (Number.isSafeInteger(value)) $('productQty').value = quantityFormat.format(value);
+  };
+  for (const id of ['filmLength', 'filmWidth', 'moldCavity', 'productQty', 'calcThickness', 'calcDensity', 'calcNg']) {
+    $(id).oninput = updateCalculation;
+  }
+  $('applyCalculation').onclick = () => {
+    const result = updateCalculation();
+    const resin = $('calcResin').value.trim();
+    if (!result?.kg || !resin) return;
+    const lineNumber = applyToLine({ resin, thickness: decimal($('calcThickness').value), width: result.filmWidth, qtyToOrder: result.kg });
+    if (lineNumber) $('calculation').append(' · Đã áp dụng vào dòng ' + lineNumber + '.');
+  };
+
+  function selectDeliverySource(input) {
+    deliverySource = input?.value ? input : null;
+    $('applyDelivery').hidden = !deliverySource;
+    if (deliverySource) $('applyDelivery').title = 'Áp dụng ngày ' + deliverySource.value + ' cho mọi dòng';
+  }
+
+  $('applyDelivery').onclick = () => {
+    if (!deliverySource?.value || readOnly) return;
+    for (const { fields } of lineForms) fields.delivery.value = deliverySource.value;
+  };
 
   $('editor').onsubmit = event => {
     event.preventDefault();
@@ -555,7 +946,7 @@
       const [thickness, width] = fields.size.split(/[*x×]/i);
       const changed = item.assigned.size !== item.originalIds.length ||
         item.originalIds.some(id => !item.assigned.has(id));
-      return { ...fields, qty: quantityValue(fields.qty), price: priceValue(fields.price), thickness, width, id: item.id,
+      return { ...fields, qty: orderKg(fields.qty, item.id), price: priceValue(fields.price), thickness, width, id: item.id,
         ...((!item.id || changed) && { detailIds: Array.from(item.assigned), originalIds: item.originalIds }) };
     });
     setBusy(true);

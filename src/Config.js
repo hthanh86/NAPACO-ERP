@@ -27,6 +27,7 @@ var CONFIG = {
 
   // 2. TÊN CÁC SHEET
   SHEET_NAMES: {
+    SETTINGS: '00.Config',
     CUSTOMERS: '01_KHACH_HANG',
     PRODUCTS: '02_SAN_PHAM',
     EMPLOYEES: '07.NhanVien',
@@ -124,6 +125,10 @@ var CONFIG = {
   // Toàn bộ logic Backend/Frontend chỉ gọi qua CONFIG.COLUMNS
   // ========================================================
   COLUMNS: {
+    SETTINGS: {
+      UNITS: 'Danh sách ĐVT', FILM_COLORS: 'DM_MAU_SAC', RESINS: 'Loại nhựa', GRADES: 'Cấp độ',
+      DENSITY_RESIN: 'DM_TY_TRONG_NHUA', DENSITY: 'Ty_Trong'
+    },
     FILM_PO: {
       ID: 'PO_NVL_ID', DATE: 'Ngay_Dat', SUPPLIER: 'Ma_NCC', USER: 'Nguoi_Dat',
       NOTE: 'Ghi_Chu', STATUS: 'Trang_Thai'
@@ -135,7 +140,7 @@ var CONFIG = {
     },
     FILM_MATERIALS: {
       ID: 'VL_ID', GRADE: 'Cấp Độ', COLOR: 'Màu Sắc', ESD: 'Tĩnh Điện',
-      THICKNESS: 'Độ Dày', WIDTH: 'Khổ Nhựa', COLOR_CATALOG: 'DM_MAU_SAC'
+      THICKNESS: 'Độ Dày', WIDTH: 'Khổ Nhựa'
     },
     FILM_SUPPLIERS: { ID: 'Ma_NCC', NAME: 'Ten_NCC', TYPE: 'Loai_Cung_Cap' },
     FILM_RECEIPTS: {
@@ -217,6 +222,7 @@ var CONFIG = {
       SP_ID: 'MaSP',
       TOOL_TYPE: 'LoaiCC',
       MOLD_CODE: 'Ma_Khuon',
+      LENGTH: 'Dai_Khuon', WIDTH: 'Rong_Khuon', CAVITY: 'Cavity',
       /* [MỚI - Ý 4] Bổ sung ánh xạ cột trạng thái khuôn */
       STATUS: 'Trang_Thai'
     }
@@ -307,4 +313,17 @@ function getSecureEnv_() {
     ID_OPERATION: idOperation,
     ID_STORAGES: idStorages
   };
+}
+function readErpSettings_(master) {
+  const sheet = master.getSheetByName(CONFIG.SHEET_NAMES.SETTINGS);
+  if (!sheet) return new Map();
+  const [headers, ...rows] = sheet.getDataRange().getDisplayValues();
+  const settings = new Map();
+  headers.forEach((value, index) => {
+    const header = String(value).trim();
+    if (!header) return;
+    if (settings.has(header)) throw new Error(CONFIG.SHEET_NAMES.SETTINGS + ' có tiêu đề bị trùng: ' + header);
+    settings.set(header, rows.map(row => String(row[index]).trim()));
+  });
+  return settings;
 }

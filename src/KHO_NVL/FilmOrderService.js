@@ -143,20 +143,36 @@ function filmAssertAssignmentLine_(operation, lineId) {
 }
 
 function getFilmOrderFormData(lineIds, lazyDetails = false) {
-  const { FILM_MATERIALS: FilmMaterial } = CONFIG.COLUMNS;
+  const { SETTINGS: col, FILM_MATERIALS: material } = CONFIG.COLUMNS;
   const db = filmAccess_();
   if (lineIds === null) requirePermission_(db, CONFIG.PERMISSIONS.FILM_PO_CREATE);
-  const material = readSheetTable_(db.master,
-    [CONFIG.SHEET_NAMES.FILM_MATERIALS, CONFIG.SHEET_NAMES.FILM_MATERIALS_LEGACY],
-    [FilmMaterial.ID, FilmMaterial.COLOR_CATALOG]);
-  const colors = [...new Set(material.rows.map(({ data }) => data[FilmMaterial.COLOR_CATALOG]).filter(Boolean))];
+  const settings = readErpSettings_(db.master);
+  const list = name => [...new Set((settings.get(name) || []).filter(Boolean))];
+  const colors = list(col.FILM_COLORS);
+  const resins = list(col.RESINS);
+  const grades = list(col.GRADES);
+  const densities = new Map();
+  const densityValues = settings.get(col.DENSITY) || [];
+  (settings.get(col.DENSITY_RESIN) || []).forEach((resin, index) => {
+    const value = Number(sheetText_(densityValues[index]).replace(',', '.'));
+    if (!resin || !Number.isFinite(value) || value <= 0) return;
+    const key = resin.toUpperCase();
+    const values = densities.get(key) || [];
+    if (!values.includes(value)) values.push(value);
+    densities.set(key, values);
+  });
+  const catalogs = {
+    colors: colors.length ? colors : [...new Set(filmMaterials_(db.master).rows
+      .map(({ data }) => data[material.COLOR]).filter(Boolean))],
+    resins, grades, densities: [...densities]
+  };
   const today = filmDate_(new Date());
   if (lineIds === null) {
     const choices = !lazyDetails && db.permissions.get(CONFIG.PERMISSIONS.FILM_PO_ASSIGN) === true
       ? filmDescribeDetails_(db, filmAssignmentRows_(db.operation, '', true).rows) : [];
-    return { today, colors, choices };
+    return { today, ...catalogs, choices };
   }
-  return { today, colors, assignments: filmOrderAssignments_(db, lineIds, lazyDetails) };
+  return { today, ...catalogs, assignments: filmOrderAssignments_(db, lineIds, lazyDetails) };
 }
 
 function getFilmOrderAssignments(lineIds) {
@@ -523,7 +539,9 @@ function filmSaveLocked_(payload) {
     usedLines.add(id);
     const resin = sheetText_(line.resin);
     if (!resin) throw new Error('Chọn loại nhựa.');
-    const qty = filmNumber_(line.qty, true, 'Số lượng (kg)');
+    const enteredQty = filmNumber_(line.qty, true, 'Số lượng (kg)');
+    const qty = old ? enteredQty : Math.round(enteredQty);
+    if (qty <= 0) throw new Error('Số lượng đặt sau khi làm tròn phải lớn hơn 0 kg.');
     const material = {
       [FilmMaterial.GRADE]: sheetText_(line.grade), [FilmMaterial.COLOR]: sheetText_(line.color),
       [FilmMaterial.ESD]: sheetText_(line.esd),
@@ -626,4 +644,66 @@ function filmSaveLocked_(payload) {
   }
   Sheets.Spreadsheets.batchUpdate({ requests: writes }, db.operation.getId());
   return { id: poId };
+}
+
+function getFilmReceiptHistory(lineId) {
+  const { operation } = filmAccess_(CONFIG.PERMISSIONS.NVL_STOCK_VIEW);
+  const col = CONFIG.COLUMNS.FILM_RECEIPTS;
+  const id = sheetText_(lineId);
+  if (!id) return [];
+  return readSheetTable_(operation, [CONFIG.SHEET_NAMES.FILM_RECEIPTS],
+    [col.ID, col.LINE_ID, col.DATE, col.ROLLS, col.QTY, col.STATUS],
+    [], (cells, positions) => sheetText_(cells[positions.get(col.LINE_ID)]) === id)
+    .rows.map(({ data }) => ({
+      id: data[col.ID], date: data[col.DATE], rolls: data[col.ROLLS], kg: data[col.QTY], status: data[col.STATUS]
+    })).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+}
+
+function getFilmProducts() {
+  const { master } = filmAccess_(CONFIG.PERMISSIONS.FILM_PO_CREATE);
+  const col = CONFIG.COLUMNS.PRODUCTS;
+  return readSheetTable_(master, [CONFIG.SHEET_NAMES.PRODUCTS], [col.ID, col.NAME, col.CODE_CUST])
+    .rows.filter(({ data }) => data[col.ID]).map(({ data }) => ({
+      id: data[col.ID], name: data[col.NAME], code: data[col.CODE_CUST]
+    }));
+}
+
+function getFilmProductReference(productId) {
+  const { master, operation } = filmAccess_(CONFIG.PERMISSIONS.FILM_PO_CREATE);
+  const { TOOLS: tool, ORDER_DETAILS: detail, FILM_PO: po, FILM_LINES: line, FILM_MATERIALS: material } = CONFIG.COLUMNS;
+  const names = CONFIG.SHEET_NAMES;
+  const id = sheetText_(productId);
+  if (!id) return { molds: [], history: [] };
+  const molds = readSheetTable_(master, [names.TOOLS],
+    [tool.SP_ID, tool.TOOL_TYPE, tool.MOLD_CODE],
+    [tool.LENGTH, tool.WIDTH, tool.CAVITY, tool.STATUS], (cells, positions) =>
+      sheetText_(cells[positions.get(tool.SP_ID)]) === id &&
+      sheetText_(cells[positions.get(tool.TOOL_TYPE)]) === CONFIG.MOLD_TYPES.FORMING)
+    .rows.map(({ data }) => ({
+      code: data[tool.MOLD_CODE], length: data[tool.LENGTH] || '', width: data[tool.WIDTH] || '',
+      cavity: data[tool.CAVITY] || '', status: data[tool.STATUS] || ''
+    })).sort((a, b) => Number(b.status === 'SanSang') - Number(a.status === 'SanSang'));
+  const links = readSheetTable_(operation, [names.ORDER_DETAILS], [detail.PRODUCT_ID],
+    [detail.FILM_LINE_ID], (cells, positions) => sheetText_(cells[positions.get(detail.PRODUCT_ID)]) === id);
+  const ids = new Set(links.rows.map(({ data }) => data[detail.FILM_LINE_ID]).filter(Boolean));
+  if (!ids.size) return { molds, history: [] };
+  const headers = new Map(readSheetTable_(operation, [names.FILM_PO], [po.ID, po.DATE, po.SUPPLIER, po.STATUS])
+    .rows.map(({ data }) => [data[po.ID], data]));
+  const specs = new Map(filmMaterials_(master).rows.map(({ data }) => [data[material.ID], data]));
+  const history = readSheetTable_(operation, [names.FILM_LINES],
+    [line.ID, line.PO_ID, line.MATERIAL_ID, line.RESIN, line.QTY, line.PRICE, line.STATUS],
+    [line.DATE, line.SUPPLIER, line.NOTE, line.DELIVERY], (cells, positions) => ids.has(sheetText_(cells[positions.get(line.ID)])))
+    .rows.filter(({ data }) => data[line.STATUS] !== 'Hủy' && headers.get(data[line.PO_ID])?.[po.STATUS] !== 'Hủy')
+    .map(({ data }) => {
+      const order = headers.get(data[line.PO_ID]) || {};
+      const spec = specs.get(data[line.MATERIAL_ID]) || {};
+      return {
+        id: data[line.ID], date: order[po.DATE] || data[line.DATE] || '',
+        supplier: order[po.SUPPLIER] || data[line.SUPPLIER] || '', qty: data[line.QTY], price: data[line.PRICE],
+        note: data[line.NOTE], delivery: data[line.DELIVERY],
+        resin: data[line.RESIN], grade: spec[material.GRADE], color: spec[material.COLOR], esd: spec[material.ESD],
+        thickness: spec[material.THICKNESS], width: spec[material.WIDTH]
+      };
+    }).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0, 10);
+  return { molds, history };
 }
