@@ -39,6 +39,8 @@ var CONFIG = {
     FILM_SUPPLIERS: '03.DM_NhaCungCap',
     FILM_SUPPLIERS_LEGACY: '01_03_DM_NhaCungCap',
     FILM_RECEIPTS: 'KHO-FM-01A_NHAP_NVL',
+    FILM_MOVEMENTS: 'KHO-FM-01B_CAPTRA',
+    FORMING_LOG: '05.NHAT_KY_HUT',
     ORDERS: '01.DonHang',
     ORDER_DETAILS: '02.ChiTietDH',
     ORDER_WORKSPACE: 'TAO DON',
@@ -143,6 +145,13 @@ var CONFIG = {
       THICKNESS: 'Độ Dày', WIDTH: 'Khổ Nhựa'
     },
     FILM_SUPPLIERS: { ID: 'Ma_NCC', NAME: 'Ten_NCC', TYPE: 'Loai_Cung_Cap' },
+    FILM_MOVEMENTS: {
+      ID: 'MV_NVL_ID', DATE: 'Ngay_Gio', TYPE: 'Loai_GD', ORDER_ID: 'ID_Lenh_SX',
+      RECEIPT_ID: 'N_NVL_ID', QC_ID: 'QC_ID', QTY: 'So_KG',
+      ISSUER: 'Nguoi_Cap', RECEIVER: 'Nguoi_Nhan', NOTE: 'Ghi_Chu'
+    },
+    FORMING_LOG: { MOVEMENT_ID: 'MV_NVL_ID', WEIGHT: 'Trong_Luong_bia',
+      GOOD: 'SL_Bia_Thuc_Te_Dat', NG: 'SL_NG_Trong_Ca' },
     FILM_RECEIPTS: {
       ID: 'N_NVL_ID', DATE: 'Ngay_Nhan', PRODUCTION_DATE: 'Ngay_San_Xuat', LINE_ID: 'DN_ID',
       ROLLS: 'So_Cuon_Nhan', QTY: 'So_KG_Nhan', LOCATION: 'Vi_Tri', STATUS: 'Trang_Thai',

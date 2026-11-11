@@ -186,3 +186,26 @@
     });
   })();
 </script>
+<style>
+.erp-return-notice{position:fixed;top:0;left:var(--erp-sidebar-width,224px);right:0;z-index:1000;padding:12px 20px;background:#b91c1c;color:white;font:600 14px system-ui,sans-serif;box-shadow:0 2px 6px #0002}.erp-return-notice a{color:white;text-decoration:underline}body[data-return-notice] main{padding-top:80px}@media(max-width:860px){.erp-return-notice{left:0;position:sticky;grid-column:1}body[data-return-notice] main{padding-top:20px}}
+</style>
+<script>
+(() => {
+  let checking=false;
+  function check(){
+    if(checking || document.hidden)return;
+    checking=true;
+    google.script.run.withSuccessHandler(result=>{
+      checking=false;
+      let banner=document.getElementById('erpReturnNotice');
+      if(!result.count){if(banner)banner.remove();document.body.removeAttribute('data-return-notice');return;}
+      if(!banner){banner=document.createElement('div');banner.id='erpReturnNotice';banner.className='erp-return-notice';banner.setAttribute('role','alert');document.body.append(banner);}
+      banner.replaceChildren();
+      const text=document.createElement('span');text.textContent='Có '+result.count+' phiếu trả NVL chờ thủ kho xác nhận ('+Number(result.kg).toLocaleString('vi-VN')+' kg). ';banner.append(text);
+      const link=document.createElement('a');link.href=<?!= JSON.stringify(appUrl + '?view=film-stock') ?>;link.textContent='Xem Tồn Kho';banner.append(link);
+      document.body.setAttribute('data-return-notice','');
+    }).withFailureHandler(()=>{checking=false}).getFilmPendingReturns();
+  }
+  check();setInterval(check,60000);document.addEventListener('visibilitychange',check);document.addEventListener('film-return-changed',check);
+})();
+</script>

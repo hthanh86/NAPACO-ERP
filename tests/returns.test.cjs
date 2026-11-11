@@ -1,0 +1,52 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const base=__dirname+'/../src/';
+const context=vm.createContext({console,Map,Set});
+for(const file of ['Config.js','KHO_NVL/FilmStockService.js','KHO_NVL/FilmReturnService.js'])vm.runInContext(fs.readFileSync(base+file,'utf8'),context);
+context.sheetText_=v=>String(v??'').trim();
+const issue={data:{MV_NVL_ID:'CAP1',Loai_GD:'CẤP NVL',N_NVL_ID:'N1',ID_Lenh_SX:'LSX1',So_KG:'100'}};
+const pending={sourceId:'CAP1',data:{MV_NVL_ID:'TRA1',Loai_GD:'TRẢ NVL',N_NVL_ID:'N1',ID_Lenh_SX:'LSX1',So_KG:'70',Nguoi_Nhan:''}};
+const log=(id,weight,good,ng)=>({data:{MV_NVL_ID:id,Trong_Luong_bia:weight,SL_Bia_Thuc_Te_Dat:good,SL_NG_Trong_Ca:ng}});
+let logs=[log('CAP1','100','290','10')];
+let result=context.filmReturnPlan_([issue],logs,'CAP1');assert.equal(result.used,30);assert.equal(result.remaining,70);
+logs.push(log('TRA1','100','190','10'));
+result=context.filmReturnPlan_([issue,pending],logs,'TRA1');assert.equal(result.sourceId,'CAP1');assert.equal(result.used,50);assert.equal(result.remaining,50);
+assert.equal(context.filmReturnPlan_([issue,pending],logs,'CAP1').remaining,50);
+assert.throws(()=>context.filmReturnPlan_([issue,pending],[...logs,log('CAP1','100','600','0')],'CAP1'),/vượt/);
+assert.throws(()=>context.filmReturnPlan_([issue,pending],[log('CAP1','100','2','')],'CAP1'),/chưa đủ/);
+assert.throws(()=>context.filmReturnPlan_([issue,pending],[log('CAP1','100','1.5','0')],'CAP1'),/số nguyên/);
+pending.data.Nguoi_Nhan='KHO';pending.data.So_KG='50';
+assert.equal(context.filmReturnPlan_([issue,pending],logs,'CAP1').remaining,0);
+assert.throws(()=>context.filmReturnPlan_([issue,pending],[...logs,log('TRA1','100','1','0')],'TRA1'),/vượt/);
+assert.throws(()=>context.filmReturnPlan_([issue,pending],[logs[0]],'CAP1'),/thay đổi/);
+pending.data.Nguoi_Nhan='';
+assert.throws(()=>context.filmReturnPlan_([issue,pending,{...pending}],logs,'CAP1'),/nhiều phiếu/);
+assert.throws(()=>context.filmReturnPlan_([issue],logs,'unknown'),/Không tìm thấy/);
+console.log('PASS: grams to kg, cumulative usage, pending-return reuse, overuse, incomplete entries, confirmed-return protection.');
+// Exercise real request construction and retry handling against an in-memory sheet.
+vm.runInContext(fs.readFileSync(base+'KHO_NVL/FilmOrderService.js','utf8'),context);
+const c=context.CONFIG.COLUMNS.FILM_MOVEMENTS, columns=Object.values(c), positions=new Map(columns.map((v,i)=>[v,i]));
+let stored=[{index:1,data:{...issue.data},sourceId:''}],writes=0,uuid=0;
+let journal=[log('CAP1','100','300','0')];
+const operation={getId:()=> 'BOOK'};
+const table=()=>({positions,rows:stored,sheet:{getSheetId:()=>1}});
+context.filmReturnTable_=()=>table();context.readSheetTable_=()=>({rows:journal});
+context.Utilities={getUuid:()=>String(++uuid),formatDate:()=> '2026-11-11 10:00:00'};
+context.Sheets={Spreadsheets:{batchUpdate:({requests})=>{writes++;
+ for(const request of requests){
+ if(request.appendCells){const values=request.appendCells.rows[0].values,data={};
+  values.forEach((cell,i)=>data[columns[i]]=cell.userEnteredValue?.stringValue??cell.userEnteredValue?.numberValue??'');
+  stored.push({index:stored.length+1,data,sourceId:values[positions.get(c.ID)].note.slice('NAPACO_AUTO_RETURN_V1:'.length)});
+ }else{const change=request.updateCells,row=stored.find(row=>row.index===change.start.rowIndex),cell=change.rows[0].values[0];row.data[columns[change.start.columnIndex]]=cell.userEnteredValue?.stringValue??cell.userEnteredValue?.numberValue??'';}
+ }
+}}};
+result=context.filmSyncReturnLocked_(operation,'CAP1','SX1');assert.equal(result.kg,70);assert.equal(stored.length,2);assert.equal(stored[1].sourceId,'CAP1');
+context.filmSyncReturnLocked_(operation,'CAP1','SX1');assert.equal(writes,1);assert.equal(uuid,1);
+journal.push(log(stored[1].data[c.ID],'100','200','0'));
+context.filmSyncReturnLocked_(operation,stored[1].data[c.ID],'SX1');assert.equal(stored.length,2);assert.equal(stored[1].data[c.QTY],50);
+context.filmReturnAccess_=()=>({operation,userId:'KHO1'});context.requirePermission_=()=>{};
+let releases=0;context.LockService={getScriptLock:()=>({waitLock(){},releaseLock(){releases++}})};
+const returnId=stored[1].data[c.ID];
+assert.throws(()=>context.confirmFilmReturn({id:returnId,kg:70}),/thay đổi/);assert.equal(stored[1].data[c.RECEIVER],'');
+context.confirmFilmReturn({id:returnId,kg:50});assert.equal(stored[1].data[c.RECEIVER],'KHO1');
+const before=writes;assert.equal(context.confirmFilmReturn({id:returnId,kg:50}).alreadyConfirmed,true);assert.equal(writes,before);assert.equal(releases,3);
+console.log('PASS: auto-return note, idempotent creation, updating pending kg, stale-confirm rejection, confirmation retry and lock release.');

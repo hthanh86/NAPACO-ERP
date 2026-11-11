@@ -55,6 +55,11 @@ function doGet(e) {
       template.copyIds = String(params.copy || '').slice(0, 4500);
       output = template.evaluate();
       title = view === 'film-create' ? 'NAPACO ERP - Tạo Đơn Đặt Màng' : 'NAPACO ERP - Màng Đã Đặt';
+    } else if (view === 'film-stock') {
+      const template = HtmlService.createTemplateFromFile('KHO_NVL/FilmStock_View');
+      template.appUrl = appUrl;
+      output = template.evaluate();
+      title = 'NAPACO ERP - Tồn Kho NVL';
     } else if (view === 'film-receive') {
       const template = HtmlService.createTemplateFromFile('KHO_NVL/FilmReceipt_View');
       template.appUrl = appUrl;
@@ -90,9 +95,11 @@ function renderOrderMenu_(appUrl, activeModule) {
     { id: 'film-create', group: 'Nguyên Liệu', icon: '+', label: 'Tạo Đơn', url: appUrl + '?view=film-create' },
     { id: 'film', group: 'Nguyên Liệu', icon: '▤', label: 'Màng Đã Đặt', url: appUrl + '?view=film' },
     { id: 'film-receive', group: 'Nguyên Liệu', icon: '↓', label: 'Nhận Màng', url: appUrl + '?view=film-receive' },
+    { id: 'film-stock', group: 'Nguyên Liệu', icon: '▥', label: 'Tồn Kho', url: appUrl + '?view=film-stock' },
     { id: 'forming-log', group: 'Sản xuất', icon: '▣', label: 'Nhật Ký Định Hình', url: '' }
   ];
   const template = HtmlService.createTemplateFromFile('DonHang/OrderMenu_View');
+  template.appUrl = appUrl;
   template.links = links;
   template.activeModule = activeModule;
   return template.evaluate().getContent();
