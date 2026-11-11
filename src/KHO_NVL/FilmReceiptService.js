@@ -1,10 +1,18 @@
-function filmReceiptAccess_() {
+function filmReceiptAccess_(readOnly = false) {
   const env = getSecureEnv_();
-  const master = SpreadsheetApp.openById(env.ID_MASTER);
+  const names = CONFIG.SHEET_NAMES;
+  const master = readOnly ? createReadBook_(env.ID_MASTER, [
+    names.EMPLOYEES, names.PERMISSIONS, names.CUSTOMERS, names.PRODUCTS,
+    [names.FILM_MATERIALS, names.FILM_MATERIALS_LEGACY],
+    [names.FILM_SUPPLIERS, names.FILM_SUPPLIERS_LEGACY]
+  ]) : SpreadsheetApp.openById(env.ID_MASTER);
   const access = readUserPermissions_(master);
   if (access.role === 'KTV') throw new Error('Vai trò KTV không có quyền nhận màng.');
   requirePermission_(access, CONFIG.PERMISSIONS.NVL_RECEIVE);
-  return { ...access, master, operation: SpreadsheetApp.openById(env.ID_OPERATION) };
+  const operation = readOnly ? createReadBook_(env.ID_OPERATION, [
+    names.FILM_PO, names.FILM_LINES, names.FILM_RECEIPTS, names.ORDER_DETAILS, names.ORDERS
+  ]) : SpreadsheetApp.openById(env.ID_OPERATION);
+  return { ...access, master, operation };
 }
 
 function filmReceiptTables_(operation, forSave = true) {
@@ -29,7 +37,7 @@ function filmReceivableLine_(line, order, received) {
 
 function getFilmReceiptLines() {
   const { FILM_PO: po, FILM_LINES: line, FILM_MATERIALS: material, FILM_SUPPLIERS: supplier } = CONFIG.COLUMNS;
-  const { master, operation } = filmReceiptAccess_();
+  const { master, operation } = filmReceiptAccess_(true);
   const db = filmReceiptTables_(operation, false);
   const orders = new Map(db.orders.rows.map(({ data }) => [data[po.ID], data]));
   const materials = new Map(filmMaterials_(master).rows.map(({ data }) => [data[material.ID], data]));

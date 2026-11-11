@@ -139,7 +139,7 @@ const OrderService = {
   /**
    * Đọc danh mục Master (Khách hàng, Sản phẩm, Nhân viên) và Xác thực người dùng kép
    */
-  getCatalogAndAuthData: function(masterSS = this.getMasterSpreadsheet_()) {
+  getCatalogAndAuthData: function(masterSS = readOrderMaster_(getSecureEnv_().ID_MASTER)) {
 
     // 1. Đọc bảng 01_KHACH_HANG: [Ma_KH, name, address, contacter, phone]
     const custSheet = masterSS.getSheetByName(CONFIG.SHEET_NAMES.CUSTOMERS);
@@ -959,7 +959,8 @@ const OrderService = {
     const page = Math.max(1, parseInt(params.page, 10) || 1);
     const pageSize = Math.max(1, parseInt(params.pageSize, 10) || 100);
 
-    const masterSS = this.getMasterSpreadsheet_();
+    const env = getSecureEnv_();
+    const masterSS = readOrderMaster_(env.ID_MASTER, true);
     const catalog = this.getCatalogAndAuthData(masterSS);
     const productType = viewMode === 'ALL_VIEWS'
       ? (String(params.productType || '').trim() === '2' ? '2' : '1')
@@ -967,22 +968,9 @@ const OrderService = {
     if (productType && !catalog.productTypeById) {
       throw new Error('Không tìm thấy cột ' + CONFIG.COLUMNS.PRODUCTS.TYPE + ' trong ' + CONFIG.SHEET_NAMES.PRODUCTS + '.');
     }
-    const opSS = this.getOperationSpreadsheet_();
+    const opSS = createReadBook_(env.ID_OPERATION, [CONFIG.SHEET_NAMES.ORDERS, CONFIG.SHEET_NAMES.ORDER_DETAILS]);
     const orderSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDERS);
     const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
-
-        // =========================================================================
-// [DEBUG SERVER - BƯỚC 1]: ĐẶT TẠI ĐẦU HÀM queryOrdersAndLineItems
-// =========================================================================
-console.log("=== [DEBUG SERVER] BẮT ĐẦU TRUY VẤN ĐƠN HÀNG ===");
-console.log("1. Tham số nhận từ Client:", JSON.stringify({
-  viewMode: viewMode,
-  keyword: keyword,
-  maKHFilter: maKHFilter,
-  statusFilter: statusFilter,
-  fromDate: fromDate,
-  toDate: toDate
-}));
 
     if (!orderSheet || !detailSheet) {
       throw new Error('Không tìm thấy bảng 01.DonHang hoặc 02.ChiTietDH!');
@@ -1064,15 +1052,6 @@ console.log("1. Tham số nhận từ Client:", JSON.stringify({
     for (let j = 1; j < detailRows.length; j++) {
       const row = detailRows[j];
 
-      // =========================================================================
-// [DEBUG SERVER - BƯỚC 2]: ĐẶT NGAY TRƯỚC VÀ SAU VÙNG LỌC BẢNG ĐƠN HÀNG (orderRows / detailRows)
-// =========================================================================
-console.log("2. Tổng số dòng đọc được từ Sheet:", {
-  tongDonHangSheet: orderRows.length - 1,
-  tongChiTietSheet: detailRows.length - 1
-});
-
-
       const idChiTiet = colDId !== -1 ? String(row[colDId] || '').trim() : '';
       const idDonHang = colDOrderId !== -1 ? String(row[colDOrderId] || '').trim() : '';
       if (!idChiTiet || !idDonHang) continue;
@@ -1144,11 +1123,6 @@ console.log("2. Tổng số dòng đọc được từ Sheet:", {
         }
       }
     }
-
-    // Giả sử mảng kết quả sau khi duyệt và lọc là: orderHeadersList (hoặc lineItemsList)
-console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả về Client:", {
-  soLuongKetQua: (viewMode === 'HEADER' ? orderHeadersList.length : (typeof lineItemsList !== 'undefined' ? lineItemsList.length : 0))
-});
 
     // 3. Tính toán Tiến độ & Trạng thái tổng hợp cho từng PO Header
     for (let h = 0; h < orderHeadersList.length; h++) {
@@ -2407,7 +2381,7 @@ console.log("3. Số bản ghi KHỚP điều kiện lọc chuẩn bị trả v�
    * [MỚI - SPEC-LINE-DND-01] API lấy dữ liệu chi tiết đơn hàng phân theo 3 vùng Kanban dọc
    */
   getLineKanbanData: function() {
-    const opSS = this.getOperationSpreadsheet_();
+    const opSS = createReadBook_(getSecureEnv_().ID_OPERATION, [CONFIG.SHEET_NAMES.ORDER_DETAILS]);
     const detailSheet = opSS.getSheetByName(CONFIG.SHEET_NAMES.ORDER_DETAILS);
     if (!detailSheet) throw new Error('Không tìm thấy sheet: ' + CONFIG.SHEET_NAMES.ORDER_DETAILS);
 

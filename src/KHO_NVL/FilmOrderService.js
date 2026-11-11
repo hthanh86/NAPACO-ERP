@@ -40,7 +40,7 @@ function filmReceiptTotals_(incoming) {
 
 function getFilmOrders(filters = {}) {
   const { FILM_PO: FilmPo, FILM_LINES: FilmLine, FILM_MATERIALS: FilmMaterial } = CONFIG.COLUMNS;
-  const access = filmAccess_(filters.create ? CONFIG.PERMISSIONS.FILM_PO_CREATE : CONFIG.PERMISSIONS.FILM_PO_VIEW);
+  const access = filmAccess_(filters.create ? CONFIG.PERMISSIONS.FILM_PO_CREATE : CONFIG.PERMISSIONS.FILM_PO_VIEW, true);
   const db = filmDatabase_(access, true);
   const canViewStock = access.permissions.get(CONFIG.PERMISSIONS.NVL_STOCK_VIEW) === true;
   const copyIds = filters.create ? [...new Set((Array.isArray(filters.copyIds) ? filters.copyIds : [])
@@ -129,6 +129,10 @@ function getFilmOrders(filters = {}) {
   }
   return {
     orders, matchingLines, copyLines, copySupplier, mixedSuppliers,
+    ...(filters.formData && (filters.create || (filters.orderId && orders.length)) ? {
+      formData: filmOrderFormData_(access, filters.create ? null : orders[0].lines
+        .filter(line => line.hasAssignmentColumn).map(line => line[FilmLine.ID]), true)
+    } : {}),
     filterStatuses: [...lineStatuses].filter(Boolean),
     fields: {
       po: FilmPo, line: FilmLine, material: FilmMaterial, supplier: CONFIG.COLUMNS.FILM_SUPPLIERS
@@ -252,8 +256,12 @@ function filmAssertAssignmentLine_(operation, lineId) {
 }
 
 function getFilmOrderFormData(lineIds, lazyDetails = false) {
+  const db = filmAccess_(undefined, lineIds === null && lazyDetails ? 'form' : true);
+  return filmOrderFormData_(db, lineIds, lazyDetails);
+}
+
+function filmOrderFormData_(db, lineIds, lazyDetails) {
   const { SETTINGS: col, FILM_MATERIALS: material } = CONFIG.COLUMNS;
-  const db = filmAccess_();
   if (lineIds === null) requirePermission_(db, CONFIG.PERMISSIONS.FILM_PO_CREATE);
   const settings = readErpSettings_(db.master);
   const list = name => [...new Set((settings.get(name) || []).filter(Boolean))];
@@ -285,7 +293,7 @@ function getFilmOrderFormData(lineIds, lazyDetails = false) {
 }
 
 function getFilmOrderAssignments(lineIds) {
-  return filmOrderAssignments_(filmAccess_(), lineIds);
+  return filmOrderAssignments_(filmAccess_(undefined, true), lineIds);
 }
 
 function filmOrderAssignments_(db, lineIds, summaryOnly = false) {
@@ -306,14 +314,14 @@ function filmOrderAssignments_(db, lineIds, summaryOnly = false) {
 }
 
 function getFilmAssignedDetails(lineId) {
-  const db = filmAccess_();
+  const db = filmAccess_(undefined, true);
   const id = sheetText_(lineId);
   if (!id) throw new Error('Thiếu mã dòng đặt màng.');
   return filmDescribeDetails_(db, filmAssignmentRows_(db.operation, id, false).rows);
 }
 
 function getFilmAssignmentOptions(lineId) {
-  const db = filmAccess_(CONFIG.PERMISSIONS.FILM_PO_ASSIGN);
+  const db = filmAccess_(CONFIG.PERMISSIONS.FILM_PO_ASSIGN, true);
   const id = sheetText_(lineId);
   if (id) filmAssertAssignmentLine_(db.operation, id);
   return filmDescribeDetails_(db, filmAssignmentRows_(db.operation, id, true).rows);
@@ -378,13 +386,27 @@ function filmInputDate_(value, required) {
   return day;
 }
 
-function filmAccess_(feature = CONFIG.PERMISSIONS.FILM_PO_VIEW) {
+function filmAccess_(feature = CONFIG.PERMISSIONS.FILM_PO_VIEW, readOnly = false) {
   const env = getSecureEnv_();
-  const master = SpreadsheetApp.openById(env.ID_MASTER);
+  const names = CONFIG.SHEET_NAMES;
+  const masterTables = [names.EMPLOYEES, names.PERMISSIONS,
+    [names.FILM_MATERIALS, names.FILM_MATERIALS_LEGACY],
+    [names.FILM_SUPPLIERS, names.FILM_SUPPLIERS_LEGACY],
+    names.CUSTOMERS, names.PRODUCTS, names.SETTINGS];
+  const operationTables = [names.FILM_PO, names.FILM_LINES, names.FILM_RECEIPTS,
+    names.ORDER_DETAILS, names.ORDERS];
+  const selectedMasterTables = readOnly === 'form'
+    ? [names.EMPLOYEES, names.PERMISSIONS, names.SETTINGS,
+      [names.FILM_MATERIALS, names.FILM_MATERIALS_LEGACY]]
+    : masterTables;
+  const master = readOnly ? createReadBook_(env.ID_MASTER, selectedMasterTables) : SpreadsheetApp.openById(env.ID_MASTER);
   const access = readUserPermissions_(master);
   requirePermission_(access, CONFIG.PERMISSIONS.FILM_PO_VIEW);
   requirePermission_(access, feature);
-  return { ...access, master, operation: SpreadsheetApp.openById(env.ID_OPERATION) };
+  const operation = readOnly
+    ? createReadBook_(env.ID_OPERATION, operationTables)
+    : SpreadsheetApp.openById(env.ID_OPERATION);
+  return { ...access, master, operation };
 }
 
 function filmMaterials_(master) {
